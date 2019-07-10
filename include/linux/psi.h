@@ -21,6 +21,7 @@ void psi_task_change(struct task_struct *task, int clear, int set);
 void psi_memstall_tick(struct task_struct *task, int cpu);
 void psi_memstall_enter(unsigned long *flags);
 void psi_memstall_leave(unsigned long *flags);
+void psi_emergency_trigger(void);
 
 int psi_show(struct seq_file *s, struct psi_group *group, enum psi_res res);
 
@@ -43,6 +44,7 @@ static inline void psi_init(void) {}
 
 static inline void psi_memstall_enter(unsigned long *flags) {}
 static inline void psi_memstall_leave(unsigned long *flags) {}
+static inline void psi_emergency_trigger(void) {}
 
 #ifdef CONFIG_CGROUPS
 static inline int psi_cgroup_alloc(struct cgroup *cgrp)
