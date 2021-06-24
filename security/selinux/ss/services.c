@@ -3561,6 +3561,7 @@ out:
 	return match;
 }
 
+#ifdef CONFIG_AUDIT
 int audit_update_lsm_rules(void){};
 static int (*aurule_callback)(void) = audit_update_lsm_rules;
 
@@ -3584,6 +3585,7 @@ static int __init aurule_init(void)
 	return err;
 }
 __initcall(aurule_init);
+#endif
 
 #ifdef CONFIG_NETLABEL
 /**
