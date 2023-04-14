@@ -86,7 +86,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 28 "dtc-parser.y"
+#line 34 "dtc-parser.y"
 
 	char *propnodename;
 	char *labelref;
