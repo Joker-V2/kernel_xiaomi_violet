@@ -280,7 +280,7 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 		out->ramp = WM8350_RAMP_UP;
 		out->active = 1;
 
-		schedule_delayed_work(&wm8350_data->pga_work,
+		queue_delayed_work(system_power_efficient_wq, &wm8350_data->pga_work,
 				      msecs_to_jiffies(1));
 		break;
 
@@ -288,7 +288,7 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 		out->ramp = WM8350_RAMP_DOWN;
 		out->active = 0;
 
-		schedule_delayed_work(&wm8350_data->pga_work,
+		queue_delayed_work(system_power_efficient_wq, &wm8350_data->pga_work,
 				      msecs_to_jiffies(1));
 		break;
 	}

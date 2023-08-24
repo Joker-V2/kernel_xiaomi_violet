@@ -952,7 +952,7 @@ static int rt286_probe(struct snd_soc_codec *codec)
 
 		INIT_DELAYED_WORK(&rt286->jack_detect_work,
 					rt286_jack_detect_work);
-		schedule_delayed_work(&rt286->jack_detect_work,
+		queue_delayed_work(system_power_efficient_wq, &rt286->jack_detect_work,
 					msecs_to_jiffies(1250));
 	}
 

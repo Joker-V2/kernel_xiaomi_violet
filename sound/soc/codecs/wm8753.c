@@ -1349,7 +1349,7 @@ static int wm8753_set_bias_level(struct snd_soc_codec *codec,
 		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_OFF) {
 			/* set vmid to 5k for quick power up */
 			snd_soc_write(codec, WM8753_PWR1, pwr_reg | 0x01c1);
-			schedule_delayed_work(&wm8753->charge_work,
+			queue_delayed_work(system_power_efficient_wq, &wm8753->charge_work,
 				msecs_to_jiffies(caps_charge));
 		} else {
 			/* mute dac and set vmid to 500k, enable VREF */

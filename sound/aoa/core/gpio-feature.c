@@ -302,7 +302,7 @@ static irqreturn_t ftr_handle_notify_irq(int xx, void *data)
 {
 	struct gpio_notification *notif = data;
 
-	schedule_delayed_work(&notif->work, 0);
+	queue_delayed_work(system_power_efficient_wq, &notif->work, 0);
 
 	return IRQ_HANDLED;
 }

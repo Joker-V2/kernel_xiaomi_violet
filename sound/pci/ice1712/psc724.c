@@ -221,7 +221,7 @@ static void psc724_update_hp_jack_state(struct work_struct *work)
 	struct snd_ice1712 *ice = spec->ice;
 	bool hp_connected = snd_ice1712_gpio_read(ice) & GPIO_HP_JACK;
 
-	schedule_delayed_work(&spec->hp_work, msecs_to_jiffies(JACK_INTERVAL));
+	queue_delayed_work(system_power_efficient_wq, &spec->hp_work, msecs_to_jiffies(JACK_INTERVAL));
 	if (hp_connected == spec->hp_connected)
 		return;
 	psc724_set_jack_state(ice, hp_connected);
@@ -238,7 +238,7 @@ static void psc724_set_jack_detection(struct snd_ice1712 *ice, bool on)
 	if (on) {
 		bool hp_connected = snd_ice1712_gpio_read(ice) & GPIO_HP_JACK;
 		psc724_set_jack_state(ice, hp_connected);
-		schedule_delayed_work(&spec->hp_work,
+		queue_delayed_work(system_power_efficient_wq, &spec->hp_work,
 					msecs_to_jiffies(JACK_INTERVAL));
 	} else
 		cancel_delayed_work_sync(&spec->hp_work);

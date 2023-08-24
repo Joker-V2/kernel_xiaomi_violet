@@ -1273,6 +1273,19 @@ static void hdac_hdmi_present_sense(struct hdac_hdmi_pin *pin,
 
 	}
 	mutex_unlock(&hdmi->pin_mutex);
+
+
+	/*
+	 * Sometimes the pin_sense may present invalid monitor
+	 * present and eld_valid. If ELD data is not valid, loop few
+	 * more times to get correct pin sense and valid ELD.
+	 */
+	if ((!pin->eld.monitor_present || !pin->eld.eld_valid) && repoll)
+		queue_delayed_work(system_power_efficient_wq, &pin->work, msecs_to_jiffies(300));
+
+put_hdac_device:
+	pm_runtime_put_sync(&edev->hdac.dev);
+
 }
 
 static int hdac_hdmi_add_ports(struct hdac_hdmi_priv *hdmi,

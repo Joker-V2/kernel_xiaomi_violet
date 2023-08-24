@@ -664,7 +664,7 @@ static void hda_jackpoll_work(struct work_struct *work)
 	if (!codec->jackpoll_interval)
 		return;
 
-	schedule_delayed_work(&codec->jackpoll_work,
+	queue_delayed_work(system_power_efficient_wq, &codec->jackpoll_work,
 			      codec->jackpoll_interval);
 }
 

@@ -1236,7 +1236,7 @@ static int azx_runtime_resume(struct device *dev)
 	if (status) {
 		list_for_each_codec(codec, &chip->bus)
 			if (status & (1 << codec->addr))
-				schedule_delayed_work(&codec->jackpoll_work,
+				queue_delayed_work(system_power_efficient_wq, &codec->jackpoll_work,
 						      codec->jackpoll_interval);
 	}
 

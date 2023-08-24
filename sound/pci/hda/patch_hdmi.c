@@ -1541,7 +1541,7 @@ static bool hdmi_present_sense_via_verbs(struct hdmi_spec_per_pin *per_pin,
 	}
 
 	if (do_repoll)
-		schedule_delayed_work(&per_pin->work, msecs_to_jiffies(300));
+		queue_delayed_work(system_power_efficient_wq, &per_pin->work, msecs_to_jiffies(300));
 	else
 		update_eld(codec, per_pin, eld);
 

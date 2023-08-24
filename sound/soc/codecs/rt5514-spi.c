@@ -139,7 +139,9 @@ static void rt5514_spi_copy_work(struct work_struct *work)
 
 	snd_pcm_period_elapsed(rt5514_dsp->substream);
 
-	schedule_delayed_work(&rt5514_dsp->copy_work, 5);
+
+	if (rt5514_dsp->dsp_offset < rt5514_dsp->buf_size)
+		queue_delayed_work(system_power_efficient_wq, &rt5514_dsp->copy_work, 5);
 
 done:
 	mutex_unlock(&rt5514_dsp->dma_lock);
@@ -237,6 +239,61 @@ static int rt5514_spi_hw_free(struct snd_pcm_substream *substream)
 
 	return snd_pcm_lib_free_vmalloc_buffer(substream);
 }
+
+
+static int rt5514_spi_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct rt5514_dsp *rt5514_dsp =
+			snd_soc_platform_get_drvdata(rtd->platform);
+	u8 buf[8];
+
+	rt5514_dsp->dma_offset = 0;
+	rt5514_dsp->dsp_offset = 0;
+
+	/**
+	 * The address area x1800XXXX is the register address, and it cannot
+	 * support spi burst read perfectly. So we use the spi burst read
+	 * individually to make sure the data correctly.
+	*/
+	rt5514_spi_burst_read(RT5514_BUFFER_VOICE_BASE, (u8 *)&buf,
+		sizeof(buf));
+	rt5514_dsp->buf_base = buf[0] | buf[1] << 8 | buf[2] << 16 |
+				buf[3] << 24;
+
+	rt5514_spi_burst_read(RT5514_BUFFER_VOICE_LIMIT, (u8 *)&buf,
+		sizeof(buf));
+	rt5514_dsp->buf_limit = buf[0] | buf[1] << 8 | buf[2] << 16 |
+				buf[3] << 24;
+
+	rt5514_spi_burst_read(RT5514_BUFFER_VOICE_RP, (u8 *)&buf,
+		sizeof(buf));
+	rt5514_dsp->buf_rp = buf[0] | buf[1] << 8 | buf[2] << 16 |
+				buf[3] << 24;
+
+	rt5514_spi_burst_read(RT5514_BUFFER_VOICE_SIZE, (u8 *)&buf,
+		sizeof(buf));
+	rt5514_dsp->buf_size = buf[0] | buf[1] << 8 | buf[2] << 16 |
+				buf[3] << 24;
+
+	return 0;
+}
+
+static int rt5514_spi_trigger(struct snd_pcm_substream *substream, int cmd)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct rt5514_dsp *rt5514_dsp =
+			snd_soc_platform_get_drvdata(rtd->platform);
+
+	if (cmd == SNDRV_PCM_TRIGGER_START) {
+		if (rt5514_dsp->buf_base && rt5514_dsp->buf_limit &&
+			rt5514_dsp->buf_rp && rt5514_dsp->buf_size)
+			queue_delayed_work(system_power_efficient_wq, &rt5514_dsp->copy_work, 0);
+	}
+
+	return 0;
+}
+
 
 static snd_pcm_uframes_t rt5514_spi_pcm_pointer(
 		struct snd_pcm_substream *substream)
