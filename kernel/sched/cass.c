@@ -70,13 +70,13 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
 	if (cass_cmp(fits_capacity(p_util, a->cap),
 		     fits_capacity(p_util, b->cap)))
 		goto done;
+		
+	/* Prefer the current CPU for sync wakes */
+	if (sync && (cass_eq(a->cpu, this_cpu) || !cass_cmp(b->cpu, this_cpu)))
+		goto done;
 
 	/* Prefer the CPU with lower relative utilization */
 	if (cass_cmp(b->util, a->util))
-		goto done;
-
-	/* Prefer the current CPU for sync wakes */
-	if (sync && (cass_eq(a->cpu, this_cpu) || !cass_cmp(b->cpu, this_cpu)))
 		goto done;
 
 	/* Prefer the CPU with higher idle exit latency */
