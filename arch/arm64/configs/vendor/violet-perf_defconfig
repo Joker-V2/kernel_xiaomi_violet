@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.14.255 Kernel Configuration
+# Linux/arm64 4.14.292 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -2089,7 +2089,6 @@ CONFIG_CNSS_GENL=y
 # CONFIG_WAN is not set
 # CONFIG_VMXNET3 is not set
 # CONFIG_ISDN is not set
-# CONFIG_NVM is not set
 
 #
 # Input device support
@@ -2376,6 +2375,7 @@ CONFIG_DIAG_OVER_USB=y
 CONFIG_MSM_FASTCVPD=y
 CONFIG_MSM_ADSPRPC=y
 # CONFIG_MSM_RDBG is not set
+CONFIG_RANDOM_TRUST_BOOTLOADER=y
 
 #
 # I2C support
