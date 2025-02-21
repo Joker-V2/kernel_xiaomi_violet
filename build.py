@@ -63,7 +63,7 @@ support="Android 13(T)-15(V)"
 commit_head=$(git log --oneline -1)
 zip_name="$kernel_name-$(date +"%d%m%Y-%H%M").zip"
 TC_DIR=$HOME/tc/
-CLANG_DIR=$TC_DIR/clang-r547379
+CLANG_DIR=$TC_DIR
 export CONFIG_FILE="vendor/violet-perf_defconfig"
 export ARCH="arm64"
 export KBUILD_BUILD_HOST=SuperiorOS
@@ -76,11 +76,9 @@ tg_post_msg "<b>Build Triggered ⌛</b>%0A<b>Kernel : </b><code>$kernel_name</co
 
 if ! [ -d "$TC_DIR" ]; then
     echo "Toolchain not found! Cloning to $TC_DIR..."
-    tg_post_msg "<code>Toolchain not found! Cloning toolchain</code>"
-    if ! git clone -q --depth=1 --single-branch https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b master $TC_DIR; then
-        echo "Cloning failed! Aborting..."
-        exit 1
-    fi
+    tg_post_msg "<code>Toolchain not found! Cloning WeebX-Clang</code>"
+    wget "$(curl -s https://raw.githubusercontent.com/XSans0/WeebX-Clang/main/main/link.txt)" -O "weebx-clang.tar.gz"
+	mkdir $TC_DIR && tar -xvf weebx-clang.tar.gz -C $TC_DIR && rm -rf weebx-clang.tar.gz
 fi
 
 # Colors

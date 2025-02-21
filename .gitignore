@@ -132,3 +132,5 @@ Android.bp
 
 # Ignore out dir
 out
+error.log
+link.txt
