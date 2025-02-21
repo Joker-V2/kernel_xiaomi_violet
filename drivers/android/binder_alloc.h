@@ -139,8 +139,10 @@ struct binder_buffer *binder_alloc_new_buf(struct binder_alloc *alloc,
 					   int pid);
 void binder_alloc_init(struct binder_alloc *alloc);
 int binder_alloc_shrinker_init(void);
+void binder_alloc_shrinker_exit(void);
 void binder_alloc_vma_close(struct binder_alloc *alloc);
 struct binder_buffer *
+
 binder_alloc_prepare_to_free(struct binder_alloc *alloc,
 			     uintptr_t user_ptr);
 void binder_alloc_free_buf(struct binder_alloc *alloc,
