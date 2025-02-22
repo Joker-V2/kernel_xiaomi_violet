@@ -5159,7 +5159,7 @@ sub process {
 			}
 		}
 
-# do {} while (0) macro tests:
+# ((void)0) macro tests:
 # single-statement macros do not need to be enclosed in do while (0) loop,
 # macro should not end with a semicolon
 		if ($^V && $^V ge 5.10.0 &&
@@ -5191,11 +5191,11 @@ sub process {
 				if (($stmts =~ tr/;/;/) == 1 &&
 				    $stmts !~ /^\s*(if|while|for|switch)\b/) {
 					WARN("SINGLE_STATEMENT_DO_WHILE_MACRO",
-					     "Single statement macros should not use a do {} while (0) loop\n" . "$herectx");
+					     "Single statement macros should not use a ((void)0) loop\n" . "$herectx");
 				}
 				if (defined $semis && $semis ne "") {
 					WARN("DO_WHILE_MACRO_WITH_TRAILING_SEMICOLON",
-					     "do {} while (0) macros should not be semicolon terminated\n" . "$herectx");
+					     "((void)0) macros should not be semicolon terminated\n" . "$herectx");
 				}
 			} elsif ($dstat =~ /^\+\s*#\s*define\s+$Ident.*;\s*$/) {
 				$ctx =~ s/\n*$//;
