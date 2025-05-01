@@ -132,7 +132,7 @@ completion() {
     BUILDTIME=$(echo $((${END} - ${START})) | awk '{print int ($1/3600)" Hours:"int(($1/60)%60)"Minutes:"int($1%60)" Seconds"}')
     tg_post_build "$HOME/$zip_name" "Build took : $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
     tg_post_msg "<code>Compiled successfully✅</code>"
-    curl --upload-file $HOME/$zip_name https://free.keep.sh
+    curl -T $HOME/$zip_name bashupload.com
     echo
     echo -e ${LGR} "############################################"
     echo -e ${LGR} "############# OkThisIsEpic!  ##############"
