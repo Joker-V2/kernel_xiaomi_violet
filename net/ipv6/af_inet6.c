@@ -287,12 +287,6 @@ int inet6_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	const struct proto *prot;
 	int err = 0;
 
-	/* IPV6_ADDRFORM can change sk->sk_prot under us. */
-	prot = READ_ONCE(sk->sk_prot);
-	/* If the socket has its own bind function then use it. */
-	if (prot->bind)
-		return prot->bind(sk, uaddr, addr_len);
-
 	if (addr_len < SIN6_LEN_RFC2133)
 		return -EINVAL;
 
