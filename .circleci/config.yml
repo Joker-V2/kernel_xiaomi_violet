@@ -1,56 +1,30 @@
 version: 2.1
-
-
-
 jobs:
-
-
   compile:
-
-
-   docker:
-
-
-      - image: ubuntu:22.04
-
-
-   steps:
-
-
+    docker:
+      - image: 'ubuntu:22.04'
+    steps:
       - run:
-
-
           no_output_timeout: 50m
-
-
-          command: |
-
-
+          command: >
             apt update && apt upgrade -y
 
+            apt install -y bc build-essential bison flex zip gcc clang libc6
+            curl libstdc++6 git wget libssl-dev zstd lld openjdk-11-jdk llvm
+            openjdk-11-jre python3 python3-pip ccache gcc-arm-linux-gnueabi
+            gcc-aarch64-linux-gnu libyaml-dev cpio
 
-            apt install bc build-essential bison flex zip gcc clang libc6 curl libstdc++6 git wget libssl-dev zstd lld openjdk-11-jdk llvm openjdk-11-jre -y
-
-
-            git clone --recursive https://github.com/Joker-V2/kernel_xiaomi_violet -b ${CIRCLE_BRANCH} --depth=1 violet
-
+            git clone --recursive
+            https://github.com/Joker-V2/kernel_xiaomi_violet -b ${CIRCLE_BRANCH}
+            --depth=1 violet
 
             cd violet
 
+            ln -s /usr/bin/python3 /usr/bin/python
 
             python build.py
-
-
 workflows:
-
-
   version: 2.1
-
-
   cooking:
-
-
     jobs:
-
-
       - compile
