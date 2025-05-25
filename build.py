@@ -57,9 +57,9 @@ objdir="${kernel_dir}/out"
 anykernel=$HOME/anykernel
 builddir="${kernel_dir}/build"
 ZIMAGE=$kernel_dir/out/arch/arm64/boot/Image.gz
-kernel_name="xcalibur-v4.7-violet-dynamic"
+kernel_name="xcalibur-v5.0-violet-dynamic"
 variant="Retrofit Dynamic"
-support="Android 13(T)-15(V)"
+support="Android 15.0-16.0"
 commit_head=$(git log --oneline -1)
 zip_name="$kernel_name-$(date +"%d%m%Y-%H%M").zip"
 TC_DIR=$HOME/tc/
@@ -116,7 +116,7 @@ completion() {
   COMPILED_DTBO=arch/arm64/boot/dtbo.img
   if [[ -f ${COMPILED_IMAGE} && ${COMPILED_DTBO} ]]; then
 
-    git clone -q https://github.com/Joker-V2/AnyKernel3 -b fourteen $anykernel
+    git clone -q https://github.com/Joker-V2/AnyKernel3 -b sixteen $anykernel
 
     mv -f $ZIMAGE ${COMPILED_DTBO} $anykernel
 
