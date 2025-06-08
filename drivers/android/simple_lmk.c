@@ -524,3 +524,5 @@ static const struct kernel_param_ops simple_lmk_init_ops = {
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX "lowmemorykiller."
 module_param_cb(minfree, &simple_lmk_init_ops, NULL, 0200);
+module_param(slmk_minfree, ushort, 0644);
+module_param(slmk_timeout, ushort, 0644);
