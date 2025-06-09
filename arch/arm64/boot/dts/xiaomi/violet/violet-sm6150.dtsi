@@ -11,6 +11,7 @@
 #include "violet-sm6150-display.dtsi"
 #include "violet-sm6150-fingerprint.dtsi"
 #include "violet-sm6150-ir.dtsi"
+#include "violet-sm6150-led.dtsi"
 #include "violet-sm6150-memory.dtsi"
 #include "violet-sm6150-pinctrl.dtsi"
 #include "violet-sm6150-pm6150.dtsi"
