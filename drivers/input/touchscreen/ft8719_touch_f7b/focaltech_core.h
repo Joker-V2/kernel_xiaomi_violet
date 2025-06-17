@@ -179,6 +179,12 @@ struct fts_ts_data {
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
     struct early_suspend early_suspend;
 #endif
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+	u8 palm_sensor_switch;
+	bool palm_sensor_changed;
+	bool gamemode_enabled;
+	struct mutex gamemode_mutex;
+#endif
 	struct device *fts_touch_dev;
 	struct class *fts_tp_class;
 };

@@ -152,6 +152,11 @@ struct nvt_ts_data {
 	uint16_t nvt_pid;
 	uint8_t xbuf[1025];
 	struct mutex xbuf_lock;
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+	u8 palm_sensor_switch;
+	bool palm_sensor_changed;
+	bool gamemode_enabled;
+#endif
 	struct mutex reg_lock;
 	struct device *nvt_touch_dev;
 	struct class *nvt_tp_class;
