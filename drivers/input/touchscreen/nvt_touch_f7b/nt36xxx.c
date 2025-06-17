@@ -46,6 +46,9 @@
 #include "../lct_tp_gesture.h"  //add by zhangchaofan for tp_gesture, 2018-10-24
 #include "../lct_tp_grip_area.h"    /* modify by zhangchaofan@longcheer.com for angle inhibit, 2018-12-12 */
 /* add verify LCD by zhangchaofan start, 2018-09-06*/
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+#include "../xiaomi/xiaomi_touch.h"
+#endif
 char g_lcd_id[128];
 EXPORT_SYMBOL(g_lcd_id);
 /* add verify LCD by zhangchaofan end, 2018-09-06*/
@@ -1222,6 +1225,306 @@ out:
 	return ret;
 }
 
+//5.15
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+
+static struct xiaomi_touch_interface xiaomi_touch_interfaces;
+
+int32_t nvt_xiaomi_read_reg(uint8_t *read_buf)
+{
+	uint8_t buf[8] = {0};
+	int32_t ret = 0;
+	msleep(35);
+
+	mutex_lock(&ts->reg_lock);
+
+//---set xdata index to EVENT BUF ADDR---
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;	// EVENT_BUF_ADDR is 0x21C00
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+
+
+// read reg_addr:0x21C5C
+	buf[0] = 0x5C;
+	buf[1] = 0x00;
+
+	ret = CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 2);
+
+	*read_buf = ((buf[1] >> 2) & 0xFF);         // 0x21C5C 的內容會讀取放在 buf[1]
+	NVT_LOG("read_buf = %d\n", *read_buf);
+
+	mutex_unlock(&ts->reg_lock);
+
+	return ret;
+
+}
+
+
+int32_t nvt_xiaomi_write_reg(uint8_t write_buf_high, uint8_t write_buf_low)
+{
+
+	int32_t ret = 0;
+	uint8_t buf[8] = {0};
+
+	if (write_buf_high == 0 && write_buf_low == 0)
+		return ret;
+
+	mutex_lock(&ts->reg_lock);
+
+//---set xdata index to EVENT BUF ADDR---
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;     // EVENT_BUF_ADDR is 0x21C00
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+
+
+ // Write 0x7D@offset 0x50, 0x51@offset 0x51
+	buf[0] = EVENT_MAP_HOST_CMD;    // write from 0x50
+	buf[1] = write_buf_high;    //write into 0x50
+	buf[2] = write_buf_low;		//write info 0x51
+
+	NVT_LOG("buf[0] = 0x%x, buf[1] = 0x%x, buf[2] = 0x%x\n", buf[0], buf[1], buf[2]);
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+
+	mutex_unlock(&ts->reg_lock);
+
+	return ret;
+
+}
+
+
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE_GAMEMODE
+static void nvt_init_touchmode_data(void)
+{
+	int i;
+
+	NVT_LOG("ENTER\n");
+	/* Touch Game Mode Switch */
+	xiaomi_touch_interfaces.touch_mode[Touch_Game_Mode][GET_DEF_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Game_Mode][GET_MAX_VALUE] = 1;
+	xiaomi_touch_interfaces.touch_mode[Touch_Game_Mode][GET_MIN_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Game_Mode][SET_CUR_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Game_Mode][GET_CUR_VALUE] = 0;
+
+	/* Acitve Mode */
+	xiaomi_touch_interfaces.touch_mode[Touch_Active_MODE][GET_MAX_VALUE] = 1;
+	xiaomi_touch_interfaces.touch_mode[Touch_Active_MODE][GET_MIN_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Active_MODE][GET_DEF_VALUE] = 1;
+	xiaomi_touch_interfaces.touch_mode[Touch_Active_MODE][SET_CUR_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Active_MODE][GET_CUR_VALUE] = 0;
+
+	/* sensivity */
+	xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_MAX_VALUE] = 50;
+	xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_MIN_VALUE] = 35;
+	xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_DEF_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][SET_CUR_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_CUR_VALUE] = 0;
+
+	/*  Tolerance */
+	xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][GET_MAX_VALUE] = 255;
+	xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][GET_MIN_VALUE] = 64;
+	xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][GET_DEF_VALUE] = 112;
+	xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][SET_CUR_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][GET_CUR_VALUE] = 0;
+	/* edge filter orientation*/
+	xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_MAX_VALUE] = 3;
+	xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_MIN_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_DEF_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][SET_CUR_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_CUR_VALUE] = 0;
+
+	/* edge filter area*/
+	xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_MAX_VALUE] = 3;
+	xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_MIN_VALUE] = 0;
+	xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_DEF_VALUE] = 2;
+	xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][SET_CUR_VALUE] = 2;
+	xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_CUR_VALUE] = 2;
+
+
+	for (i = 0; i < Touch_Mode_NUM; i++) {
+		NVT_LOG("mode:%d, set cur:%d, get cur:%d, def:%d min:%d max:%d\n",
+			i,
+			xiaomi_touch_interfaces.touch_mode[i][SET_CUR_VALUE],
+			xiaomi_touch_interfaces.touch_mode[i][GET_CUR_VALUE],
+			xiaomi_touch_interfaces.touch_mode[i][GET_DEF_VALUE],
+			xiaomi_touch_interfaces.touch_mode[i][GET_MIN_VALUE],
+			xiaomi_touch_interfaces.touch_mode[i][GET_MAX_VALUE]);
+	}
+
+	return;
+}
+
+
+static int nvt_set_cur_value(int nvt_mode, int nvt_value)
+{
+
+	uint8_t nvt_game_value[2] = {0};
+	uint8_t temp_value = 0;
+	uint8_t reg_value = 0;
+	uint8_t ret = 0;
+
+	if (bTouchIsAwake) {
+
+
+		if (nvt_mode >= Touch_Mode_NUM && nvt_mode < 0) {
+			NVT_ERR("%s, nvt mode is error:%d", __func__, nvt_mode);
+			return -EINVAL;
+		} else if (xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] >
+				xiaomi_touch_interfaces.touch_mode[nvt_mode][GET_MAX_VALUE]) {
+
+			xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] =
+					xiaomi_touch_interfaces.touch_mode[nvt_mode][GET_MAX_VALUE];
+
+		} else if (xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] <
+				xiaomi_touch_interfaces.touch_mode[nvt_mode][GET_MIN_VALUE]) {
+
+			xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] =
+					xiaomi_touch_interfaces.touch_mode[nvt_mode][GET_MIN_VALUE];
+		}
+
+		xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] = nvt_value;
+
+
+		switch (nvt_mode) {
+		case Touch_Game_Mode:
+				break;
+		case Touch_Active_MODE:
+				break;
+		case Touch_UP_THRESHOLD:
+				temp_value = xiaomi_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][SET_CUR_VALUE];
+				if (temp_value >= 0 && temp_value < 35)
+					reg_value = 3;
+				else if (temp_value > 35 && temp_value <= 40)
+					reg_value = 0;
+				else if (temp_value > 40 && temp_value <= 45)
+					reg_value = 1;
+				else if (temp_value > 45 && temp_value <= 50)
+					reg_value = 2;
+				else
+					reg_value = 3;
+
+				nvt_game_value[0] = 0x71;
+				nvt_game_value[1] = reg_value;
+				break;
+		case Touch_Tolerance:
+				temp_value = xiaomi_touch_interfaces.touch_mode[Touch_Tolerance][SET_CUR_VALUE];
+				if (temp_value >= 0 && temp_value <= 80)
+					reg_value = 0;
+				else if (temp_value > 80 && temp_value <= 150)
+					reg_value = 1;
+				else if (temp_value > 150 && temp_value <= 255)
+					reg_value = 2;
+
+				nvt_game_value[0] = 0x70;
+				nvt_game_value[1] = reg_value;
+				break;
+		case Touch_Edge_Filter:
+				/* filter 0,1,2,3 = default,1,2,3 level*/
+				temp_value = xiaomi_touch_interfaces.touch_mode[Touch_Edge_Filter][SET_CUR_VALUE];
+				reg_value = temp_value;
+
+				nvt_game_value[0] = 0x72;
+				nvt_game_value[1] = reg_value;
+				break;
+		case Touch_Panel_Orientation:
+				/* 0,1,2,3 = 0, 90, 180,270 */
+				temp_value = xiaomi_touch_interfaces.touch_mode[Touch_Panel_Orientation][SET_CUR_VALUE];
+				if (temp_value == 0 || temp_value == 2) {
+					nvt_game_value[0] = 0xBA;
+					nvt_game_value[1] = 0x00;
+				} else if (temp_value == 1) {
+					nvt_game_value[0] = 0xBB;
+					nvt_game_value[1] = 0x00;
+				} else if (temp_value == 3) {
+					nvt_game_value[0] = 0xBC;
+					nvt_game_value[1] = 0x00;
+				}
+				break;
+		default:
+				/* Don't support */
+				break;
+
+		};
+
+		NVT_LOG("mode:%d, value:%d,temp_value:%d,reg_value:%d, game value:0x%x,0x%x", nvt_mode, nvt_value, temp_value, reg_value, nvt_game_value[0], nvt_game_value[1]);
+
+		xiaomi_touch_interfaces.touch_mode[nvt_mode][GET_CUR_VALUE] =
+						xiaomi_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE];
+
+
+		ret = nvt_xiaomi_write_reg(nvt_game_value[0], nvt_game_value[1]);
+		if (ret < 0) {
+			NVT_ERR("change game mode fail");
+		}
+
+		return 0;
+
+	} else {
+		NVT_ERR("%s, nvt mode set error:%d while touch suspend", __func__, nvt_mode);
+		return 0;
+	}
+}
+
+static int nvt_get_mode_value(int mode, int value_type)
+{
+	int value = -1;
+
+	if (mode < Touch_Mode_NUM && mode >= 0) {
+		value = xiaomi_touch_interfaces.touch_mode[mode][value_type];
+		NVT_LOG("mode:%d, value:%d", mode, value);
+	} else
+		NVT_ERR("don't support");
+
+	return value;
+}
+
+static int nvt_get_mode_all(int mode, int *value)
+{
+	if (mode < Touch_Mode_NUM && mode >= 0) {
+		value[0] = xiaomi_touch_interfaces.touch_mode[mode][GET_CUR_VALUE];
+		value[1] = xiaomi_touch_interfaces.touch_mode[mode][GET_DEF_VALUE];
+		value[2] = xiaomi_touch_interfaces.touch_mode[mode][GET_MIN_VALUE];
+		value[3] = xiaomi_touch_interfaces.touch_mode[mode][GET_MAX_VALUE];
+	} else {
+		NVT_ERR("%s, don't support\n",  __func__);
+	}
+	NVT_LOG("mode:%d, value:%d:%d:%d:%d\n", mode, value[0],
+					value[1], value[2], value[3]);
+
+	return 0;
+}
+
+static int nvt_reset_mode(int mode)
+{
+	int i = 0;
+
+	NVT_LOG("nvt_reset_mode enter\n");
+
+	if (mode < Touch_Mode_NUM && mode > 0) {
+		xiaomi_touch_interfaces.touch_mode[mode][SET_CUR_VALUE] =
+			xiaomi_touch_interfaces.touch_mode[mode][GET_DEF_VALUE];
+		nvt_set_cur_value(mode, xiaomi_touch_interfaces.touch_mode[mode][SET_CUR_VALUE]);
+	} else if (mode == 0) {
+		for (i = 0; i < Touch_Mode_NUM; i++) {
+			xiaomi_touch_interfaces.touch_mode[i][SET_CUR_VALUE] =
+			xiaomi_touch_interfaces.touch_mode[i][GET_DEF_VALUE];
+			nvt_set_cur_value(i, xiaomi_touch_interfaces.touch_mode[mode][SET_CUR_VALUE]);
+		}
+	} else {
+		NVT_ERR("%s, don't support\n",  __func__);
+	}
+
+	NVT_ERR("%s, mode:%d\n",  __func__, mode);
+
+	return 0;
+}
+#endif
+#endif
+//5.15
+
+
 /*******************************************************
 Description:
 	Novatek touchscreen driver probe function.
@@ -1499,7 +1802,13 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	}
 #endif
 
+
+//5.15
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+		ts->nvt_tp_class = get_xiaomi_touch_class();
+#else
                 ts->nvt_tp_class = class_create(THIS_MODULE, "touch");
+#endif
 		if (ts->nvt_tp_class) {
 			ts->nvt_touch_dev = device_create(ts->nvt_tp_class, NULL, 0x38, ts, "tp_dev");
 		if (IS_ERR(ts->nvt_touch_dev)) {
@@ -1507,7 +1816,19 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 			goto err_class_create;
 		}
 		dev_set_drvdata(ts->nvt_touch_dev, ts);
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+		memset(&xiaomi_touch_interfaces, 0x00, sizeof(struct xiaomi_touch_interface));
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE_GAMEMODE
+		xiaomi_touch_interfaces.getModeValue = nvt_get_mode_value;
+		xiaomi_touch_interfaces.setModeValue = nvt_set_cur_value;
+		xiaomi_touch_interfaces.resetMode = nvt_reset_mode;
+		xiaomi_touch_interfaces.getModeAll = nvt_get_mode_all;
+		nvt_init_touchmode_data();
+#endif
+		xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
+#endif
 		}
+//5.15
 
 	bTouchIsAwake = 1;
 	NVT_LOG("end\n");

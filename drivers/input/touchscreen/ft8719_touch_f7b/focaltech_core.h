@@ -71,6 +71,12 @@
 #include "../lct_tp_gesture.h"  /* modify by zhangchaofan@longcheer.com for tp_gesture, 2018-12-25 */
 #include "../lct_tp_grip_area.h"    /* modify by zhangchaofan@longcheer.com for angle inhibit, 2019-01-14 */
 
+/* modify begin by zhangchaofan@longcheer.com for factory tp work, 2018-12-06 */
+#ifdef CONFIG_KERNEL_CUSTOM_FACTORY
+#include "../lct_tp_work.h"
+#endif
+/* modify end by zhangchaofan@longcheer.com for factory tp work, 2018-12-06 */
+
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
@@ -178,6 +184,12 @@ struct fts_ts_data {
     struct notifier_block fb_notif;
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
     struct early_suspend early_suspend;
+#endif
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+	u8 palm_sensor_switch;
+	bool palm_sensor_changed;
+	bool gamemode_enabled;
+	struct mutex gamemode_mutex;
 #endif
 	struct device *fts_touch_dev;
 	struct class *fts_tp_class;
