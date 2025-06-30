@@ -12,6 +12,7 @@
 #define CMD_SUSFS_SET_SDCARD_ROOT_PATH 0x55552
 #define CMD_SUSFS_ADD_SUS_MOUNT 0x55560
 #define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
+#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562
 #define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 #define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
 #define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
@@ -45,7 +46,6 @@
 /*
  * inode->i_state => storing flag 'INODE_STATE_'
  * mount->mnt.susfs_mnt_id_backup => storing original mnt_id of normal mounts or custom sus mnt_id of sus mounts
- * task_struct->susfs_last_fake_mnt_id => storing last valid fake mnt_id (will be deprecated or exclusive for non-gki only)
  * task_struct->susfs_task_state => storing flag 'TASK_STRUCT_'
  */
 
