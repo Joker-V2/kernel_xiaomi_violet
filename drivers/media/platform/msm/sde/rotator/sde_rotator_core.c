@@ -38,6 +38,7 @@
 #include "sde_rotator_smmu.h"
 #include "sde_rotator_r1.h"
 #include "sde_rotator_r3.h"
+#include "sde_rotator_trace.h"
 #include "sde_rotator_debug.h"
 
 
@@ -161,8 +162,10 @@ static int sde_rotator_bus_scale_set_quota(struct sde_rot_bus_data_type *bus,
 
 	SDEROT_EVTLOG(new_uc_idx, quota);
 	SDEROT_DBG("uc_idx=%d quota=%llu\n", new_uc_idx, quota);
+	ATRACE_BEGIN("msm_bus_scale_req_rot");
 	ret = msm_bus_scale_client_update_request(bus->bus_hdl,
 		new_uc_idx);
+	ATRACE_END("msm_bus_scale_req_rot");
 
 	return ret;
 }
@@ -187,8 +190,10 @@ static int sde_rotator_enable_reg_bus(struct sde_rot_mgr *mgr, u64 quota)
 		quota ? "Enable":"Disable");
 
 	if (changed) {
+		ATRACE_BEGIN("msm_bus_scale_req_rot_reg");
 		ret = msm_bus_scale_client_update_request(mgr->reg_bus.bus_hdl,
 			usecase_ndx);
+		ATRACE_END("msm_bus_scale_req_rot_reg");
 	}
 
 	return ret;
@@ -288,6 +293,7 @@ static int sde_rotator_update_clk(struct sde_rot_mgr *mgr)
 	}
 
 	SDEROT_DBG("core_clk %lu\n", total_clk_rate);
+	ATRACE_INT("core_clk", total_clk_rate);
 	sde_rotator_set_clk_rate(mgr, total_clk_rate, SDE_ROTATOR_CLK_MDSS_ROT);
 
 	return 0;
@@ -416,6 +422,7 @@ int sde_rotator_clk_ctrl(struct sde_rot_mgr *mgr, int enable)
 			msm_bus_scale_client_update_context(
 				mgr->data_bus.bus_hdl, false,
 				mgr->data_bus.curr_bw_uc_idx);
+			trace_rot_bw_ao_as_context(0);
 		} else {
 			sde_rotator_disable_clk(mgr,
 					SDE_ROTATOR_CLK_MDSS_ROT_SUB);
@@ -430,6 +437,7 @@ int sde_rotator_clk_ctrl(struct sde_rot_mgr *mgr, int enable)
 			msm_bus_scale_client_update_context(
 				mgr->data_bus.bus_hdl, true,
 				mgr->data_bus.curr_bw_uc_idx);
+			trace_rot_bw_ao_as_context(1);
 		}
 	}
 
@@ -472,6 +480,7 @@ static int sde_rotator_resource_ctrl(struct sde_rot_mgr *mgr, int enable)
 
 	SDEROT_DBG("%s: res_cnt=%d pm=%d enable=%d\n",
 		__func__, mgr->res_ref_cnt, ret, enable);
+	ATRACE_INT("res_cnt", mgr->res_ref_cnt);
 
 	return ret;
 }
@@ -1476,6 +1485,7 @@ static int sde_rotator_update_perf(struct sde_rot_mgr *mgr)
 	total_bw += mgr->pending_close_bw_vote;
 	total_bw = max_t(u64, total_bw, mgr->minimum_bw_vote);
 	sde_rotator_enable_reg_bus(mgr, total_bw);
+	ATRACE_INT("bus_quota", total_bw);
 	sde_rotator_bus_scale_set_quota(&mgr->data_bus, total_bw);
 
 	return 0;
@@ -1593,11 +1603,25 @@ static void sde_rotator_commit_handler(struct kthread_work *work)
 	if (entry->item.ts)
 		entry->item.ts[SDE_ROTATOR_TS_COMMIT] = ktime_get();
 
+	trace_rot_entry_commit(
+		entry->item.session_id, entry->item.sequence_id,
+		entry->item.wb_idx, entry->item.flags,
+		entry->item.input.format,
+		entry->item.input.width, entry->item.input.height,
+		entry->item.src_rect.x, entry->item.src_rect.y,
+		entry->item.src_rect.w, entry->item.src_rect.h,
+		entry->item.output.format,
+		entry->item.output.width, entry->item.output.height,
+		entry->item.dst_rect.x, entry->item.dst_rect.y,
+		entry->item.dst_rect.w, entry->item.dst_rect.h);
+
+	ATRACE_INT("sde_smmu_ctrl", 0);
 	ret = sde_smmu_ctrl(1);
 	if (ret < 0) {
 		SDEROT_ERR("IOMMU attach failed\n");
 		goto smmu_error;
 	}
+	ATRACE_INT("sde_smmu_ctrl", 1);
 
 	ret = sde_rotator_map_and_check_data(entry);
 	if (ret) {
@@ -1709,9 +1733,22 @@ static void sde_rotator_done_handler(struct kthread_work *work)
 	if (entry->item.ts)
 		entry->item.ts[SDE_ROTATOR_TS_DONE] = ktime_get();
 
+	trace_rot_entry_done(
+		entry->item.session_id, entry->item.sequence_id,
+		entry->item.wb_idx, entry->item.flags,
+		entry->item.input.format,
+		entry->item.input.width, entry->item.input.height,
+		entry->item.src_rect.x, entry->item.src_rect.y,
+		entry->item.src_rect.w, entry->item.src_rect.h,
+		entry->item.output.format,
+		entry->item.output.width, entry->item.output.height,
+		entry->item.dst_rect.x, entry->item.dst_rect.y,
+		entry->item.dst_rect.w, entry->item.dst_rect.h);
+
 	sde_rot_mgr_lock(mgr);
 	sde_rotator_put_hw_resource(entry->commitq, entry, entry->commitq->hw);
 	sde_rotator_signal_output(entry);
+	ATRACE_INT("sde_rot_done", 1);
 	sde_rotator_release_entry(mgr, entry);
 	atomic_dec(&request->pending_count);
 	if (request->retire_kw && request->retire_work)
@@ -1720,7 +1757,9 @@ static void sde_rotator_done_handler(struct kthread_work *work)
 		entry->item.ts[SDE_ROTATOR_TS_RETIRE] = ktime_get();
 	sde_rot_mgr_unlock(mgr);
 
+	ATRACE_INT("sde_smmu_ctrl", 3);
 	sde_smmu_ctrl(0);
+	ATRACE_INT("sde_smmu_ctrl", 4);
 }
 
 static bool sde_rotator_verify_format(struct sde_rot_mgr *mgr,
@@ -3274,6 +3313,7 @@ int sde_rotator_runtime_suspend(struct device *dev)
 	}
 
 	sde_rotator_footswitch_ctrl(mgr, false);
+	ATRACE_END("runtime_active");
 	SDEROT_DBG("exit runtime_active\n");
 	return 0;
 }
@@ -3294,6 +3334,7 @@ int sde_rotator_runtime_resume(struct device *dev)
 	}
 
 	SDEROT_DBG("begin runtime_active\n");
+	ATRACE_BEGIN("runtime_active");
 	return sde_rotator_footswitch_ctrl(mgr, true);
 }
 
@@ -3352,6 +3393,7 @@ int sde_rotator_pm_suspend(struct device *dev)
 		sde_rotator_update_clk(mgr);
 	}
 
+	ATRACE_END("pm_active");
 	SDEROT_DBG("end pm active %d clk_cnt %d\n",
 	 atomic_read(&mgr->device_suspended), mgr->pm_rot_enable_clk_cnt);
 	SDEROT_EVTLOG(mgr->pm_rot_enable_clk_cnt,
@@ -3389,6 +3431,7 @@ int sde_rotator_pm_resume(struct device *dev)
 	sde_rot_mgr_lock(mgr);
 	SDEROT_DBG("begin pm active %d clk_cnt %d\n",
 	 atomic_read(&mgr->device_suspended), mgr->pm_rot_enable_clk_cnt);
+	ATRACE_BEGIN("pm_active");
 	SDEROT_EVTLOG(mgr->pm_rot_enable_clk_cnt,
 			 atomic_read(&mgr->device_suspended));
 	atomic_dec(&mgr->device_suspended);
