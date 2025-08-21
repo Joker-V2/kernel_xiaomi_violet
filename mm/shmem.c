@@ -1004,7 +1004,7 @@ static int shmem_getattr(const struct path *path, struct kstat *stat,
 	}
 	inode_lock_shared(inode);
 	generic_fillattr(inode, stat);
-	inode_unlock_shared(inode);
+
 	return 0;
 }
 

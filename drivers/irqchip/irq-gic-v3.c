@@ -28,8 +28,6 @@
 #include <linux/of_irq.h>
 #include <linux/percpu.h>
 #include <linux/slab.h>
-#include <linux/msm_rtb.h>
-#include <linux/wakeup_reason.h>
 
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-common.h>
@@ -40,10 +38,6 @@
 #include <asm/exception.h>
 #include <asm/smp_plat.h>
 #include <asm/virt.h>
-
-#include <linux/syscore_ops.h>
-#include <linux/suspend.h>
-#include <linux/notifier.h>
 
 #include "irq-gic-common.h"
 
@@ -63,14 +57,6 @@ struct gic_chip_data {
 	u32			nr_redist_regions;
 	unsigned int		irq_nr;
 	struct partition_desc	*ppi_descs[16];
-#ifdef CONFIG_HIBERNATION
-	unsigned int enabled_irqs[32];
-	unsigned int active_irqs[32];
-	unsigned int irq_edg_lvl[64];
-	unsigned int ppi_edg_lvl;
-	unsigned int enabled_sgis;
-	unsigned int pending_sgis;
-#endif
 };
 
 static struct gic_chip_data gic_data __read_mostly;
@@ -84,9 +70,6 @@ static struct gic_kvm_info gic_v3_kvm_info;
 
 /* Our default, arbitrary priority value. Linux only uses one anyway. */
 #define DEFAULT_PMR_VALUE	0xf0
-
-static void gic_dist_init(void);
-static void gic_cpu_init(void);
 
 static inline unsigned int gic_irq(struct irq_data *d)
 {
@@ -113,7 +96,7 @@ static void gic_do_wait_for_rwp(void __iomem *base)
 {
 	u32 count = 1000000;	/* 1s! */
 
-	while (readl_relaxed_no_log(base + GICD_CTLR) & GICD_CTLR_RWP) {
+	while (readl_relaxed(base + GICD_CTLR) & GICD_CTLR_RWP) {
 		count--;
 		if (!count) {
 			pr_err_ratelimited("RWP timeout, gone fishing\n");
@@ -146,43 +129,6 @@ static u64 __maybe_unused gic_read_iar(void)
 		return gic_read_iar_common();
 }
 #endif
-
-/*
- * gic_show_pending_irq - Shows the pending interrupts
- * Note: Interrupts should be disabled on the cpu from which
- * this is called to get accurate list of pending interrupts.
- */
-void gic_show_pending_irqs(void)
-{
-	void __iomem *base;
-	u32 pending, enabled;
-	unsigned int j;
-
-	base = gic_data.dist_base;
-	for (j = 0; j * 32 < gic_data.irq_nr; j++) {
-		enabled = readl_relaxed(base +
-					GICD_ISENABLER + j * 4);
-		pending = readl_relaxed(base +
-					GICD_ISPENDR + j * 4);
-		pr_err("Pending and enabled irqs[%d] %x %x\n", j,
-				pending, enabled);
-	}
-}
-
-/*
- * get_gic_highpri_irq - Returns next high priority interrupt on current CPU
- */
-unsigned int get_gic_highpri_irq(void)
-{
-	unsigned long flags;
-	unsigned int val = 0;
-
-	local_irq_save(flags);
-	val = read_gicreg(ICC_HPPIR1_EL1);
-	local_irq_restore(flags);
-
-	return val;
-}
 
 static void gic_enable_redist(bool enable)
 {
@@ -231,8 +177,7 @@ static int gic_peek_irq(struct irq_data *d, u32 offset)
 	else
 		base = gic_data.dist_base;
 
-	return !!(readl_relaxed_no_log
-		(base + offset + (gic_irq(d) / 32) * 4) & mask);
+	return !!(readl_relaxed(base + offset + (gic_irq(d) / 32) * 4) & mask);
 }
 
 static void gic_poke_irq(struct irq_data *d, u32 offset)
@@ -304,6 +249,13 @@ static int gic_irq_set_irqchip_state(struct irq_data *d,
 	}
 
 	gic_poke_irq(d, reg);
+
+	/*
+	 * Force read-back to guarantee that the active state has taken
+	 * effect, and won't race with a guest-driven deactivation.
+	 */
+	if (reg == GICD_ISACTIVER)
+		gic_peek_irq(d, reg);
 	return 0;
 }
 
@@ -384,162 +336,6 @@ static int gic_irq_set_vcpu_affinity(struct irq_data *d, void *vcpu)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-#ifdef CONFIG_HIBERNATION
-extern int in_suspend;
-static bool hibernation;
-
-static int gic_suspend_notifier(struct notifier_block *nb,
-				unsigned long event,
-				void *dummy)
-{
-	if (event == PM_HIBERNATION_PREPARE)
-		hibernation = true;
-	else if (event == PM_POST_HIBERNATION)
-		hibernation = false;
-	return NOTIFY_OK;
-}
-
-static struct notifier_block gic_notif_block = {
-	.notifier_call = gic_suspend_notifier,
-};
-
-static void gic_hibernation_suspend(void)
-{
-	int i;
-	void __iomem *base = gic_data.dist_base;
-	void __iomem *rdist_base = gic_data_rdist_sgi_base();
-
-	if ((base == NULL) || (rdist_base == NULL))
-		return;
-
-	gic_data.enabled_sgis = readl_relaxed(rdist_base + GICD_ISENABLER);
-	gic_data.pending_sgis = readl_relaxed(rdist_base + GICD_ISPENDR);
-	/* Store edge level for PPIs by reading GICR_ICFGR1 */
-	gic_data.ppi_edg_lvl = readl_relaxed(rdist_base + GICR_ICFGR0 + 4);
-
-	for (i = 0; i * 32 < gic_data.irq_nr; i++) {
-		gic_data.enabled_irqs[i] = readl_relaxed(base +
-						GICD_ISENABLER + i * 4);
-		gic_data.active_irqs[i] = readl_relaxed(base +
-						GICD_ISPENDR + i * 4);
-	}
-
-	for (i = 2; i < gic_data.irq_nr / 16; i++)
-		gic_data.irq_edg_lvl[i] = readl_relaxed(base +
-						GICD_ICFGR + i * 4);
-}
-#endif
-static int gic_suspend(void)
-{
-#ifdef CONFIG_HIBERNATION
-	if (unlikely(hibernation))
-		gic_hibernation_suspend();
-#endif
-	return 0;
-}
-
-static void gic_show_resume_irq(struct gic_chip_data *gic)
-{
-	unsigned int i;
-	u32 enabled;
-	u32 pending[32];
-	void __iomem *base = gic_data.dist_base;
-
-	if (base == NULL)
-		return;
-
-	if (!msm_show_resume_irq_mask)
-		return;
-
-	for (i = 0; i * 32 < gic->irq_nr; i++) {
-		enabled = readl_relaxed(base + GICD_ICENABLER + i * 4);
-		pending[i] = readl_relaxed(base + GICD_ISPENDR + i * 4);
-		pending[i] &= enabled;
-	}
-
-	for (i = find_first_bit((unsigned long *)pending, gic->irq_nr);
-	     i < gic->irq_nr;
-	     i = find_next_bit((unsigned long *)pending, gic->irq_nr, i+1)) {
-		unsigned int irq = irq_find_mapping(gic->domain, i);
-		struct irq_desc *desc = irq_to_desc(irq);
-		const char *name = "null";
-
-		if (desc == NULL)
-			name = "stray irq";
-		else if (desc->action && desc->action->name)
-			name = desc->action->name;
-
-		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
-	}
-}
-
-static void gic_resume_one(struct gic_chip_data *gic)
-{
-	gic_show_resume_irq(gic);
-}
-
-static void gic_resume(void)
-{
-#ifdef CONFIG_HIBERNATION
-	int i;
-	void __iomem *base = gic_data.dist_base;
-	void __iomem *rdist_base = gic_data_rdist_sgi_base();
-
-	/*
-	 * in_suspend is defined in hibernate.c and will be 0 during
-	 * hibernation restore case. Also it willl be 0 for suspend to ram case
-	 * and similar cases. Underlying code will not get executed in regular
-	 * cases and will be executed only for hibernation restore.
-	 */
-	if (unlikely((in_suspend == 0 && hibernation))) {
-		pr_info("Re-initializing gic in hibernation restore\n");
-		gic_dist_init();
-		gic_cpu_init();
-
-		/* Activate and enable SGIs and PPIs */
-		writel_relaxed(gic_data.enabled_sgis,
-			       rdist_base + GICD_ISENABLER);
-		writel_relaxed(gic_data.pending_sgis,
-			       rdist_base + GICD_ISPENDR);
-		/* Restore edge and level triggers for PPIs from GICR_ICFGR1 */
-		writel_relaxed(gic_data.ppi_edg_lvl,
-			       rdist_base + GICR_ICFGR0 + 4);
-
-		/* Restore edge and level triggers */
-		for (i = 2; i < gic_data.irq_nr / 16; i++)
-			writel_relaxed(gic_data.irq_edg_lvl[i],
-					base + GICD_ICFGR + i * 4);
-		gic_dist_wait_for_rwp();
-
-		/* Activate and enable interupts from backup */
-		for (i = 0; i * 32 < gic_data.irq_nr; i++) {
-			writel_relaxed(gic_data.active_irqs[i],
-				       base + GICD_ISPENDR + i * 4);
-
-			writel_relaxed(gic_data.enabled_irqs[i],
-				       base + GICD_ISENABLER + i * 4);
-		}
-		gic_dist_wait_for_rwp();
-	}
-#endif
-	gic_resume_one(&gic_data);
-}
-
-static struct syscore_ops gic_syscore_ops = {
-	.suspend = gic_suspend,
-	.resume = gic_resume,
-};
-
-static int __init gic_init_sys(void)
-{
-	register_syscore_ops(&gic_syscore_ops);
-	return 0;
-}
-arch_initcall(gic_init_sys);
-
-#endif
-
 static u64 gic_mpidr_to_affinity(unsigned long mpidr)
 {
 	u64 aff;
@@ -562,7 +358,6 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 		if (likely(irqnr > 15 && irqnr < 1020) || irqnr >= 8192) {
 			int err;
 
-			uncached_logk(LOGK_IRQ, (void *)(uintptr_t)irqnr);
 			if (static_key_true(&supports_deactivate))
 				gic_write_eoir(irqnr);
 			else
@@ -571,8 +366,6 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			err = handle_domain_irq(gic_data.domain, irqnr, regs);
 			if (err) {
 				WARN_ONCE(true, "Unexpected interrupt received!\n");
-				log_abnormal_wakeup_reason(
-						"unexpected HW IRQ %u", irqnr);
 				if (static_key_true(&supports_deactivate)) {
 					if (irqnr < 8192)
 						gic_write_dir(irqnr);
@@ -583,7 +376,6 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 			continue;
 		}
 		if (irqnr < 16) {
-			uncached_logk(LOGK_IRQ, (void *)(uintptr_t)irqnr);
 			gic_write_eoir(irqnr);
 			if (static_key_true(&supports_deactivate))
 				gic_write_dir(irqnr);
@@ -604,7 +396,7 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 	} while (irqnr != ICC_IAR1_EL1_SPURIOUS);
 }
 
-static void gic_dist_init(void)
+static void __init gic_dist_init(void)
 {
 	unsigned int i;
 	u64 affinity;
@@ -797,8 +589,7 @@ static void gic_cpu_init(void)
 	gic_cpu_config(rbase, gic_redist_wait_for_rwp);
 
 	/* Give LPIs a spin */
-	if (IS_ENABLED(CONFIG_ARM_GIC_V3_ITS) && gic_dist_supports_lpis() &&
-					!IS_ENABLED(CONFIG_ARM_GIC_V3_ACL))
+	if (IS_ENABLED(CONFIG_ARM_GIC_V3_ITS) && gic_dist_supports_lpis())
 		its_cpu_init();
 
 	/* initialise system registers */
@@ -954,10 +745,7 @@ static bool gic_dist_security_disabled(void)
 static int gic_cpu_pm_notifier(struct notifier_block *self,
 			       unsigned long cmd, void *v)
 {
-	if (from_suspend)
-		return NOTIFY_OK;
-
-	if (cmd == CPU_PM_EXIT) {
+	if (cmd == CPU_PM_EXIT || cmd == CPU_PM_ENTER_FAILED) {
 		if (gic_dist_security_disabled())
 			gic_enable_redist(true);
 		gic_cpu_sys_reg_init();
@@ -990,9 +778,7 @@ static struct irq_chip gic_chip = {
 	.irq_set_affinity	= gic_set_affinity,
 	.irq_get_irqchip_state	= gic_irq_get_irqchip_state,
 	.irq_set_irqchip_state	= gic_irq_set_irqchip_state,
-	.flags			= IRQCHIP_SET_TYPE_MASKED |
-				  IRQCHIP_SKIP_SET_WAKE |
-				  IRQCHIP_MASK_ON_SUSPEND,
+	.flags			= IRQCHIP_SET_TYPE_MASKED,
 };
 
 static struct irq_chip gic_eoimode1_chip = {
@@ -1005,9 +791,7 @@ static struct irq_chip gic_eoimode1_chip = {
 	.irq_get_irqchip_state	= gic_irq_get_irqchip_state,
 	.irq_set_irqchip_state	= gic_irq_set_irqchip_state,
 	.irq_set_vcpu_affinity	= gic_irq_set_vcpu_affinity,
-	.flags			= IRQCHIP_SET_TYPE_MASKED |
-				  IRQCHIP_SKIP_SET_WAKE |
-				  IRQCHIP_MASK_ON_SUSPEND,
+	.flags			= IRQCHIP_SET_TYPE_MASKED,
 };
 
 #define GIC_ID_NR		(1U << gic_data.rdists.id_bits)
@@ -1233,8 +1017,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 
 	gic_update_vlpi_properties();
 
-	if (IS_ENABLED(CONFIG_ARM_GIC_V3_ITS) && gic_dist_supports_lpis() &&
-			!IS_ENABLED(CONFIG_ARM_GIC_V3_ACL))
+	if (IS_ENABLED(CONFIG_ARM_GIC_V3_ITS) && gic_dist_supports_lpis())
 		its_init(handle, &gic_data.rdists, gic_data.domain);
 
 	gic_smp_init();
@@ -1259,6 +1042,31 @@ static int __init gic_validate_dist_version(void __iomem *dist_base)
 		return -ENODEV;
 
 	return 0;
+}
+
+static int get_cpu_number(struct device_node *dn)
+{
+	const __be32 *cell;
+	u64 hwid;
+	int cpu;
+
+	cell = of_get_property(dn, "reg", NULL);
+	if (!cell)
+		return -1;
+
+	hwid = of_read_number(cell, of_n_addr_cells(dn));
+
+	/*
+	 * Non affinity bits must be set to 0 in the DT
+	 */
+	if (hwid & ~MPIDR_HWID_BITMASK)
+		return -1;
+
+	for_each_possible_cpu(cpu)
+		if (cpu_logical_map(cpu) == hwid)
+			return cpu;
+
+	return -1;
 }
 
 /* Create all possible partitions at boot time */
@@ -1311,8 +1119,8 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 			if (WARN_ON(!cpu_node))
 				continue;
 
-			cpu = of_cpu_node_to_id(cpu_node);
-			if (WARN_ON(cpu < 0))
+			cpu = get_cpu_number(cpu_node);
+			if (WARN_ON(cpu == -1))
 				continue;
 
 			pr_cont("%pOF[%d] ", cpu_node, cpu);
@@ -1377,7 +1185,7 @@ static void __init gic_of_setup_kvm_info(struct device_node *node)
 	gic_set_kvm_info(&gic_v3_kvm_info);
 }
 
-static int __init gicv3_of_init(struct device_node *node, struct device_node *parent)
+static int __init gic_of_init(struct device_node *node, struct device_node *parent)
 {
 	void __iomem *dist_base;
 	struct redist_region *rdist_regs;
@@ -1427,11 +1235,7 @@ static int __init gicv3_of_init(struct device_node *node, struct device_node *pa
 			     redist_stride, &node->fwnode);
 	if (err)
 		goto out_unmap_rdist;
-#ifdef CONFIG_HIBERNATION
-	err = register_pm_notifier(&gic_notif_block);
-	if (err)
-		goto out_unmap_rdist;
-#endif
+
 	gic_populate_ppi_partitions(node);
 	gic_of_setup_kvm_info(node);
 	return 0;
@@ -1446,7 +1250,7 @@ out_unmap_dist:
 	return err;
 }
 
-IRQCHIP_DECLARE(gic_v3, "arm,gic-v3", gicv3_of_init);
+IRQCHIP_DECLARE(gic_v3, "arm,gic-v3", gic_of_init);
 
 #ifdef CONFIG_ACPI
 static struct
