@@ -164,7 +164,7 @@ static void rt6_uncached_list_flush_dev(struct net *net, struct net_device *dev)
 			struct inet6_dev *rt_idev = rt->rt6i_idev;
 			struct net_device *rt_dev = rt->dst.dev;
 
-			if (rt_idev->dev == dev) {
+			if (rt_idev && rt_idev->dev == dev) {
 				rt->rt6i_idev = in6_dev_get(loopback_dev);
 				in6_dev_put(rt_idev);
 			}
@@ -1419,15 +1419,12 @@ static struct dst_entry *ip6_negative_advice(struct dst_entry *dst)
 {
 	struct rt6_info *rt = (struct rt6_info *) dst;
 
-	if (rt) {
-		if (rt->rt6i_flags & RTF_CACHE) {
-			if (rt6_check_expired(rt)) {
-				ip6_del_rt(rt);
-				dst = NULL;
-			}
-		} else {
-			dst_release(dst);
-			dst = NULL;
+	if (rt->rt6i_flags & RTF_CACHE) {
+		if (rt6_check_expired(rt)) {
+			/* counteract the dst_release() in sk_dst_reset() */
+			dst_hold(dst);
+			ip6_del_rt(rt);
+
 		}
 	}
 	return dst;
@@ -1821,7 +1818,7 @@ out:
 static int ip6_convert_metrics(struct mx6_config *mxc,
 			       const struct fib6_config *cfg)
 {
-	struct net *net = cfg->fc_nlinfo.nl_net;
+        struct net *net = cfg->fc_nlinfo.nl_net;
 	bool ecn_ca = false;
 	struct nlattr *nla;
 	int remaining;
