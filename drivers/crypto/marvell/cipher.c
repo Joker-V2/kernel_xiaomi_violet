@@ -454,6 +454,9 @@ static int mv_cesa_ablkcipher_queue_req(struct ablkcipher_request *req,
 	struct mv_cesa_ablkcipher_req *creq = ablkcipher_request_ctx(req);
 	struct mv_cesa_engine *engine;
 
+	if (!req->cryptlen)
+		return 0;
+
 	ret = mv_cesa_ablkcipher_req_init(req, tmpl);
 	if (ret)
 		return ret;
