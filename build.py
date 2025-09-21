@@ -71,9 +71,9 @@ tg_post_msg "<b>Build Triggered ⌛</b>%0A<b>Kernel : </b><code>$kernel_name</co
 
 if ! [ -d "$TC_DIR" ]; then
   echo "Toolchain not found! Cloning to $TC_DIR..."
-  tg_post_msg "<code>Toolchain not found! Cloning WeebX-Clang</code>"
-  wget "$(curl -s https://raw.githubusercontent.com/XSans0/WeebX-Clang/main/main/link.txt)" -O "weebx-clang.tar.gz"
-  mkdir $TC_DIR && tar -xvf weebx-clang.tar.gz -C $TC_DIR && rm -rf weebx-clang.tar.gz
+  tg_post_msg "<code>Toolchain not found! Cloning ZyC-Clang</code>"
+  wget -q https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250920-release/Clang-22.0.0git-20250920.tar.gz
+  mkdir $TC_DIR && tar -xvf Clang-22.0.0git-20250920.tar.gz -C $TC_DIR && rm -rf Clang-22.0.0git-20250920.tar.gz
 fi
 
 NC='\\033[0m'
