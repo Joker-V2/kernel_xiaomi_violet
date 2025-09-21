@@ -1219,7 +1219,7 @@ static int wcd9xxx_slim_get_laddr(struct slim_device *sb,
 		usleep_range(1000, 1100);
 		pr_debug_ratelimited("%s: retyring get logical addr\n",
 				     __func__);
-	} while time_before(jiffies, timeout);
+	} while time_before(jiffies, (unsigned long)timeout);
 
 	return ret;
 }
