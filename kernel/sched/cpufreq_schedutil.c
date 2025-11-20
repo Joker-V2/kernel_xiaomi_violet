@@ -1110,10 +1110,7 @@ static void sugov_limits(struct cpufreq_policy *policy)
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
 		sugov_track_cycles(sg_policy, sg_policy->policy->cur,
 				   ktime_get_ns());
-		ret = cpufreq_policy_apply_limits_fast(policy);
-		if (ret && policy->cur != ret) {
-			policy->cur = ret;
-		}
+		cpufreq_policy_apply_limits_fast(policy);
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 
