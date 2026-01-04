@@ -5074,6 +5074,14 @@ CONFIG_ESOC_MDM_DBG_ENG=y
 # CONFIG_MDM_DBG_REQ_ENG is not set
 
 #
+# KernelSU
+#
+CONFIG_KSU=y
+# CONFIG_KSU_DEBUG is not set
+CONFIG_KSU_MANUAL_SU=y
+# CONFIG_KPM is not set
+
+#
 # Firmware Drivers
 #
 CONFIG_ARM_PSCI_FW=y
