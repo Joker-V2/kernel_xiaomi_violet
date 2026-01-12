@@ -36,13 +36,18 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # KernelSU Ultra — fork مثبت (6 جانفي) — بدون أي تعديل إضافي
-    - name: Inject SukiSU Ultra (builtin | Jan 6 fork)
+    # KernelSU Ultra — fork 6 جانفي — بدون تحديث
+    - name: Inject SukiSU Ultra (Jan 6 fork)
       run: |
         echo "SukiSU Ultra fork (Jan 6)"
-
         curl -LSs \
-          https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh | bash 
+          https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh \
+          | bash
+
+    # ✅ التعديل الوحيد المطلوب (non-GKI fix)
+    - name: Fix KernelSU MODULE_IMPORT_NS
+      run: |
+        sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
 
     - name: Apply KernelSU non-GKI individual patches
       run: |
