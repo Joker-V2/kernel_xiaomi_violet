@@ -48,6 +48,7 @@ jobs:
       run: |
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1 || true
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0002-fs-open-add-ksu-faccessat-hook.patch | patch -p1 || true
+        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0003-fs-read_write-add-ksu-vfs_read-hook.patch | patch -p1 || true
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0004-fs-stat-add-ksu-vfs_statx-hook.patch | patch -p1 || true
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1 || true
         curl -fsSL https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1 || true
