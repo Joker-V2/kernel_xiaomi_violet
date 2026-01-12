@@ -36,10 +36,20 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    - name: Inject SukiSU Ultra (builtin)
+    - name: Inject SukiSU Ultra (builtin | pinned commit)
       run: |
-        curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+        echo "==> Injecting SukiSU Ultra (PINNED)"
+        echo "==> Commit: 1dba8aec918995af98d6d2eaaf2de663e9999c80"
 
+       curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+
+       cd KernelSU || exit 1
+       git fetch --all
+       git checkout 1dba8aec918995af98d6d2eaaf2de663e9999c80
+
+       echo "==> KernelSU locked to:"
+       git --no-pager log -1 --oneline
+       
     - name: Apply KernelSU non-GKI individual patches
       run: |
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1 || true
