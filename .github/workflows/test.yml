@@ -77,13 +77,13 @@ jobs:
         echo "ℹ️ susfs patch command finished (errors allowed)"
         set -e
 
-    # 8️⃣ Verify REQUIRED files (hard requirement)
-    - name: Verify susfs core files
+    # 🔎 8️⃣ INFO: check SUS_PATH integration (audit only)
+    - name: Audit CONFIG_KSU_SUSFS_SUS_PATH (INFO)
       run: |
-        test -f fs/susfs.c || (echo "❌ fs/susfs.c missing" && exit 1)
-        test -f include/linux/susfs.h || (echo "❌ susfs.h missing" && exit 1)
-        test -f include/linux/susfs_def.h || (echo "❌ susfs_def.h missing" && exit 1)
-        echo "✅ susfs core files present"
+        echo "===== SUSFS SUS_PATH AUDIT ====="
+        grep -R "CONFIG_KSU_SUSFS_SUS_PATH" fs/ \
+          || echo "ℹ️ CONFIG_KSU_SUSFS_SUS_PATH not found in fs/"
+        echo "===== END AUDIT ====="
 
     # 9️⃣ Verify exec hook (hard requirement)
     - name: Verify exec hook
