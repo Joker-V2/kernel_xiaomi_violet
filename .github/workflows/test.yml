@@ -36,11 +36,10 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # 🔒 KernelSU Ultra — pinned بالكامل (setup.sh + source)
-    - name: Inject SukiSU Ultra (builtin | Jan 6 pinned fork)
+    # KernelSU Ultra — fork مثبت (6 جانفي) — بدون أي تعديل إضافي
+    - name: Inject SukiSU Ultra (builtin | Jan 6 fork)
       run: |
-        echo "Injecting SukiSU Ultra (PINNED – Jan 6)"
-        echo "Repo: Red-A-Hawk/SukiSU-Ultra"
+        echo "SukiSU Ultra fork (Jan 6)"
         echo "Commit: 496837ad81b9332d352b0b17184a0d637c81b7cc"
 
         curl -LSs \
@@ -56,7 +55,7 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1 || true
         curl -fsSL https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1 || true
 
-    # SUSFS 2.0 (non-blocking)
+    # SUSFS 2.0 — كما هو
     - name: Apply susfs 2.0 patch
       run: |
         set +e
