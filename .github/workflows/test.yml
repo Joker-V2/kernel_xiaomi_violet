@@ -44,13 +44,6 @@ jobs:
           https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh \
           | bash
 
-    # ✅ التعديل الوحيد المطلوب (non-GKI fix)
-    - name: Fix KernelSU MODULE_IMPORT_NS
-      run: |
-        if [ -f drivers/kernelsu/ksu.c ]; then
-          sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
-        fi
-
     # ✅ Fix KernelSU allowlist for 4.14 (التعديل المتفق عليه فقط)
     - name: Fix KernelSU allowlist for 4.14
       run: |
