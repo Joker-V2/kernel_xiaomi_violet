@@ -44,14 +44,6 @@ jobs:
           https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh \
           | bash
 
-    # ✅ Fix KernelSU allowlist for 4.14 (التعديل المتفق عليه فقط)
-    - name: Fix KernelSU allowlist for 4.14
-      run: |
-        if [ -f drivers/kernelsu/allowlist.c ]; then
-          sed -i 's/task_work_add(tsk, cb, TWA_RESUME);/task_work_add(tsk, cb, TWA_SIGNAL);/g' drivers/kernelsu/allowlist.c
-          sed -i 's/put_task_struct(tsk);/put_task_stack(tsk);/g' drivers/kernelsu/allowlist.c
-        fi
-
     # Apply KernelSU non-GKI
     - name: Apply KernelSU non-GKI individual patches
       run: |
