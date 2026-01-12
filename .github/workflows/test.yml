@@ -38,17 +38,16 @@ jobs:
 
     # 🔒 KernelSU pinned commit (التعديل الوحيد)
     - name: Inject SukiSU Ultra (builtin | pinned commit)
-      run: |
-        echo "Injecting SukiSU Ultra (PINNED)"
-        echo "Commit: 1dba8aec918995af98d6d2eaaf2de663e9999c80"
+    - name: Inject SukiSU Ultra (builtin | pinned commit)
+       run: |
+         echo "Injecting SukiSU Ultra (PINNED)"
+         echo "Commit: 6e2c072200d5d699e132fc11d7b90b89a1d266cd"
 
-        curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
 
-        cd KernelSU || exit 1
-        git fetch --all
-        git checkout 1dba8aec918995af98d6d2eaaf2de663e9999c80
-
-        git --no-pager log -1 --oneline
+         cd KernelSU || exit 1
+         git fetch --all
+         git checkout 6e2c072200d5d699e132fc11d7b90b89a1d266cd
 
     - name: Apply KernelSU non-GKI individual patches
       run: |
