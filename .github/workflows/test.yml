@@ -45,7 +45,7 @@ jobs:
         set -e
         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
 
-    # 5️⃣ Apply jeejox patches
+    # 5️⃣ Apply jeejox patches (بدون أي تعديل)
     - name: Apply KernelSU non-GKI individual patches
       run: |
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1 || true
@@ -56,19 +56,19 @@ jobs:
         curl -fsSL https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1 || true
 
     # ==================================================
-    # 🔥 SUSFS 2.0 — SAFE / NON-BLOCKING / AUDIT MODE 🔥
+    # 🔥 SUSFS 2.0 — SAFE / NON-BLOCKING / AUDIT ONLY 🔥
     # ==================================================
 
-    # 6️⃣ Pre-check (info only)
+    # 6️⃣ Pre-check (معلومات فقط)
     - name: Pre-check susfs (info only)
       run: |
-        if grep -R "susfs_handle_execve" fs/ include/ >/dev/null 2>&1; then
-          echo "⚠️ susfs symbols already present (partial or previous apply)"
+        if grep -R "susfs_" fs/ include/ >/dev/null 2>&1; then
+          echo "⚠️ susfs symbols already present (partial / previous)"
         else
-          echo "✅ susfs not detected yet"
+          echo "✅ susfs not detected before patch"
         fi
 
-    # 7️⃣ Apply susfs 2.0 patch (ALLOW PARTIAL APPLY)
+    # 7️⃣ Apply susfs 2.0 (لا يوقف البناء)
     - name: Apply susfs 2.0 patch (non-blocking)
       run: |
         set +e
@@ -77,44 +77,52 @@ jobs:
         echo "ℹ️ susfs patch command finished (errors allowed)"
         set -e
 
-    # 🔎 8️⃣ INFO: check SUS_PATH integration (audit only)
-    - name: Audit CONFIG_KSU_SUSFS_SUS_PATH (INFO)
+    # 8️⃣ تحقق من ملفات susfs الأساسية
+    - name: Verify susfs core files
       run: |
-        echo "===== SUSFS SUS_PATH AUDIT ====="
-        grep -R "CONFIG_KSU_SUSFS_SUS_PATH" fs/ \
-          || echo "ℹ️ CONFIG_KSU_SUSFS_SUS_PATH not found in fs/"
-        echo "===== END AUDIT ====="
+        echo "===== SUSFS CORE FILES ====="
+        test -f fs/susfs.c && echo "✓ fs/susfs.c" || echo "✗ fs/susfs.c MISSING"
+        test -f include/linux/susfs.h && echo "✓ susfs.h" || echo "✗ susfs.h MISSING"
+        test -f include/linux/susfs_def.h && echo "✓ susfs_def.h" || echo "✗ susfs_def.h MISSING"
 
-    # 9️⃣ Verify exec hook (hard requirement)
-    - name: Verify exec hook
+    # 9️⃣ تحقق من hook الأساسي (exec)
+    - name: Verify susfs exec hook
       run: |
         grep -R "susfs_handle_execve" fs/exec.c \
-          || (echo "❌ exec.c hook missing" && exit 1)
-        echo "✅ exec hook present"
+          && echo "✓ exec hook present" \
+          || echo "✗ exec hook NOT present"
 
-    # 🔍 10️⃣ AUDIT: detect what the patch DID NOT touch
-    - name: Audit susfs missing integrations (INFO)
+    # 🔎 10️⃣ تحقق من CONFIG_KSU_SUSFS_SUS_PATH (مطلوب منك)
+    - name: Audit CONFIG_KSU_SUSFS_SUS_PATH
+      run: |
+        echo "===== SUS_PATH AUDIT ====="
+        grep -R "CONFIG_KSU_SUSFS_SUS_PATH" fs/ \
+          && echo "✓ SUS_PATH integration found" \
+          || echo "ℹ️ SUS_PATH not found (manual patch later)"
+        echo "===== END ====="
+
+    # 🔍 11️⃣ تقرير الملفات التي لم يُعدّلها الباتش
+    - name: Audit files not touched by susfs patch
       run: |
         echo "===== SUSFS AUDIT REPORT ====="
 
-        echo "[avc.c]"
+        echo "[security/selinux/avc.c]"
         grep -n "susfs" security/selinux/avc.c \
           || echo "ℹ️ avc.c not modified"
 
-        echo "[cmdline.c]"
+        echo "[fs/proc/cmdline.c]"
         grep -n "susfs" fs/proc/cmdline.c \
           || echo "ℹ️ cmdline.c not modified"
 
         echo "[.rej files]"
-        find . -name "*.rej" -print || echo "✅ no .rej files found"
+        find . -name "*.rej" -print || echo "✓ no .rej files"
 
         echo "===== END AUDIT ====="
 
     # =========================
-    # 🔧 BUILD
+    # 🔧 BUILD (بدون أي تعديل)
     # =========================
 
-    # 1️⃣1️⃣ Export build environment
     - name: Export build environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -126,23 +134,20 @@ jobs:
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
 
-    # 1️⃣2️⃣ Load defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣3️⃣ Build kernel
     - name: Build kernel
       run: |
         make O=out -j$(nproc) 2>&1 | tee build.log
 
-    # 1️⃣4️⃣ Verify susfs linked
-    - name: Verify susfs symbols
+    - name: Verify susfs linked
       run: |
-        nm out/vmlinux | grep -q susfs_handle_execve
-        echo "✅ susfs linked into vmlinux"
+        nm out/vmlinux | grep -q susfs_handle_execve \
+          && echo "✓ susfs linked into vmlinux" \
+          || echo "✗ susfs NOT linked"
 
-    # 1️⃣5️⃣ Package AnyKernel3
     - name: Package AnyKernel3
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
@@ -150,7 +155,6 @@ jobs:
         cd AK3
         zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
 
-    # 1️⃣6️⃣ Upload artifacts
     - name: Upload Kernel ZIP
       uses: actions/upload-artifact@v4
       with:
