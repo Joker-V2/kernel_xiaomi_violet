@@ -36,15 +36,44 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # KernelSU Ultra — fork 6 جانفي — بدون تحديث
-    - name: Inject SukiSU Ultra (Jan 6 fork)
+    # KernelSU Ultra — setup.sh (كما هو)
+    - name: Inject SukiSU Ultra
       run: |
-        echo "SukiSU Ultra fork (Jan 6)"
-        curl -LSs \
-          https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh \
-          | bash
+        set -e
+        curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash
 
-    # Apply KernelSU non-GKI
+    # 🔒 قفل KernelSU على كوميت 6 جانفي (الذي نجح)
+    - name: Force KernelSU commit (Jan 6)
+      run: |
+        set -e
+        cd KernelSU
+        git fetch --all
+        git checkout 496837ad81b9332d352b0b17184a0d637c81b7cc
+        git submodule update --init --recursive
+        echo "[OK] KernelSU locked to Jan 6 commit"
+
+    # ✅ تحقق صارم من المصدر والكوميت
+    - name: Verify KernelSU source (commit + path)
+      run: |
+        set -e
+        echo "[*] Checking drivers/kernelsu ..."
+        test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
+
+        cd KernelSU
+        CURRENT_COMMIT=$(git rev-parse HEAD)
+        EXPECTED_COMMIT=496837ad81b9332d352b0b17184a0d637c81b7cc
+
+        echo "[*] Current commit  : $CURRENT_COMMIT"
+        echo "[*] Expected commit : $EXPECTED_COMMIT"
+
+        if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
+          echo "Error: KernelSU commit mismatch!"
+          exit 1
+        fi
+
+        echo "[OK] KernelSU commit verified"
+
+    # Apply KernelSU non-GKI patches (كما هو)
     - name: Apply KernelSU non-GKI individual patches
       run: |
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1 || true
