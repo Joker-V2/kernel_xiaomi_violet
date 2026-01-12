@@ -27,6 +27,8 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
+#include <linux/susfs.h>
+
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
 	unsigned long text, lib, swap, anon, file, shmem;
@@ -350,20 +352,35 @@ static void
 show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	struct file *file = vma->vm_file;
-	vm_flags_t flags = vma->vm_flags;
-	unsigned long ino = 0;
-	unsigned long long pgoff = 0;
-	unsigned long start, end;
-	dev_t dev = 0;
-	const char *name = NULL;
+    struct file *file = vma->vm_file;
+    vm_flags_t flags = vma->vm_flags;
+    unsigned long ino = 0;
+    unsigned long long pgoff = 0;
+    unsigned long start, end;
+    dev_t dev = 0;
+    const char *name = NULL;
+    struct inode *inode = NULL;
 
 	if (file) {
-		struct inode *inode = file_inode(vma->vm_file);
-		dev = inode->i_sb->s_dev;
-		ino = inode->i_ino;
-		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
-	}
+    inode = file_inode(vma->vm_file);
+    dev = inode->i_sb->s_dev;
+    ino = inode->i_ino;
+    pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+}
+	
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+if (inode) {
+    if (unlikely(inode->i_mapping->flags & BIT_SUS_MAPS) &&
+        susfs_is_current_proc_umounted()) {
+
+        susfs_sus_ino_for_show_map_vma(
+            inode->i_ino,
+            &dev,
+            &ino
+        );
+    }
+}
+#endif
 
 	start = vma->vm_start;
 	end = vma->vm_end;
