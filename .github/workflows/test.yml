@@ -40,11 +40,9 @@ jobs:
     - name: Inject SukiSU Ultra (builtin | Jan 6 fork)
       run: |
         echo "SukiSU Ultra fork (Jan 6)"
-        echo "Commit: 496837ad81b9332d352b0b17184a0d637c81b7cc"
 
         curl -LSs \
-          https://raw.githubusercontent.com/Red-A-Hawk/SukiSU-Ultra/496837ad81b9332d352b0b17184a0d637c81b7cc/kernel/setup.sh \
-          | bash -s builtin
+          https://raw.githubusercontent.com/mahtiranaskandar-ux/SukiSU-Ultra/Suki/kernel/setup.sh | bash 
 
     - name: Apply KernelSU non-GKI individual patches
       run: |
