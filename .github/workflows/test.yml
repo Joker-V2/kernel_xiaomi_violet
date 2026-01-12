@@ -38,7 +38,6 @@ jobs:
 
     # 🔒 KernelSU pinned commit (التعديل الوحيد)
     - name: Inject SukiSU Ultra (builtin | pinned commit)
-    - name: Inject SukiSU Ultra (builtin | pinned commit)
        run: |
          echo "Injecting SukiSU Ultra (PINNED)"
          echo "Commit: 6e2c072200d5d699e132fc11d7b90b89a1d266cd"
