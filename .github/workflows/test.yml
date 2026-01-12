@@ -48,7 +48,13 @@ jobs:
     - name: Fix KernelSU MODULE_IMPORT_NS
       run: |
         sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
-
+    #
+   - name: Fix KernelSU allowlist for 4.14
+     run: |
+       sed -i 's/task_work_add(tsk, cb, TWA_RESUME);/task_work_add(tsk, cb, TWA_SIGNAL);/g' drivers/kernelsu/allowlist.c
+       sed -i 's/put_task_struct(tsk);/put_task_stack(tsk);/g' drivers/kernelsu/allowlist.c     
+       
+    #
     - name: Apply KernelSU non-GKI individual patches
       run: |
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1 || true
