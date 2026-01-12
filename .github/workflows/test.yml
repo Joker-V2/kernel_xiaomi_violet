@@ -47,12 +47,18 @@ jobs:
     # ✅ التعديل الوحيد المطلوب (non-GKI fix)
     - name: Fix KernelSU MODULE_IMPORT_NS
       run: |
-        sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
-    # Fix KernelSU
+        if [ -f drivers/kernelsu/ksu.c ]; then
+          sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
+        fi
+
+    # ✅ Fix KernelSU allowlist for 4.14 (التعديل المتفق عليه فقط)
     - name: Fix KernelSU allowlist for 4.14
       run: |
-        sed -i 's/task_work_add(tsk, cb, TWA_RESUME);/task_work_add(tsk, cb, TWA_SIGNAL);/g' drivers/kernelsu/allowlist.c
-        sed -i 's/put_task_struct(tsk);/put_task_stack(tsk);/g' drivers/kernelsu/allowlist.c     
+        if [ -f drivers/kernelsu/allowlist.c ]; then
+          sed -i 's/task_work_add(tsk, cb, TWA_RESUME);/task_work_add(tsk, cb, TWA_SIGNAL);/g' drivers/kernelsu/allowlist.c
+          sed -i 's/put_task_struct(tsk);/put_task_stack(tsk);/g' drivers/kernelsu/allowlist.c
+        fi
+
     # Apply KernelSU non-GKI
     - name: Apply KernelSU non-GKI individual patches
       run: |
