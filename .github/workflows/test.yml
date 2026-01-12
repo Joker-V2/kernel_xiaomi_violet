@@ -36,7 +36,7 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # 🔒 KernelSU pinned commit (التعديل الوحيد)
+    # 🔒 KernelSU pinned commit
     - name: Inject SukiSU Ultra (builtin | pinned commit)
       run: |
         echo "Injecting SukiSU Ultra (PINNED)"
@@ -56,6 +56,14 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0004-fs-stat-add-ksu-vfs_statx-hook.patch | patch -p1 || true
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1 || true
         curl -fsSL https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1 || true
+
+    # ✅ الخطوة المضافة الوحيدة (Fix throne_tracker)
+    - name: Fix throne_tracker missing macro
+      run: |
+        FILE="drivers/kernelsu/throne_tracker.c"
+        if [ -f "$FILE" ] && ! grep -q "SYSTEM_PACKAGES_LIST_PATH" "$FILE"; then
+          sed -i '15i #ifndef SYSTEM_PACKAGES_LIST_PATH\n#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list"\n#endif\n' "$FILE"
+        fi
 
     # SUSFS
     - name: Apply susfs 2.0 patch
