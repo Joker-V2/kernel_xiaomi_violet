@@ -3,7 +3,7 @@ name: Build Kernel (violet | SukiSU Ultra + jeejox + susfs2)
 on:
   push:
     branches:
-      - test
+      - test3
   workflow_dispatch:
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     - name: Checkout kernel source
       uses: actions/checkout@v4
       with:
-        ref: test
+        ref: test3
         fetch-depth: 1
 
     - name: Install dependencies
@@ -35,39 +35,6 @@ jobs:
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
-
-    # 1️⃣ Inject SukiSU Ultra
-    - name: Inject SukiSU Ultra
-      run: |
-        set -e
-        curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash
-
-    # 2️⃣ Lock KernelSU to Jan 6 commit
-    - name: Lock KernelSU commit (Jan 6)
-      run: |
-        set -e
-        cd KernelSU
-        git fetch --all
-        git checkout 496837ad81b9332d352b0b17184a0d637c81b7cc
-        git submodule update --init --recursive
-        echo "[OK] KernelSU locked to Jan 6 commit"
-
-    # 3️⃣ Verify KernelSU source & path
-    - name: Verify KernelSU source
-      run: |
-        set -e
-        test -d drivers/kernelsu || { echo "❌ drivers/kernelsu missing"; exit 1; }
-
-        cd KernelSU
-        CURRENT=$(git rev-parse HEAD)
-        EXPECTED=496837ad81b9332d352b0b17184a0d637c81b7cc
-
-        if [ "$CURRENT" != "$EXPECTED" ]; then
-          echo "❌ KernelSU commit mismatch"
-          exit 1
-        fi
-
-        echo "✅ KernelSU source verified"
 
     # 4️⃣ Apply jeejox non-GKI patches
     - name: Apply KernelSU non-GKI patches
