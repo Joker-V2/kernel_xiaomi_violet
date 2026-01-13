@@ -47,6 +47,18 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1
 
+   # SUSFS 2.0 — كما هو
+    - name: Apply susfs 2.0 patch
+      run: |
+        set +e
+        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-2.0.0.patch \
+          | patch -p1 --batch --forward
+        set -e
+    - name: Verify susfs files
+      run: |
+        test -f fs/susfs.c || exit 1
+        test -f include/linux/susfs.h || exit 1
+
     # 6️⃣ Export build env
     - name: Export build environment
       run: |
