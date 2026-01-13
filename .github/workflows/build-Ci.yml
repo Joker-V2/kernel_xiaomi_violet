@@ -79,7 +79,7 @@ jobs:
     - name: Build kernel
       run: |
         set -o pipefail
-        make O=out -j$(nproc) V=1 2>&1 | tee build.log
+        make O=out -j$(nproc) 2>&1 | tee build.log
 
     # 8️⃣5️⃣ Verify hooks.o built
     - name: Verify hooks.o built
