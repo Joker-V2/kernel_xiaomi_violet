@@ -27,7 +27,7 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
-#include <linux/susfs.h>
+
 
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
