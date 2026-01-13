@@ -96,9 +96,10 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 8️⃣ Build kernel
+    # 8️⃣ Build kernel (✅ التعديل الوحيد)
     - name: Build kernel
       run: |
+        set -o pipefail
         make O=out -j$(nproc) 2>&1 | tee build.log
 
     # 8️⃣5️⃣ Verify hooks.o built
