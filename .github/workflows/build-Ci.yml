@@ -48,8 +48,8 @@ jobs:
     - name: Apply susfs 2.0 patch
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-2.0.0.patch \
-          | patch -p1 --batch --forward
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/kernel_xiaomi_violet/Backport-susfs2.yml \
+         | patch -p1
         set -e
     - name: Verify susfs files
       run: |
