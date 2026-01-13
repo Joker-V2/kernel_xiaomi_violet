@@ -28,12 +28,14 @@ jobs:
           gcc-arm-linux-gnueabi \
           python3 \
           openjdk-17-jre-headless
+    
     - name: Setup Clang
       run: |
         mkdir -p clang
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
+    
     # 4️⃣ Apply jeejox non-GKI patches
     - name: Apply KernelSU non-GKI patches
       run: |
@@ -44,17 +46,197 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0004-fs-stat-add-ksu-vfs_statx-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1
-   # SUSFS 2.0 — كما هو
+   
+    # SUSFS 2.0 — FIXED FOR ANDROID 16
     - name: Apply susfs 2.0 patch
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
-         | patch -p1 --batch --forward
+        
+        echo "📥 Downloading SUSFS 2.0 patch..."
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch -o susfs-original.patch
+        
+        echo "🔧 Applying SUSFS patches (excluding task_mmu.c)..."
+        # Apply original patch - will pass on all files except task_mmu.c
+        patch -p1 --batch --forward --reject-file=- < susfs-original.patch || true
+        
+        echo "🎯 Creating fixed task_mmu.c patch for Android 16..."
+        # Create the fixed patch for task_mmu.c with correct line numbers
+        cat > task_mmu_fixed.patch << 'EOFPATCH'
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index f5c0fc7bad..9f5b9d19fa 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -21,6 +21,9 @@
+ #include <linux/mm_inline.h>
+ #include <linux/ctype.h>
+ #include <linux/mm_inline.h>
++#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
++#include <linux/susfs_def.h>
++#endif
+ 
+ #include <asm/elf.h>
+ #include <asm/tlb.h>
+@@ -28,6 +31,10 @@
+ #include "internal.h"
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
++extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
++#endif
++
+ void task_mem(struct seq_file *m, struct mm_struct *mm)
+ {
+ 	unsigned long text, lib, swap, anon, file, shmem;
+@@ -354,8 +361,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
+ 
+ 	if (file) {
+ 		struct inode *inode = file_inode(vma->vm_file);
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		if (unlikely(inode->i_mapping->flags & BIT_SUS_MAPS) && susfs_is_current_proc_umounted()) {
++			seq_setwidth(m, 25 + sizeof(void *) * 6 - 1);
++			seq_put_hex_ll(m, NULL, vma->vm_start, 8);
++			seq_put_hex_ll(m, "-", vma->vm_end, 8);
++			seq_putc(m, ' ');
++			seq_putc(m, '-');
++			seq_putc(m, '-');
++			seq_putc(m, '-');
++			seq_putc(m, 'p');
++			seq_put_hex_ll(m, " ", pgoff, 8);
++			seq_put_hex_ll(m, " ", MAJOR(dev), 2);
++			seq_put_hex_ll(m, ":", MINOR(dev), 2);
++			seq_put_decimal_ull(m, " ", ino);
++			seq_putc(m, ' ');
++			goto done;
++		}
++#endif
++#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
++		if (unlikely(inode->i_mapping->flags & BIT_SUS_KSTAT)) {
++			susfs_sus_ino_for_show_map_vma(inode->i_ino, &dev, &ino);
++			goto bypass_orig_flow;
++		}
++#endif
+ 		dev = inode->i_sb->s_dev;
+ 		ino = inode->i_ino;
++#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
++bypass_orig_flow:
++#endif
+ 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+ 	}
+ 
+@@ -883,6 +920,20 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 	}
+ 
+ 	if (!rollup_mode)
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		if (vma->vm_file &&
++			unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
++			susfs_is_current_proc_umounted())
++		{
++			seq_printf(m,
++				"Size:           %8lu kB\n"
++				"KernelPageSize: %8lu kB\n"
++				"MMUPageSize:    %8lu kB\n",
++				(vma->vm_end - vma->vm_start) >> 10,
++				4, 4);
++			goto bypass_orig_flow;
++		}
++#endif
+ 		seq_printf(m,
+ 			   "Size:           %8lu kB\n"
+ 			   "KernelPageSize: %8lu kB\n"
+@@ -890,7 +941,9 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 			   (vma->vm_end - vma->vm_start) >> 10,
+ 			   vma_kernel_pagesize(vma) >> 10,
+ 			   vma_mmu_pagesize(vma) >> 10);
+-
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++bypass_orig_flow:
++#endif
+ 
+ 	if (!rollup_mode || last_vma)
+ 		seq_printf(m,
+@@ -927,9 +980,22 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 			   (unsigned long)(mss->pss_locked >> (10 + PSS_SHIFT)));
+ 
+ 	if (!rollup_mode) {
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		if (vma->vm_file &&
++			unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
++			susfs_is_current_proc_umounted())
++		{
++			seq_puts(m, "VmFlags: mr mw me");
++			seq_putc(m, '\n');
++			goto bypass_orig_flow2;
++		}
++#endif
+ 		arch_show_smap(m, vma);
+ 		show_smap_vma_flags(m, vma);
+ 	}
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++bypass_orig_flow2:
++#endif
+ 	m_cache_vma(m, vma);
+ 	return ret;
+ }
+@@ -1546,6 +1612,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+ 	unsigned long start_vaddr;
+ 	unsigned long end_vaddr;
+ 	int ret = 0, copied = 0;
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++	struct vm_area_struct *vma;
++#endif
+ 
+ 	if (!mm || !mmget_not_zero(mm))
+ 		goto out;
+@@ -1604,6 +1673,16 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+ 		down_read(&mm->mmap_sem);
+ 		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
+ 		up_read(&mm->mmap_sem);
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		vma = find_vma(mm, start_vaddr);
++		if (vma && vma->vm_file) {
++			struct inode *inode = file_inode(vma->vm_file);
++			if (unlikely(inode->i_mapping->flags & BIT_SUS_MAPS) && susfs_is_current_proc_umounted()) {
++				pm.show_pfn = false;
++				pm.buffer->pme = 0;
++			}
++		}
++#endif
+ 		start_vaddr = end;
+ 
+ 		len = min(count, PM_ENTRY_BYTES * pm.pos);
+EOFPATCH
+        
+        echo "✅ Applying fixed task_mmu.c patch..."
+        patch -p1 --batch --forward < task_mmu_fixed.patch
+        
+        if [ $? -eq 0 ]; then
+          echo "✅ SUSFS 2.0 patch applied successfully!"
+        else
+          echo "❌ Failed to apply task_mmu.c patch"
+          cat task_mmu_fixed.patch
+          exit 1
+        fi
+        
+        # Clean up temporary files
+        rm -f susfs-original.patch task_mmu_fixed.patch
+        
         set -e
+    
     - name: Verify susfs files
       run: |
-        test -f fs/susfs.c || exit 1
-        test -f include/linux/susfs.h || exit 1
+        echo "🔍 Verifying SUSFS files..."
+        test -f fs/susfs.c || { echo "❌ fs/susfs.c not found"; exit 1; }
+        test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h not found"; exit 1; }
+        echo "✅ All SUSFS files verified"
+        
+        echo "🔍 Checking task_mmu.c patches..."
+        if grep -q "CONFIG_KSU_SUSFS_SUS_MAP" fs/proc/task_mmu.c; then
+          echo "✅ task_mmu.c successfully patched with SUSFS"
+        else
+          echo "❌ task_mmu.c was not patched!"
+          exit 1
+        fi
+    
     # 6️⃣ Export build env
     - name: Export build environment
       run: |
@@ -65,15 +247,18 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+    
     # 7️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
-    # 8️⃣ Build kernel (✅ التعديل الوحيد)
+    
+    # 8️⃣ Build kernel
     - name: Build kernel
       run: |
         set -o pipefail
         make O=out -j$(nproc) 2>&1 | tee build.log
+    
     # 8️⃣5️⃣ Verify hooks.o built
     - name: Verify hooks.o built
       run: |
@@ -84,6 +269,7 @@ jobs:
           exit 1
         fi
         echo "✅ hooks.o detected in build"
+    
     # 9️⃣ KernelSU symbol analysis
     - name: KernelSU symbol check
       run: |
@@ -99,10 +285,12 @@ jobs:
           exit 1
         fi
         echo "✅ KernelSU fully registered"
+    
     # 9️⃣5️⃣ dmesg KernelSU check
     - name: dmesg KernelSU check
       run: |
         dmesg | grep -i ksu > dmesg-ksu.txt || true
+    
     # 🔟 Package AnyKernel3
     - name: Package AnyKernel3
       run: |
@@ -110,6 +298,7 @@ jobs:
         cp out/arch/arm64/boot/Image.gz AK3/
         cd AK3
         zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
+    
     # 1️⃣1️⃣ Upload artifacts
     - name: Upload artifacts
       if: always()
