@@ -27,11 +27,6 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
-#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
-#include <linux/susfs_def.h>
-#endif
-
-
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
 	unsigned long text, lib, swap, anon, file, shmem;
