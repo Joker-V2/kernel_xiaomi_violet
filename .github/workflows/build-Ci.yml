@@ -3,7 +3,7 @@ name: Build Kernel (violet | SukiSU Ultra + jeejox + susfs2)
 on:
   push:
     branches:
-      - test3
+      - test4
   workflow_dispatch:
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     - name: Checkout kernel source
       uses: actions/checkout@v4
       with:
-        ref: test3
+        ref: test4
         fetch-depth: 1
 
     - name: Install dependencies
