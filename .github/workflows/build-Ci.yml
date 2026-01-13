@@ -47,20 +47,20 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1
 
-   # SUSFS 2.0 (core-only)
-   - name: Apply susfs 2.0 core-only patch
-     run: |
-      set +e
-      curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/susfs-2.0.0-core-only.patch \
-      | patch -p1 --batch --forward
-      set -e
+    # SUSFS 2.0 (core-only)
+    - name: Apply susfs 2.0 core-only patch
+      run: |
+        set +e
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/susfs-2.0.0-core-only.patch \
+          | patch -p1 --batch --forward
+        set -e
 
-   - name: Verify susfs core files
-     run: |
-      test -f fs/susfs.c || { echo "❌ fs/susfs.c missing"; exit 1; }
-      test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
-      grep -q "CONFIG_KSU_SUSFS" fs/Makefile || { echo "❌ fs/Makefile not patched"; exit 1; }
-      echo "✅ SUSFS core-only applied successfully"
+    - name: Verify susfs core files
+      run: |
+        test -f fs/susfs.c || { echo "❌ fs/susfs.c missing"; exit 1; }
+        test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
+        grep -q "CONFIG_KSU_SUSFS" fs/Makefile || { echo "❌ fs/Makefile not patched"; exit 1; }
+        echo "✅ SUSFS core-only applied successfully"
 
     # 6️⃣ Export build env
     - name: Export build environment
