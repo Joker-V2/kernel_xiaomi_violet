@@ -6,6 +6,8 @@ ksu_obj-y += apk_sign.o
 ksu_obj-y += sucompat.o
 ksu_obj-y += throne_tracker.o
 ksu_obj-y += setuid_hook.o
+# Hooks (manual hook only)
+ksu_obj-$(CONFIG_KSU_MANUAL_HOOK) += hooks.o
 ksu_obj-y += kernel_compat.o
 ksu_obj-y += kernel_umount.o
 ksu_obj-y += supercalls.o
