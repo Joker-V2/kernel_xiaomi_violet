@@ -101,10 +101,24 @@ jobs:
       run: |
         make O=out -j$(nproc) 2>&1 | tee build.log
 
+    # 8️⃣5️⃣ Verify hooks.o built
+    - name: Verify hooks.o built
+      run: |
+        echo "== Checking hooks.o in build.log =="
+        grep -E "hooks\.o" build.log > hooks-build.txt || true
+
+        if [ ! -s hooks-build.txt ]; then
+          echo "❌ hooks.o was NOT built"
+          exit 1
+        fi
+
+        echo "✅ hooks.o detected in build"
+
     # 9️⃣ KernelSU symbol analysis
     - name: KernelSU symbol check
       run: |
         nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
+        nm out/vmlinux | grep -i hook > nm-hook.txt || true
         nm out/vmlinux > nm-full.txt
 
         if [ ! -s nm-ksu.txt ]; then
@@ -118,6 +132,11 @@ jobs:
         fi
 
         echo "✅ KernelSU fully registered"
+
+    # 9️⃣5️⃣ dmesg KernelSU check
+    - name: dmesg KernelSU check
+      run: |
+        dmesg | grep -i ksu > dmesg-ksu.txt || true
 
     # 🔟 Package AnyKernel3
     - name: Package AnyKernel3
@@ -136,4 +155,7 @@ jobs:
           Kernel-violet-sukisu-susfs2.zip
           build.log
           nm-ksu.txt
+          nm-hook.txt
           nm-full.txt
+          hooks-build.txt
+          dmesg-ksu.txt
