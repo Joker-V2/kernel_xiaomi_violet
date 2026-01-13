@@ -27,6 +27,10 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs.h>
+#endif
+
 
 
 void task_mem(struct seq_file *m, struct mm_struct *mm)
