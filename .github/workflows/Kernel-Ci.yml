@@ -44,13 +44,7 @@ jobs:
       run: |
         set -e
         curl -L https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0001-fs-exec-add-ksu-execveat-hook.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0002-fs-open-add-ksu-faccessat-hook.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0003-fs-read_write-add-ksu-vfs_read-hook.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0004-fs-stat-add-ksu-vfs_statx-hook.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1
-        curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1
-
+        
     # 5️⃣ SUSFS 2.0 patch
     - name: Apply susfs 2.0 patch
       run: |
