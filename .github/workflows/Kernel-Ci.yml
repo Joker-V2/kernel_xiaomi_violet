@@ -43,7 +43,7 @@ jobs:
     - name: Apply KernelSU non-GKI patches
       run: |
         set -e
-        curl -L https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.14.patch | patch -p1
+        curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/scope-min-hooks-v1.6.patch | patch -p1
         
     # 5️⃣ SUSFS 2.0 patch
     - name: Apply susfs 2.0 patch
