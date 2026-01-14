@@ -34,11 +34,7 @@ jobs:
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
-    # 4️⃣ Inject SukiSU Ultra (builtin / manual hook)
-    - name: Inject SukiSU Ultra (builtin)
-      run: |
-        set -e
-        curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+    
     
     # 4️⃣ Apply jeejox non-GKI patches
     - name: Apply KernelSU non-GKI patches
