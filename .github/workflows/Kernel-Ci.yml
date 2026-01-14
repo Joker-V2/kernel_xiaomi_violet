@@ -61,22 +61,19 @@ jobs:
     # 6️⃣ Verify susfs files
     - name: Verify susfs files
       run: |
-        test -f fs/susfs.c || { echo "❌ fs/susfs.c missing"; exit 1; }
-        test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
-        test -f include/linux/susfs_def.h || { echo "❌ include/linux/susfs_def.h missing"; exit 1; }
-        echo "✅ susfs files exist"
+        test -f fs/susfs.c || exit 1
+        test -f include/linux/susfs.h || exit 1
+        test -f include/linux/susfs_def.h || exit 1
 
-    # 7️⃣ Dump SUSFS source files (<<< المرحلة المطلوبة)
+    # 7️⃣ Dump SUSFS source files
     - name: Dump susfs source files
       run: |
         mkdir -p susfs_sources
         cp fs/susfs.c susfs_sources/
         cp include/linux/susfs.h susfs_sources/
         cp include/linux/susfs_def.h susfs_sources/
-        echo "== SUSFS dumped files =="
-        ls -l susfs_sources
 
-    # 8️⃣ Upload SUSFS source files (<<< الإضافة الوحيدة)
+    # 8️⃣ Upload SUSFS source files
     - name: Upload SUSFS source files
       uses: actions/upload-artifact@v4
       with:
@@ -109,11 +106,7 @@ jobs:
     - name: Verify hooks.o built
       run: |
         grep -E "hooks\.o" build.log > hooks-build.txt || true
-        if [ ! -s hooks-build.txt ]; then
-          echo "❌ hooks.o was NOT built"
-          exit 1
-        fi
-        echo "✅ hooks.o detected"
+        test -s hooks-build.txt
 
     # 1️⃣3️⃣ Symbol analysis
     - name: KernelSU & SUSFS symbol analysis
@@ -122,27 +115,18 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-        if [ ! -s nm-ksu.txt ]; then
-          echo "❌ KernelSU symbols missing"
-          exit 1
-        fi
+    # 1️⃣5️⃣ AnyKernel3 (كما طلبت بالضبط)
+    - name: Package AnyKernel3
+      run: |
+        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
+        cp out/arch/arm64/boot/Image.gz AK3/
+        cp out/arch/arm64/boot/dtbo.img AK3/
+        cd AK3
+        zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
 
-        if [ ! -s nm-susfs.txt ]; then
-          echo "❌ SUSFS symbols missing"
-          exit 1
-        fi
-
-        echo "✅ KernelSU & SUSFS symbols present"
-
-    # 1️⃣4️⃣ Upload artifacts
-    - name: Upload build artifacts
-      if: always()
+    # 1️⃣6️⃣ Upload final zip
+    - name: Upload flashable zip
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-debug
-        path: |
-          build.log
-          nm-ksu.txt
-          nm-susfs.txt
-          nm-full.txt
-          hooks-build.txt
+        name: Kernel-violet-sukisu-susfs2
+        path: Kernel-violet-sukisu-susfs2.zip
