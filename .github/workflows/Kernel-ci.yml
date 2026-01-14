@@ -32,17 +32,6 @@ jobs:
           openjdk-17-jre-headless \
           ccache
 
-    # 3️⃣ ZRAM (Swap)
-    - name: Setup zram
-      run: |
-        sudo swapoff -a || true
-        sudo modprobe zram
-        echo lz4 | sudo tee /sys/block/zram0/comp_algorithm
-        echo 8G | sudo tee /sys/block/zram0/disksize
-        sudo mkswap /dev/zram0
-        sudo swapon /dev/zram0
-        free -h
-
     # 4️⃣ Clang (ZyCromerZ 22)
     - name: Setup ZyC Clang 22
       run: |
