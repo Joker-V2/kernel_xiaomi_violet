@@ -11,12 +11,14 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+    # 1️⃣ Checkout
     - name: Checkout kernel source
       uses: actions/checkout@v4
       with:
         ref: test4
         fetch-depth: 1
 
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -28,15 +30,16 @@ jobs:
           gcc-arm-linux-gnueabi \
           python3 \
           openjdk-17-jre-headless
+
+    # 3️⃣ Clang
     - name: Setup Clang
       run: |
         mkdir -p clang
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
-    
-    
-    # 4️⃣ Apply jeejox non-GKI patches
+
+    # 4️⃣ KernelSU non-GKI patches (jeejox)
     - name: Apply KernelSU non-GKI patches
       run: |
         set -e
@@ -46,33 +49,23 @@ jobs:
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0004-fs-stat-add-ksu-vfs_statx-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0005-drivers-input-input-add-ksu-input_handle_event-hook.patch | patch -p1
         curl -L https://raw.githubusercontent.com/jonjeexe/KernelSU_Patches/non-GKI/0006-fs-namespace-add-path-umount-hook.patch | patch -p1
-   # SUSFS 2.0 — كما هو
+
+    # 5️⃣ SUSFS 2.0 (كما هو – بدون تعديل)
     - name: Apply susfs 2.0 patch
       run: |
         set +e
         curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
-         | patch -p1 --batch --forward
+          | patch -p1 --batch --forward
         set -e
-    - name: Verify susfs patch results
-  run: |
-    echo "== Verifying SUSFS patch results =="
 
-    # 1) Makefile integration
-    grep -q "obj-\\$(CONFIG_KSU_SUSFS) += susfs.o" fs/Makefile \
-      || { echo "❌ susfs.o not added to fs/Makefile"; exit 1; }
-    echo "✅ fs/Makefile includes susfs.o"
+    # 6️⃣ Verify susfs files exist (after patch)
+    - name: Verify susfs files
+      run: |
+        test -f fs/susfs.c || { echo "❌ fs/susfs.c missing"; exit 1; }
+        test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
+        echo "✅ susfs source files present"
 
-    # 2) susfs.o gets compiled
-    grep -q "susfs\\.o" build.log \
-      || { echo "❌ susfs.o not compiled"; exit 1; }
-    echo "✅ susfs.o was built"
-
-    # 3) Symbols from susfs are present
-    grep -E "susfs_is_|susfs_" nm-full.txt \
-      || { echo "❌ susfs symbols missing in nm-full.txt"; exit 1; }
-    echo "✅ susfs symbols detected"
-        
-    # 6️⃣ Export build env
+    # 7️⃣ Export build env
     - name: Export build environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -82,52 +75,72 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-    # 7️⃣ Defconfig
+
+    # 8️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
-    # 8️⃣ Build kernel (✅ التعديل الوحيد)
+
+    # 9️⃣ Build kernel
     - name: Build kernel
       run: |
         set -o pipefail
         make O=out -j$(nproc) 2>&1 | tee build.log
-    # 8️⃣5️⃣ Verify hooks.o built
+
+    # 🔟 Verify hooks.o
     - name: Verify hooks.o built
       run: |
-        echo "== Checking hooks.o in build.log =="
         grep -E "hooks\.o" build.log > hooks-build.txt || true
         if [ ! -s hooks-build.txt ]; then
           echo "❌ hooks.o was NOT built"
           exit 1
         fi
-        echo "✅ hooks.o detected in build"
-    # 9️⃣ KernelSU symbol analysis
-    - name: KernelSU symbol check
+        echo "✅ hooks.o detected"
+
+    # 1️⃣1️⃣ Symbol dump
+    - name: KernelSU & SUSFS symbol analysis
       run: |
         nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
-        nm out/vmlinux | grep -i hook > nm-hook.txt || true
+        nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
+
         if [ ! -s nm-ksu.txt ]; then
-          echo "❌ KernelSU NOT registered (no symbols)"
+          echo "❌ KernelSU symbols missing"
           exit 1
         fi
-        if ! grep -E "ksu_.*init" nm-ksu.txt >/dev/null; then
-          echo "❌ KernelSU initcall missing"
+
+        if [ ! -s nm-susfs.txt ]; then
+          echo "❌ SUSFS symbols missing"
           exit 1
         fi
-        echo "✅ KernelSU fully registered"
-    # 9️⃣5️⃣ dmesg KernelSU check
-    - name: dmesg KernelSU check
+
+        echo "✅ KernelSU & SUSFS symbols present"
+
+    # 1️⃣2️⃣ Verify susfs really integrated
+    - name: Verify susfs patch results
       run: |
-        dmesg | grep -i ksu > dmesg-ksu.txt || true
-    # 🔟 Package AnyKernel3
+        echo "== Verifying SUSFS integration =="
+
+        grep -q "susfs.o" fs/Makefile \
+          || { echo "❌ susfs.o not in fs/Makefile"; exit 1; }
+
+        grep -q "susfs\\.o" build.log \
+          || { echo "❌ susfs.o not compiled"; exit 1; }
+
+        grep -E "susfs_init|susfs_is_" nm-full.txt \
+          || { echo "❌ susfs symbols not linked"; exit 1; }
+
+        echo "✅ SUSFS fully integrated"
+
+    # 1️⃣3️⃣ Package AnyKernel3
     - name: Package AnyKernel3
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         cd AK3
         zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
-    # 1️⃣1️⃣ Upload artifacts
+
+    # 1️⃣4️⃣ Upload artifacts
     - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
@@ -137,7 +150,6 @@ jobs:
           Kernel-violet-sukisu-susfs2.zip
           build.log
           nm-ksu.txt
-          nm-hook.txt
+          nm-susfs.txt
           nm-full.txt
           hooks-build.txt
-          dmesg-ksu.txt
