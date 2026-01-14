@@ -53,33 +53,24 @@ jobs:
         curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
          | patch -p1 --batch --forward
         set -e
-    - name: Verify susfs patch result
-      run: |
-        echo "== Verifying SUSFS patch results =="
+    - name: Verify susfs patch results
+  run: |
+    echo "== Verifying SUSFS patch results =="
 
-        # 1) Files existence
-        test -d fs/susfs || { echo "❌ fs/susfs directory missing"; exit 1; }
-        test -f fs/susfs/susfs.c || { echo "❌ fs/susfs/susfs.c missing"; exit 1; }
-        test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
+    # 1) Makefile integration
+    grep -q "obj-\\$(CONFIG_KSU_SUSFS) += susfs.o" fs/Makefile \
+      || { echo "❌ susfs.o not added to fs/Makefile"; exit 1; }
+    echo "✅ fs/Makefile includes susfs.o"
 
-        # 2) Kconfig integration
-        grep -q "config SUSFS" fs/susfs/Kconfig || {
-          echo "❌ SUSFS Kconfig entry missing"
-          exit 1
-        }
+    # 2) susfs.o gets compiled
+    grep -q "susfs\\.o" build.log \
+      || { echo "❌ susfs.o not compiled"; exit 1; }
+    echo "✅ susfs.o was built"
 
-        grep -q "source \"fs/susfs/Kconfig\"" fs/Kconfig || {
-          echo "❌ fs/Kconfig not sourcing susfs"
-          exit 1
-        }
-
-        # 3) Makefile integration
-        grep -q "susfs" fs/Makefile || {
-          echo "❌ fs/Makefile not referencing susfs"
-          exit 1
-        }
-
-        echo "✅ SUSFS patch applied correctly"
+    # 3) Symbols from susfs are present
+    grep -E "susfs_is_|susfs_" nm-full.txt \
+      || { echo "❌ susfs symbols missing in nm-full.txt"; exit 1; }
+    echo "✅ susfs symbols detected"
         
     # 6️⃣ Export build env
     - name: Export build environment
