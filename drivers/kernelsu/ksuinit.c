@@ -162,3 +162,10 @@ MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 #endif
+#if !defined(MODULE)
+/*
+ * Built-in KernelSU (CONFIG_KSU=y)
+ * Ensure init is called for built-in driver
+ */
+late_initcall(kernelsu_init);
+#endif
