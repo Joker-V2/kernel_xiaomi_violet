@@ -1,4 +1,4 @@
-name: Build Kernel (violet | SukiSU Ultra + miniscop 1.6 + susfs2 + ccache)
+name: Build Kernel (violet | SukiSU Ultra + susfs2 | ZyC22 + ccache + zram)
 
 on:
   push:
@@ -32,76 +32,90 @@ jobs:
           openjdk-17-jre-headless \
           ccache
 
-    # 3️⃣ ZyCromerZ Clang 22
+    # 3️⃣ ZRAM (Swap)
+    - name: Setup zram
+      run: |
+        sudo swapoff -a || true
+        sudo modprobe zram
+        echo lz4 | sudo tee /sys/block/zram0/comp_algorithm
+        echo 8G | sudo tee /sys/block/zram0/disksize
+        sudo mkswap /dev/zram0
+        sudo swapon /dev/zram0
+        free -h
+
+    # 4️⃣ Clang (ZyCromerZ 22)
     - name: Setup ZyC Clang 22
       run: |
         mkdir -p clang
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250920-release/Clang-22.0.0git-20250920.tar.gz
         tar -xzf Clang-22.0.0git-20250920.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
-        clang/bin/clang --version
+        clang --version
 
-    # 4️⃣ Mini scope hooks v1.6
-    - name: Apply Mini Scope hooks v1.6
+    # 5️⃣ KernelSU mini-scope hooks 1.6
+    - name: Apply KernelSU mini scope hooks
       run: |
         set -e
-        curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-inline-hooks.patch | patch -p1
-    # 5️⃣ SUSFS 2.0
-    - name: Apply SUSFS 2.0 patch
+        curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/scope-min-hooks-v1.6.patch | patch -p1
+
+    # 6️⃣ SUSFS 2.0
+    - name: Apply SUSFS 2.0
       run: |
         set +e
         curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
           | patch -p1 --batch --forward
         set -e
 
-    # 6️⃣ Verify SUSFS
+    # 7️⃣ Verify SUSFS
     - name: Verify susfs files
       run: |
         test -f fs/susfs.c
         test -f include/linux/susfs.h
         test -f include/linux/susfs_def.h
 
-    # 7️⃣ Export build environment (ccache clean)
+    # 8️⃣ Export build env (⚠️ لا نكسر clang)
     - name: Export build environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "LLVM=1" >> $GITHUB_ENV
-        echo "LLVM_IAS=1" >> $GITHUB_ENV
+        echo "LLVM_IAS=0" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-
-        # ccache (مثل سكريبت البايثون)
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "USE_CCACHE=1" >> $GITHUB_ENV
-        echo "CC=ccache clang" >> $GITHUB_ENV
-
-    # 8️⃣ Prepare ccache
-    - name: Prepare ccache
-      run: |
-        ccache -M 10G
-        ccache -z
-        ccache -s
 
     # 9️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 🔟 Build kernel
+    # 🔟 Build kernel (🔥 stable)
     - name: Build kernel
       run: |
         set -o pipefail
-        make O=out -j$(nproc) 2>&1 | tee build.log
+
+        # ccache setup
+        export CCACHE_CPP2=yes
+        export CCACHE_SLOPPINESS=time_macros
+        ccache -M 10G
+        ccache -z
+
+        make O=out -j$(nproc) \
+          CC="ccache clang" \
+          LLVM=1 \
+          LLVM_IAS=0 \
+          2>&1 | tee build.log
+
+        ccache -s
 
     # 1️⃣1️⃣ Verify hooks.o
-    - name: Verify hooks.o
+    - name: Verify hooks.o built
       run: |
         grep -E "hooks\.o" build.log > hooks-build.txt || true
         test -s hooks-build.txt
 
     # 1️⃣2️⃣ Symbol analysis
-    - name: KernelSU & SUSFS symbols
+    - name: Symbol analysis
       run: |
         nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
@@ -114,36 +128,26 @@ jobs:
         cp out/arch/arm64/boot/Image.gz AK3/
         cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../Kernel-violet-sukisu.zip *
+        zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
 
-    # 1️⃣4️⃣ ZipSigner
+    # 1️⃣4️⃣ Sign zip
     - name: Sign zip
       run: |
-        wget -q https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner-3.0-dexed.jar \
-          Kernel-violet-sukisu.zip \
-          Kernel-violet-sukisu-SIGNED.zip
+        wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
+        java -jar zipsigner.jar \
+          Kernel-violet-sukisu-susfs2.zip \
+          Kernel-violet-sukisu-susfs2-signed.zip
 
-    # 1️⃣5️⃣ Upload kernel zip
-    - name: Upload kernel
+    # 1️⃣5️⃣ Upload artifacts
+    - name: Upload artifacts
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-sukisu
-        path: Kernel-violet-sukisu-SIGNED.zip
-
-    # 1️⃣6️⃣ Upload logs & analysis
-    - name: Upload logs
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs
+        name: Kernel-violet-debug
         path: |
+          Kernel-violet-sukisu-susfs2-signed.zip
           build.log
-          hooks-build.txt
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
-
-    # 1️⃣7️⃣ ccache stats
-    - name: ccache stats
-      run: |
-        ccache -s || true
+          hooks-build.txt
