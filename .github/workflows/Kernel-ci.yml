@@ -1,4 +1,4 @@
-name: Build Kernel (violet | SukiSU Ultra + susfs2 | ZyC22 | SAFE)
+name: Build Kernel (violet | safe + full log)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
     # 1️⃣ Checkout
@@ -27,11 +27,19 @@ jobs:
           libelf-dev libncurses-dev \
           gcc-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi \
-          python3 \
-          openjdk-17-jre-headless \
+          python3 openjdk-17-jre-headless \
           ccache
 
-    # 3️⃣ ZyC Clang 22
+    # 3️⃣ Swap (آمن)
+    - name: Setup swap
+      run: |
+        sudo fallocate -l 8G /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        free -h
+
+    # 4️⃣ Clang ZyC 22
     - name: Setup ZyC Clang 22
       run: |
         mkdir -p clang
@@ -40,13 +48,13 @@ jobs:
         echo "$PWD/clang/bin" >> $GITHUB_PATH
         clang --version
 
-    # 4️⃣ Mini Scope / inline hooks (NO_HOOK friendly)
-    - name: Apply inline hooks
+    # 5️⃣ KernelSU hooks (inline / mini)
+    - name: Apply KernelSU hooks
       run: |
         set -e
-        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/susfs-inline-hooks.patch | patch -p1
+        curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-inline-hooks.patch | patch -p1
 
-    # 5️⃣ SUSFS 2.0
+    # 6️⃣ SUSFS 2.0
     - name: Apply SUSFS 2.0
       run: |
         set +e
@@ -54,14 +62,14 @@ jobs:
           | patch -p1 --batch --forward
         set -e
 
-    # 6️⃣ Verify SUSFS
-    - name: Verify SUSFS files
+    # 7️⃣ Verify SUSFS
+    - name: Verify susfs files
       run: |
         test -f fs/susfs.c
         test -f include/linux/susfs.h
         test -f include/linux/susfs_def.h
 
-    # 7️⃣ Export environment (SAFE)
+    # 8️⃣ Environment
     - name: Export build environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -72,27 +80,28 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 8️⃣ Defconfig
+    # 9️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 9️⃣ Prepare ccache (SAFE MODE)
+    # 🔟 Prepare ccache
     - name: Prepare ccache
       run: |
+        export CCACHE_CPP2=yes
+        export CCACHE_COMPILERCHECK=content
+        export CCACHE_SLOPPINESS=file_macro,time_macros
         ccache -M 5G
         ccache -z
-        echo "CCACHE_CPP2=yes" >> $GITHUB_ENV
-        echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
-        echo "CCACHE_SLOPPINESS=file_macro,time_macros" >> $GITHUB_ENV
 
-    # 🔟 Build kernel (ULTRA SAFE)
+    # 🔥 Build kernel (SAFE LOGGING)
     - name: Build kernel
+      id: build
       run: |
         mkdir -p logs
         set +e
 
-        make O=out -j4 \
+        make O=out -j2 \
           CC="ccache clang" \
           LLVM=1 \
           LLVM_IAS=0 \
@@ -101,56 +110,43 @@ jobs:
         echo $? > logs/build.ret
         ccache -s
 
-    # 1️⃣1️⃣ Check build result
-    - name: Check build result
+    # ❌ Print error like screenshot
+    - name: Show error log (last lines)
+      if: failure()
       run: |
-        ret=$(cat logs/build.ret)
-        if [ "$ret" != "0" ]; then
-          echo "❌ Build failed"
-          tail -n 200 logs/build.log
-          exit 1
-        fi
-        echo "✅ Build OK"
+        echo "====== BUILD FAILED ======"
+        tail -n 200 logs/build.log
 
-    # 1️⃣2️⃣ Verify hooks
+    # ✅ Verify hooks.o
     - name: Verify hooks.o
+      if: success()
       run: |
-        grep -E "hooks\.o" logs/build.log > hooks-build.txt || true
+        grep -R "hooks.o" logs/build.log || true
 
-    # 1️⃣3️⃣ Symbol analysis
-    - name: Symbol analysis
-      run: |
-        nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
-        nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
-        nm out/vmlinux > nm-full.txt
-
-    # 1️⃣4️⃣ AnyKernel3
+    # 📦 AnyKernel3
     - name: Package AnyKernel3
+      if: success()
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
+        zip -r9 ../Kernel-violet.zip *
 
-    # 1️⃣5️⃣ Sign zip
+    # ✍️ Sign zip
     - name: Sign zip
+      if: success()
       run: |
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar \
-          Kernel-violet-sukisu-susfs2.zip \
-          Kernel-violet-sukisu-susfs2-signed.zip
+        java -jar zipsigner.jar Kernel-violet.zip Kernel-violet-signed.zip
 
-    # 1️⃣6️⃣ Upload artifacts
+    # 📤 Upload artifacts
     - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-safe-debug
+        name: kernel-build-logs
         path: |
-          Kernel-violet-sukisu-susfs2-signed.zip
           logs/build.log
-          nm-ksu.txt
-          nm-susfs.txt
-          nm-full.txt
-          hooks-build.txt
+          logs/build.ret
+          Kernel-violet-signed.zip
