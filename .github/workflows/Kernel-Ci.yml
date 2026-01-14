@@ -1,4 +1,4 @@
-name: Build Kernel (violet | SukiSU Ultra + scope-min 1.6 + susfs2)
+name: Build Kernel (violet | SukiSU Ultra + jeejox + susfs2)
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
         ref: test4
         fetch-depth: 1
 
-    # 2️⃣ Dependencies
+    # 2️⃣ Dependencies + ccache
     - name: Install dependencies
       run: |
         sudo apt update
@@ -29,23 +29,35 @@ jobs:
           gcc-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi \
           python3 \
-          openjdk-17-jre-headless
+          openjdk-17-jre-headless \
+          ccache
 
-    # 3️⃣ Clang
-    - name: Setup Clang
+    # 🧠 ZRAM (Swap)
+    - name: Setup zram
+      run: |
+        sudo swapoff -a || true
+        sudo modprobe zram
+        echo lz4 | sudo tee /sys/block/zram0/comp_algorithm
+        echo 8G | sudo tee /sys/block/zram0/disksize
+        sudo mkswap /dev/zram0
+        sudo swapon /dev/zram0
+        free -h
+
+    # 3️⃣ Clang (ZyCromerZ 22)
+    - name: Setup ZyC Clang 22
       run: |
         mkdir -p clang
-        wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20251111-release/Clang-15.0.7-20251111.tar.gz
-        tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
+        wget -q https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250920-release/Clang-22.0.0git-20250920.tar.gz
+        tar -xzf Clang-22.0.0git-20250920.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # 4️⃣ scope-min hooks v1.6
-    - name: Apply scope-min hooks v1.6
+    # 4️⃣ KernelSU non-GKI patches (jeejox)
+    - name: Apply KernelSU non-GKI patches
       run: |
         set -e
         curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/scope-min-hooks-v1.6.patch | patch -p1
 
-    # 5️⃣ SUSFS 2.0
+    # 5️⃣ SUSFS 2.0 patch
     - name: Apply susfs 2.0 patch
       run: |
         set +e
@@ -53,14 +65,14 @@ jobs:
           | patch -p1 --batch --forward
         set -e
 
-    # 6️⃣ Verify SUSFS files
+    # 6️⃣ Verify susfs files
     - name: Verify susfs files
       run: |
-        test -f fs/susfs.c
-        test -f include/linux/susfs.h
-        test -f include/linux/susfs_def.h
+        test -f fs/susfs.c || exit 1
+        test -f include/linux/susfs.h || exit 1
+        test -f include/linux/susfs_def.h || exit 1
 
-    # 7️⃣ Dump SUSFS sources
+    # 7️⃣ Dump SUSFS source files
     - name: Dump susfs source files
       run: |
         mkdir -p susfs_sources
@@ -68,14 +80,14 @@ jobs:
         cp include/linux/susfs.h susfs_sources/
         cp include/linux/susfs_def.h susfs_sources/
 
-    # 8️⃣ Upload SUSFS sources
+    # 8️⃣ Upload SUSFS source files
     - name: Upload SUSFS source files
       uses: actions/upload-artifact@v4
       with:
         name: susfs-sources
         path: susfs_sources
 
-    # 9️⃣ Export build env
+    # 9️⃣ Export build env + ccache
     - name: Export build environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -85,6 +97,9 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+        echo "USE_CCACHE=1" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "CC='ccache clang'" >> $GITHUB_ENV
 
     # 🔟 Defconfig
     - name: Load defconfig
@@ -95,6 +110,7 @@ jobs:
     - name: Build kernel
       run: |
         set -o pipefail
+        ccache -M 10G
         make O=out -j$(nproc) 2>&1 | tee build.log
 
     # 1️⃣2️⃣ Verify hooks.o
@@ -110,7 +126,7 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣4️⃣ AnyKernel3
+    # 1️⃣5️⃣ AnyKernel3 (كما طلبت بالضبط)
     - name: Package AnyKernel3
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
@@ -119,30 +135,9 @@ jobs:
         cd AK3
         zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
 
-    # 1️⃣5️⃣ Sign ZIP
-    - name: Sign kernel zip
-      run: |
-        wget -q https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar -O zipsigner.jar
-        java -jar zipsigner.jar \
-          Kernel-violet-sukisu-susfs2.zip \
-          Kernel-violet-sukisu-susfs2-SIGNED.zip
-
-    # 1️⃣6️⃣ Upload signed zip
-    - name: Upload signed kernel zip
+    # 1️⃣6️⃣ Upload final zip
+    - name: Upload flashable zip
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-sukisu-susfs2-SIGNED
-        path: Kernel-violet-sukisu-susfs2-SIGNED.zip
-
-    # 1️⃣7️⃣ Upload logs & analysis
-    - name: Upload debug artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Kernel-violet-debug
-        path: |
-          build.log
-          nm-ksu.txt
-          nm-susfs.txt
-          nm-full.txt
-          hooks-build.txt
+        name: Kernel-violet-sukisu-susfs2
+        path: Kernel-violet-sukisu-susfs2.zip
