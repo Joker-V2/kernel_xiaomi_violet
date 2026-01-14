@@ -1,4 +1,4 @@
-name: Build Kernel (violet | SukiSU Ultra + jeejox + susfs2)
+name: Build Kernel (violet | SukiSU Ultra + scope-min 1.6 + susfs2)
 
 on:
   push:
@@ -39,13 +39,13 @@ jobs:
         tar -xzf Clang-15.0.7-20251111.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-    # 4️⃣ KernelSU non-GKI patches (jeejox)
-    - name: Apply KernelSU non-GKI patches
+    # 4️⃣ scope-min hooks v1.6
+    - name: Apply scope-min hooks v1.6
       run: |
         set -e
         curl -L https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/scope-min-hooks-v1.6.patch | patch -p1
-        
-    # 5️⃣ SUSFS 2.0 patch
+
+    # 5️⃣ SUSFS 2.0
     - name: Apply susfs 2.0 patch
       run: |
         set +e
@@ -53,14 +53,14 @@ jobs:
           | patch -p1 --batch --forward
         set -e
 
-    # 6️⃣ Verify susfs files
+    # 6️⃣ Verify SUSFS files
     - name: Verify susfs files
       run: |
-        test -f fs/susfs.c || exit 1
-        test -f include/linux/susfs.h || exit 1
-        test -f include/linux/susfs_def.h || exit 1
+        test -f fs/susfs.c
+        test -f include/linux/susfs.h
+        test -f include/linux/susfs_def.h
 
-    # 7️⃣ Dump SUSFS source files
+    # 7️⃣ Dump SUSFS sources
     - name: Dump susfs source files
       run: |
         mkdir -p susfs_sources
@@ -68,7 +68,7 @@ jobs:
         cp include/linux/susfs.h susfs_sources/
         cp include/linux/susfs_def.h susfs_sources/
 
-    # 8️⃣ Upload SUSFS source files
+    # 8️⃣ Upload SUSFS sources
     - name: Upload SUSFS source files
       uses: actions/upload-artifact@v4
       with:
@@ -110,7 +110,7 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣5️⃣ AnyKernel3 (كما طلبت بالضبط)
+    # 1️⃣4️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
@@ -119,9 +119,30 @@ jobs:
         cd AK3
         zip -r9 ../Kernel-violet-sukisu-susfs2.zip *
 
-    # 1️⃣6️⃣ Upload final zip
-    - name: Upload flashable zip
+    # 1️⃣5️⃣ Sign ZIP
+    - name: Sign kernel zip
+      run: |
+        wget -q https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar -O zipsigner.jar
+        java -jar zipsigner.jar \
+          Kernel-violet-sukisu-susfs2.zip \
+          Kernel-violet-sukisu-susfs2-SIGNED.zip
+
+    # 1️⃣6️⃣ Upload signed zip
+    - name: Upload signed kernel zip
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-sukisu-susfs2
-        path: Kernel-violet-sukisu-susfs2.zip
+        name: Kernel-violet-sukisu-susfs2-SIGNED
+        path: Kernel-violet-sukisu-susfs2-SIGNED.zip
+
+    # 1️⃣7️⃣ Upload logs & analysis
+    - name: Upload debug artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-violet-debug
+        path: |
+          build.log
+          nm-ksu.txt
+          nm-susfs.txt
+          nm-full.txt
+          hooks-build.txt
