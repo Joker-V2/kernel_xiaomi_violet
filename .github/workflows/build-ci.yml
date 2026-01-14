@@ -58,12 +58,24 @@ jobs:
           | patch -p1 --batch --forward
         set -e
 
-    # 6️⃣ Verify susfs files exist (after patch)
+    # 6️⃣ Verify susfs files exist
     - name: Verify susfs files
       run: |
         test -f fs/susfs.c || { echo "❌ fs/susfs.c missing"; exit 1; }
         test -f include/linux/susfs.h || { echo "❌ include/linux/susfs.h missing"; exit 1; }
-        echo "✅ susfs source files present"
+        echo "✅ susfs files exist"
+
+    # 6️⃣5️⃣ Dump susfs sources (inspection only)
+    - name: Dump susfs source files
+      run: |
+        mkdir -p susfs_sources
+        cp fs/susfs.c susfs_sources/ || true
+        cp include/linux/susfs.h susfs_sources/ || true
+        if [ -f include/linux/susfs_def.h ]; then
+          cp include/linux/susfs_def.h susfs_sources/
+        fi
+        echo "== SUSFS dumped files =="
+        ls -l susfs_sources
 
     # 7️⃣ Export build env
     - name: Export build environment
@@ -97,7 +109,7 @@ jobs:
         fi
         echo "✅ hooks.o detected"
 
-    # 1️⃣1️⃣ Symbol dump
+    # 1️⃣1️⃣ Symbol analysis
     - name: KernelSU & SUSFS symbol analysis
       run: |
         nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
@@ -117,19 +129,11 @@ jobs:
         echo "✅ KernelSU & SUSFS symbols present"
 
     # 1️⃣2️⃣ Verify susfs really integrated
-    - name: Verify susfs patch results
+    - name: Verify susfs integration
       run: |
-        echo "== Verifying SUSFS integration =="
-
-        grep -q "susfs.o" fs/Makefile \
-          || { echo "❌ susfs.o not in fs/Makefile"; exit 1; }
-
-        grep -q "susfs\\.o" build.log \
-          || { echo "❌ susfs.o not compiled"; exit 1; }
-
-        grep -E "susfs_init|susfs_is_" nm-full.txt \
-          || { echo "❌ susfs symbols not linked"; exit 1; }
-
+        grep -q "susfs.o" fs/Makefile || exit 1
+        grep -q "susfs\\.o" build.log || exit 1
+        grep -E "susfs_init|susfs_is_" nm-full.txt || exit 1
         echo "✅ SUSFS fully integrated"
 
     # 1️⃣3️⃣ Package AnyKernel3
@@ -153,3 +157,4 @@ jobs:
           nm-susfs.txt
           nm-full.txt
           hooks-build.txt
+          susfs_sources/
