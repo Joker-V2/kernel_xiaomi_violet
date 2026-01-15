@@ -56,8 +56,7 @@ jobs:
     - name: Apply SUSFS 2.0.0
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
-          | patch -p1 --batch --forward
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/kernel_xiaomi_violet/No-merci-V2.patch | patch -p1 --batch --forward
         set -e
 
     # 7️⃣ Verify SUSFS
