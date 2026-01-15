@@ -52,12 +52,12 @@ jobs:
         curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/scope-min-hooks-v1.6.patch \
           | patch -p1
 
-    # 6️⃣ SUSFS 1.5.12
-    - name: Apply SUSFS 1.5.12
+    # 6️⃣ SUSFS 2.0.0
+    - name: Apply SUSFS 2.0.0
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/kernel_xiaomi_violet/Patch%20susfs%201.5%20fix.patch \
-         | patch -p1 --forward --batch
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/master/susfs-2.0.0.patch \
+          | patch -p1 --batch --forward
         set -e
 
     # 7️⃣ Verify SUSFS
