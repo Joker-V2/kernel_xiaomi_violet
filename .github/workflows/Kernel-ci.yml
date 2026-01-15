@@ -56,7 +56,8 @@ jobs:
     - name: Apply SUSFS 1.5.12
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/kernel_xiaomi_violet/Patch%20susfs%201.5%20fix.patch \
+         | patch -p1 --forward --batch
         set -e
 
     # 7️⃣ Verify SUSFS
