@@ -18,8 +18,9 @@
 #include <linux/page_idle.h>
 #include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
-#include <linux/mm_inline.h>
 #include <linux/ctype.h>
+#include <linux/mm_inline.h>
+#include <linux/pkeys.h>
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
