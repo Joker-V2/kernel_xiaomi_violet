@@ -235,6 +235,6 @@ void susfs_show_variant(void __user **user_info);
 void susfs_show_version(void __user **user_info);
 
 /* susfs_init */
-void susfs_init(void);
+int susfs_init(void);
 
 #endif
