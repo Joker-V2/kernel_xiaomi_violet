@@ -1051,15 +1051,3 @@ void susfs_init(void) {
 
 /* No module exit is needed becuase it should never be a loadable kernel module */
 //void __init susfs_exit(void)
-
-#ifndef CONFIG_KSU_SUSFS_AVC_LOG
-bool susfs_is_avc_log_spoofing_enabled = false;
-#endif
-
-#ifndef CONFIG_KSU_SUSFS_MOUNT
-void susfs_reorder_mnt_id(struct mount *mnt)
-{
-    /* stub: SUSFS mount feature disabled */
-    return;
-}
-#endif
