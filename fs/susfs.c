@@ -65,22 +65,23 @@ void susfs_set_uname(void __user **user_info)
  */
 void susfs_spoof_uname(struct new_utsname *tmp)
 {
-	/* not initialized yet */
 	if (unlikely(susfs_uname_data.release[0] == '\0'))
 		return;
 
 	spin_lock(&susfs_uname_lock);
+
 	strncpy(tmp->release,
 		susfs_uname_data.release,
 		__NEW_UTS_LEN);
 	strncpy(tmp->version,
 		susfs_uname_data.version,
 		__NEW_UTS_LEN);
+
 	spin_unlock(&susfs_uname_lock);
 }
 
-/* early init */
-static int __init susfs_init(void)
+/* late init (must NOT be static because declared in header) */
+int __init susfs_init(void)
 {
 	susfs_uname_init();
 	return 0;
