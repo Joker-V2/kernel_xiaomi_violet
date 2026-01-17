@@ -43,6 +43,7 @@ jobs:
         tar -xf Clang-22.0.0git-20250920.tar.gz -C clang
         echo "$PWD/clang/bin" >> $GITHUB_PATH
         clang --version
+
         
    # 4️⃣ SukiSU builtin (OFFICIAL)
     - name: Setup SukiSU builtin
