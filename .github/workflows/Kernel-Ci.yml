@@ -51,7 +51,7 @@ jobs:
     # 5️⃣ mini-scop-1.6
     - name: mini-scop-1.6
       run: |
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/neutralize-supercalls-susfs-1.5.12.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
         
     # 6️⃣ SUSFS 1.5.12
     - name: Apply SUSFS 1.5.12
