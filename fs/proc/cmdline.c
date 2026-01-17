@@ -3,6 +3,7 @@
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+
 #include <asm/setup.h>
 
 static char proc_cmdline[COMMAND_LINE_SIZE];
