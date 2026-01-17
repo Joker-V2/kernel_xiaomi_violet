@@ -65,6 +65,20 @@ jobs:
         test -f include/linux/susfs.h
         test -f include/linux/susfs_def.h
 
+    # 7️⃣ Dump SUSFS sources
+    - name: Dump susfs source files
+      run: |
+        mkdir -p susfs_sources
+        cp fs/susfs.c susfs_sources/
+        cp include/linux/susfs.h susfs_sources/
+        cp include/linux/susfs_def.h susfs_sources/
+    # 8️⃣ Upload SUSFS sources
+    - name: Upload SUSFS source files
+      uses: actions/upload-artifact@v4
+      with:
+        name: susfs-sources
+        path: susfs_sources
+
     # 8️⃣ Build environment
     - name: Export env
       run: |
