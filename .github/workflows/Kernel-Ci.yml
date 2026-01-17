@@ -47,32 +47,6 @@ jobs:
     - name: Setup SukiSU builtin
       run: |
         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
-        
-    # 🔒 قفل KernelSU على كوميت 13 جانفي (الذي نجح)
-    - name: Force KernelSU commit (Jan 13)
-      run: |
-        set -e
-        cd KernelSU
-        git fetch --all
-        git checkout 7d26bd2c754475c4bab97b3586aae8367a4df5f9
-        git submodule update --init --recursive
-        echo "[OK] KernelSU locked to Jan 13 commit"
-    # ✅ تحقق صارم من المصدر والكوميت
-    - name: Verify KernelSU source (commit + path)
-      run: |
-        set -e
-        echo "[*] Checking drivers/kernelsu ..."
-        test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
-        cd KernelSU
-        CURRENT_COMMIT=$(git rev-parse HEAD)
-        EXPECTED_COMMIT=7d26bd2c754475c4bab97b3586aae8367a4df5f9
-        echo "[*] Current commit  : $CURRENT_COMMIT"
-        echo "[*] Expected commit : $EXPECTED_COMMIT"
-        if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
-          echo "Error: KernelSU commit mismatch!"
-          exit 1
-        fi
-        echo "[OK] KernelSU commit verified"
 
     # 4️⃣ 4️⃣ supercalls.c
     - name: supercalls
