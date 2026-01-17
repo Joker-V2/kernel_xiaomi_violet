@@ -77,7 +77,7 @@ jobs:
     # 4️⃣ 4️⃣ supercalls.c
     - name: supercalls
       run: |
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/neutralize-supercalls-susfs-1.5.12.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/Supercall.patch | patch -p1
         
 
     # 5️⃣ mini-scop-1.6
