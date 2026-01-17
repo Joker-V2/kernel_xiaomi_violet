@@ -3,7 +3,6 @@
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-
 #include <asm/setup.h>
 
 static char proc_cmdline[COMMAND_LINE_SIZE];
@@ -31,6 +30,10 @@ static void proc_command_line_init(void) {
 }
 #endif
 
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+extern int susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);
+#endif
+
 static int cmdline_proc_show(struct seq_file *m, void *v)
 {
 #ifdef CONFIG_INITRAMFS_IGNORE_SKIP_FLAG
@@ -40,6 +43,13 @@ static int cmdline_proc_show(struct seq_file *m, void *v)
 #endif
 	return 0;
 }
+
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+	if (!susfs_spoof_cmdline_or_bootconfig(m)) {
+		seq_putc(m, '\n');
+		return 0;
+	}
+#endif
 
 static int cmdline_proc_open(struct inode *inode, struct file *file)
 {
