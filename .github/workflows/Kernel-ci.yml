@@ -55,7 +55,7 @@ jobs:
     - name: Apply SUSFS 1.5.12
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/manual_hooks-v1.5.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
         set -e
 
     # 7️⃣ Verify SUSFS
