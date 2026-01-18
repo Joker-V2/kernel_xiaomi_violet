@@ -46,18 +46,73 @@ jobs:
         clang --version
 
         
-   # 4️⃣ SukiSU builtin (OFFICIAL)
-    - name: Setup SukiSU builtin
+   # 4️⃣ kernelsu next (OFFICIAL)
+    - name: kernelsu next 
       run: |
-        curl -LSs ‘https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh’ | bash -s builtin
+        curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh | bash -
+
+  # 🔒 قفل KernelSU على كوميت sep21  (الذي نجح)
+    - name: Force KernelSU commit (sep 21)
+      run: |
+        set -e
+        cd KernelSU
+        git fetch --all
+        git checkout 0d6bdc6364cbfc73517dcfdf7ab23b0ba8045553
+        git submodule update --init --recursive
+        echo "[OK] KernelSU locked to 21 sep commit"
+    # ✅ تحقق صارم من المصدر والكوميت
+    - name: Verify KernelSU source (commit + path)
+      run: |
+        set -e
+        echo "[*] Checking drivers/kernelsu ..."
+        test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
+        cd KernelSU
+        CURRENT_COMMIT=$(git rev-parse HEAD)
+        EXPECTED_COMMIT=0d6bdc6364cbfc73517dcfdf7ab23b0ba8045553
+        echo "[*] Current commit  : $CURRENT_COMMIT"
+        echo "[*] Expected commit : $EXPECTED_COMMIT"
+        if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
+          echo "Error: KernelSU commit mismatch!"
+          exit 1
+        fi
+        echo "[OK] KernelSU commit verified"
 
         
-    # 5️⃣ mini-scop-1.6
+    # 5️⃣ syacl
     - name: Download and apply SUSFS patch
       run: |
        wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
         chmod +x susfs_patch.sh
          ./susfs_patch.sh || true  
+   
+    # 6️⃣ SUSFS 1.5.12
+    - name: Apply SUSFS 1.5.12
+      run: |
+        set +e
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
+        set -e
+
+
+    # 7️⃣ Verify SUSFS
+    - name: Verify SUSFS files
+      run: |
+        test -f fs/susfs.c
+        test -f include/linux/susfs.h
+        test -f include/linux/susfs_def.h
+
+    # 7️⃣ Dump SUSFS sources
+    - name: Dump susfs source files
+      run: |
+        mkdir -p susfs_sources
+        cp fs/susfs.c susfs_sources/
+        cp include/linux/susfs.h susfs_sources/
+        cp include/linux/susfs_def.h susfs_sources/
+    # 8️⃣ Upload SUSFS sources
+    - name: Upload SUSFS source files
+      uses: actions/upload-artifact@v4
+      with:
+        name: susfs-sources
+        path: susfs_sources
 
     # 8️⃣ Build environment
     - name: Export env
