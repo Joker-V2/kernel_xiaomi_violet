@@ -51,32 +51,6 @@ jobs:
       run: |
         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
         
-    # 🔒 قفل KernelSU على كوميت 5  (الذي نجح)
-    - name: Force KernelSU commit (Jan 13)
-      run: |
-        set -e
-        cd KernelSU
-        git fetch --all
-        git checkout ee9c20f62a603dca75ccb8ae796e9796dc9e5123
-        git submodule update --init --recursive
-        echo "[OK] KernelSU locked to 5 commit"
-    # ✅ تحقق صارم من المصدر والكوميت
-    - name: Verify KernelSU source (commit + path)
-      run: |
-        set -e
-        echo "[*] Checking drivers/kernelsu ..."
-        test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
-        cd KernelSU
-        CURRENT_COMMIT=$(git rev-parse HEAD)
-        EXPECTED_COMMIT=ee9c20f62a603dca75ccb8ae796e9796dc9e5123
-        echo "[*] Current commit  : $CURRENT_COMMIT"
-        echo "[*] Expected commit : $EXPECTED_COMMIT"
-        if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
-          echo "Error: KernelSU commit mismatch!"
-          exit 1
-        fi
-        echo "[OK] KernelSU commit verified"
-
     # 5️⃣ mini-scop-1.6
     - name: mini-scop-1.6
       run: |
@@ -86,7 +60,7 @@ jobs:
     - name: Apply SUSFS 1.5.12
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.14.patch | patch -p1
         set -e
 
 
