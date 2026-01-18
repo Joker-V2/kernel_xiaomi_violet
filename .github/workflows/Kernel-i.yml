@@ -49,21 +49,7 @@ jobs:
     # 4️⃣ kernelsu next (OFFICIAL)
     - name: kernelsu next 
       run: |
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.1.1
-
-
-    # 4️⃣ kernelsu next (OFFICIAL)
-    - name: 🔐 Add KernelSU v1.1.1 Hotfix
-      run: |
-        echo "📥 Adding KernelSU v1.1.1 Hotfix..."
-        git clone --depth=1 https://github.com/tiann/KernelSU KernelSU
-        if [ -d "KernelSU" ]; then
-          echo "✅ KernelSU v1.1.1 Hotfix added successfully"
-          ls -la KernelSU/
-        else
-          echo "❌ Failed to add KernelSU"
-          exit 1
-        fi
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
 
     # 5️⃣ syacl
     - name: Download and apply SUSFS patch
