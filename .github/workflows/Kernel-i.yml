@@ -47,6 +47,12 @@ jobs:
         rm -rf drivers/kernelsu
 
     # 4️⃣ kernelsu next (OFFICIAL)
+    - name: kernelsu next 
+      run: |
+        curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh | bash -
+        
+
+    # 4️⃣ kernelsu next (OFFICIAL)
     - name: 🔐 Add KernelSU v1.1.1 Hotfix
       run: |
         echo "📥 Adding KernelSU v1.1.1 Hotfix..."
