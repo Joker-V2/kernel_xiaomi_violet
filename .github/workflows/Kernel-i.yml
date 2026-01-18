@@ -50,6 +50,32 @@ jobs:
     - name: kernelsu next 
       run: |
         curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh | bash -
+
+    # 🔒 قفل KernelSU على كوميت 21  (الذي نجح)
+    - name: Force KernelSU commit (sep 21)
+      run: |
+        set -e
+        cd KernelSU
+        git fetch --all
+        git checkout d9239343e697ff497ea0037e242303e9b66e9a7e
+        git submodule update --init --recursive
+        echo "[OK] KernelSU locked to 21 commit"
+    # ✅ تحقق صارم من المصدر والكوميت
+    - name: Verify KernelSU source (commit + path)
+      run: |
+        set -e
+        echo "[*] Checking drivers/kernelsu ..."
+        test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
+        cd KernelSU
+        CURRENT_COMMIT=$(git rev-parse HEAD)
+        EXPECTED_COMMIT=d9239343e697ff497ea0037e242303e9b66e9a7e
+        echo "[*] Current commit  : $CURRENT_COMMIT"
+        echo "[*] Expected commit : $EXPECTED_COMMIT"
+        if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
+          echo "Error: KernelSU commit mismatch!"
+          exit 1
+        fi
+        echo "[OK] KernelSU commit verified"
         
 
     # 4️⃣ kernelsu next (OFFICIAL)
