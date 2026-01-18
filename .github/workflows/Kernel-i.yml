@@ -58,35 +58,6 @@ jobs:
        wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
         chmod +x susfs_patch.sh
          ./susfs_patch.sh || true  
-   
-    # 6️⃣ SUSFS 1.5.12
-    - name: Apply SUSFS 1.5.12
-      run: |
-        set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
-        set -e
-
-
-    # 7️⃣ Verify SUSFS
-    - name: Verify SUSFS files
-      run: |
-        test -f fs/susfs.c
-        test -f include/linux/susfs.h
-        test -f include/linux/susfs_def.h
-
-    # 7️⃣ Dump SUSFS sources
-    - name: Dump susfs source files
-      run: |
-        mkdir -p susfs_sources
-        cp fs/susfs.c susfs_sources/
-        cp include/linux/susfs.h susfs_sources/
-        cp include/linux/susfs_def.h susfs_sources/
-    # 8️⃣ Upload SUSFS sources
-    - name: Upload SUSFS source files
-      uses: actions/upload-artifact@v4
-      with:
-        name: susfs-sources
-        path: susfs_sources
 
     # 8️⃣ Build environment
     - name: Export env
