@@ -54,7 +54,7 @@ jobs:
     # 4️⃣ 4️⃣ supercalls.c git
     - name: supercalls
       run: |
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/Supercall.patch | git apply
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/Supercall.patch | patch -p1
 
         
 
