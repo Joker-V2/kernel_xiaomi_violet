@@ -52,10 +52,12 @@ jobs:
         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
         
     # 5️⃣ mini-scop-1.6
-    - name: mini-scop-1.6
+    - name: Download and apply SUSFS patch
       run: |
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/scope-min-hooks-v1.6.patch | patch -p1
-        
+       wget https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/susfs_inline_hook_patches.sh -O susfs_patch.sh
+        chmod +x susfs_patch.sh
+         ./susfs_patch.sh || true  
+   
     # 6️⃣ SUSFS 1.5.12
     - name: Apply SUSFS 1.5.12
       run: |
