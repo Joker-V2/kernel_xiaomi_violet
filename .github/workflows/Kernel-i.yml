@@ -1,6 +1,5 @@
 name: Build Kernel (violet | SukiSU builtin + mini-scope + SUSFS 1.5.12)
 
-
 on:
   workflow_dispatch:
   push:
@@ -18,7 +17,6 @@ jobs:
       with:
         fetch-depth: 1
 
-
     # 2️⃣ Dependencies + ccache
     - name: Install dependencies
       run: |
@@ -33,8 +31,6 @@ jobs:
           python3 \
           openjdk-17-jre-headless \
           ccache
-          
-
 
     # 3️⃣ ZyC Clang 22
     - name: Setup ZyC Clang 22
@@ -45,27 +41,26 @@ jobs:
         echo "$PWD/clang/bin" >> $GITHUB_PATH
         clang --version
 
-        
-   # 4️⃣ kernelsu next (OFFICIAL)
-   - name: 🔐 Add KernelSU v1.1.1 Hotfix
-     run: |
-       echo "📥 Adding KernelSU v1.1.1 Hotfix..."
-       git clone --depth=1 https://github.com/tiann/KernelSU KernelSU
-       if [ -d "KernelSU" ]; then
-         echo "✅ KernelSU v1.1.1 Hotfix added successfully"
-         ls -la KernelSU/
-       else
-         echo "❌ Failed to add KernelSU"
-         exit 1
-       fi
-        
+    # 4️⃣ kernelsu next (OFFICIAL)
+    - name: 🔐 Add KernelSU v1.1.1 Hotfix
+      run: |
+        echo "📥 Adding KernelSU v1.1.1 Hotfix..."
+        git clone --depth=1 https://github.com/tiann/KernelSU KernelSU
+        if [ -d "KernelSU" ]; then
+          echo "✅ KernelSU v1.1.1 Hotfix added successfully"
+          ls -la KernelSU/
+        else
+          echo "❌ Failed to add KernelSU"
+          exit 1
+        fi
+
     # 5️⃣ syacl
     - name: Download and apply SUSFS patch
       run: |
-       wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
+        wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
         chmod +x susfs_patch.sh
-         ./susfs_patch.sh || true  
-   
+        ./susfs_patch.sh || true
+
     # 6️⃣ SUSFS 1.5.12
     - name: Apply SUSFS 1.5.12
       run: |
@@ -73,29 +68,29 @@ jobs:
         curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
         set -e
 
-
-    # 7️⃣ Verify SUSFS
+    # 7️⃣ Verify SUSFS files
     - name: Verify SUSFS files
       run: |
         test -f fs/susfs.c
         test -f include/linux/susfs.h
         test -f include/linux/susfs_def.h
 
-    # 7️⃣ Dump SUSFS sources
+    # 8️⃣ Dump SUSFS sources
     - name: Dump susfs source files
       run: |
         mkdir -p susfs_sources
         cp fs/susfs.c susfs_sources/
         cp include/linux/susfs.h susfs_sources/
         cp include/linux/susfs_def.h susfs_sources/
-    # 8️⃣ Upload SUSFS sources
+
+    # 9️⃣ Upload SUSFS sources
     - name: Upload SUSFS source files
       uses: actions/upload-artifact@v4
       with:
         name: susfs-sources
         path: susfs_sources
 
-    # 8️⃣ Build environment
+    # 🔟 Build environment
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -106,12 +101,12 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 9️⃣ Defconfig
+    # 1️⃣1️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 🔟 Build kernel (SAFE + visible log)
+    # 1️⃣2️⃣ Build kernel (SAFE + visible log)
     - name: Build kernel
       shell: bash
       run: |
@@ -128,19 +123,19 @@ jobs:
 
         ccache -s
 
-    # 1️⃣1️⃣ Verify hooks
+    # 1️⃣3️⃣ Verify hooks
     - name: Verify hooks.o
       run: |
         grep -E "hooks\.o" logs/build.log > hooks-build.txt || true
 
-    # 1️⃣2️⃣ Symbol analysis
+    # 1️⃣4️⃣ Symbol analysis
     - name: Symbol analysis
       run: |
         nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣3️⃣ AnyKernel3
+    # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
@@ -149,7 +144,7 @@ jobs:
         cd AK3
         zip -r9 ../Kernel-violet-sukisu.zip *
 
-    # 1️⃣4️⃣ Sign ZIP
+    # 1️⃣6️⃣ Sign ZIP
     - name: Sign zip
       run: |
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
@@ -157,7 +152,7 @@ jobs:
           Kernel-violet-sukisu.zip \
           Kernel-violet-sukisu-signed.zip
 
-    # 1️⃣5️⃣ Upload artifacts
+    # 1️⃣7️⃣ Upload artifacts
     - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
