@@ -54,7 +54,7 @@ jobs:
         if [ -d "KernelSU" ]; then
           echo "✅ KernelSU v1.1.1 Hotfix added successfully"
           ls -la KernelSU/
-        else
+          else
           echo "❌ Failed to add KernelSU"
           exit 1
         fi
