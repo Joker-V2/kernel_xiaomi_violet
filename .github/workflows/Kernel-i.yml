@@ -55,7 +55,7 @@ jobs:
     # 5️⃣ mini-scop-1.6
     - name: Download and apply SUSFS patch
       run: |
-       wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh -O susfs_patch.sh
+       wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
         chmod +x susfs_patch.sh
          ./susfs_patch.sh || true  
    
@@ -63,7 +63,7 @@ jobs:
     - name: Apply SUSFS 1.5.12
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.14.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/susfs-1.5.12.patch | patch -p1
         set -e
 
 
