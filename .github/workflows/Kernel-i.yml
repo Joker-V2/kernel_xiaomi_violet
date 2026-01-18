@@ -49,7 +49,7 @@ jobs:
    # 4️⃣ SukiSU builtin (OFFICIAL)
     - name: Setup SukiSU builtin
       run: |
-        curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+        curl -LSs https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh | bash -
 
         
     # 5️⃣ mini-scop-1.6
