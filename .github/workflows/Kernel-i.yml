@@ -60,7 +60,7 @@ jobs:
     - name: Apply SUSFS 1.5.12
       run: |
         set +e
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Patch/susfs_patch_to_5.4.patch | patch -p1
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Patch/susfs_patch_to_4.9.patch | patch -p1
         set -e
 
 
