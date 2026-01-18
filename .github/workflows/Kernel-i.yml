@@ -57,7 +57,7 @@ jobs:
         set -e
         cd KernelSU
         git fetch --all
-        git checkout d9239343e697ff497ea0037e242303e9b66e9a7e
+        git checkout 0d6bdc6364cbfc73517dcfdf7ab23b0ba8045553
         git submodule update --init --recursive
         echo "[OK] KernelSU locked to 21 commit"
     # ✅ تحقق صارم من المصدر والكوميت
@@ -68,7 +68,7 @@ jobs:
         test -d drivers/kernelsu || { echo "Error: drivers/kernelsu not found"; exit 1; }
         cd KernelSU
         CURRENT_COMMIT=$(git rev-parse HEAD)
-        EXPECTED_COMMIT=d9239343e697ff497ea0037e242303e9b66e9a7e
+        EXPECTED_COMMIT=0d6bdc6364cbfc73517dcfdf7ab23b0ba8045553
         echo "[*] Current commit  : $CURRENT_COMMIT"
         echo "[*] Expected commit : $EXPECTED_COMMIT"
         if [ "$CURRENT_COMMIT" != "$EXPECTED_COMMIT" ]; then
