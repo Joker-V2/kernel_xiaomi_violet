@@ -50,6 +50,7 @@ jobs:
     - name: Setup SukiSU builtin
       run: |
         curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+
         
     # 5️⃣ mini-scop-1.6
     - name: Download and apply SUSFS patch
