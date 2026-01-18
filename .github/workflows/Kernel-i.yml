@@ -47,8 +47,8 @@ jobs:
 
         
    # 4️⃣ kernelsu next (OFFICIAL)
-     - name: 🔐 Add KernelSU v1.1.1 Hotfix
-       run: |
+   - name: 🔐 Add KernelSU v1.1.1 Hotfix
+     run: |
         echo "📥 Adding KernelSU v1.1.1 Hotfix..."
         git clone --depth=1 https://github.com/tiann/KernelSU KernelSU
         if [ -d "KernelSU" ]; then
