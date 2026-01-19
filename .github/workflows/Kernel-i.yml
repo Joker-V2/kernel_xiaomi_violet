@@ -45,9 +45,7 @@ jobs:
     # 5️⃣ syacl
     - name: Download and apply SUSFS patch
       run: |
-        wget https://raw.githubusercontent.com/Red-A-Hawk/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/syscall_hook_patches.sh -O susfs_patch.sh
-        chmod +x susfs_patch.sh
-        ./susfs_patch.sh || true
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/scope-min-hooks-v1.6.patch | patch -p1 
 
     # 6️⃣ SUSFS 1.5.12
     - name: Apply SUSFS 1.5.12
