@@ -71,7 +71,6 @@ void susfs_update_mount_ids(struct mnt_namespace *ns)
         }
     }
 }
-#endif /* CONFIG_KSU_SUSFS_SUS_MOUNT */
 
 #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
 extern void susfs_auto_add_sus_ksu_default_mount(const char __user *to_pathname);
