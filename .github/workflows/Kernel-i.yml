@@ -42,6 +42,15 @@ jobs:
         echo "$PWD/clang/bin" >> $GITHUB_PATH
         clang --version
 
+    # 3️⃣a Delete old KernelSU folder
+    - name: Delete old KernelSU folder
+      run: |
+        rm -rf drivers/kernelsu
+    # 4️⃣ kernelsu next (OFFICIAL)
+    - name: kernelsu next 
+      run: |
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.1.1
+
     # 5️⃣ syacl
     - name: Download and apply SUSFS patch
       run: |
