@@ -47,6 +47,32 @@ static int susfs_mnt_group_start = DEFAULT_SUS_MNT_GROUP_ID;
 #define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
 #endif
 
+static bool is_zygote_pid = false;
+static struct mnt_namespace *new_ns = NULL;
+static int last_entry_mnt_id = 0;
+static struct mount *q = NULL;
+
+void susfs_update_mount_ids(struct mnt_namespace *ns)
+{
+    if (!ns)
+        return;
+
+    new_ns = ns;
+    is_zygote_pid = susfs_is_current_zygote_domain();
+
+    if (is_zygote_pid) {
+        struct mount *first_mount;
+        first_mount = list_first_entry(&new_ns->list, struct mount, mnt_list);
+        last_entry_mnt_id = first_mount->mnt_id;
+        list_for_each_entry(q, &new_ns->list, mnt_list) {
+            if (unlikely(q->mnt_id >= DEFAULT_SUS_MNT_ID)) {
+                q->mnt.susfs_mnt_id_backup = q->mnt_id;
+            }
+        }
+    }
+}
+#endif /* CONFIG_KSU_SUSFS_SUS_MOUNT */
+
 #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
 extern void susfs_auto_add_sus_ksu_default_mount(const char __user *to_pathname);
 bool susfs_is_auto_add_sus_ksu_default_mount_enabled = true;
