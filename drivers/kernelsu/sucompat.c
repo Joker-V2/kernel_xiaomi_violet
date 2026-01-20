@@ -21,6 +21,10 @@
 #include "ksud.h"
 #include "sucompat.h"
 
+#ifdef CONFIG_KSU_SUSFS_SUS_SU
+#include <linux/susfs_def.h>
+#endif
+
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
 
