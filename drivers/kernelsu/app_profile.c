@@ -72,6 +72,7 @@ static void disable_seccomp(void)
     }
 
     spin_lock_irq(&current->sighand->siglock);
+
 #if defined(CONFIG_GENERIC_ENTRY) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
     clear_syscall_work(SECCOMP);
 #else
@@ -83,7 +84,7 @@ static void disable_seccomp(void)
     current->seccomp.mode = 0;
     current->seccomp.filter = NULL;
 
-#if defined(CONFIG_HAVE_ARCH_SECCOMP_FILTER)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
     atomic_set(&current->seccomp.filter_count, 0);
 #endif
 
@@ -130,24 +131,20 @@ void escape_with_root_profile(void)
     cred->egid.val = profile->gid;
     cred->securebits = 0;
 
-    BUILD_BUG_ON(sizeof(profile->capabilities.effective) !=
-                 sizeof(kernel_cap_t));
+    BUILD_BUG_ON(sizeof(profile->capabilities.effective) != sizeof(kernel_cap_t));
 
     u64 cap_for_ksud = profile->capabilities.effective | CAP_DAC_READ_SEARCH;
     memcpy(&cred->cap_effective, &cap_for_ksud, sizeof(cred->cap_effective));
-    memcpy(&cred->cap_permitted, &profile->capabilities.effective,
-           sizeof(cred->cap_permitted));
-    memcpy(&cred->cap_bset, &profile->capabilities.effective,
-           sizeof(cred->cap_bset));
+    memcpy(&cred->cap_permitted, &profile->capabilities.effective, sizeof(cred->cap_permitted));
+    memcpy(&cred->cap_bset, &profile->capabilities.effective, sizeof(cred->cap_bset));
 
     setup_groups(profile, cred);
-
     commit_creds(cred);
 
     disable_seccomp();
 
     setup_selinux(profile->selinux_domain);
-    for_each_thread (p, t) {
+    for_each_thread(p, t) {
         ksu_set_task_tracepoint_flag(t);
     }
 
