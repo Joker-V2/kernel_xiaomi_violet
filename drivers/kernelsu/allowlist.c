@@ -426,7 +426,7 @@ void persistent_allow_list()
 #if defined(TWA_RESUME)
 	task_work_add(tsk, cb, TWA_RESUME);
 #else
-	task_work_add(tsk, cb, TWA_NONE);
+	task_work_add(tsk, cb, 0);
 #endif
 
 put_task:
