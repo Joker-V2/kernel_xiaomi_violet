@@ -422,10 +422,19 @@ void persistent_allow_list()
 		goto put_task;
 	}
 	cb->func = do_persistent_allow_list;
+
+#if defined(TWA_RESUME)
 	task_work_add(tsk, cb, TWA_RESUME);
+#else
+	task_work_add(tsk, cb, TWA_NONE);
+#endif
 
 put_task:
+#if defined(put_task_struct)
 	put_task_struct(tsk);
+#else
+	put_task_stack(tsk);
+#endif
 }
 
 void ksu_load_allow_list()
