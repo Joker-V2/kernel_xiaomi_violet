@@ -2,7 +2,11 @@
 #include <linux/preempt.h>
 #include <linux/printk.h>
 #include <linux/mm.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
 #include <linux/pgtable.h>
+#else
+#include <asm/pgtable.h>
+#endif
 #include <linux/uaccess.h>
 #include <asm/current.h>
 #include <linux/cred.h>
@@ -13,16 +17,14 @@
 #include <linux/ptrace.h>
 
 #include "allowlist.h"
-#include "arch.h"
+#include "feature.h"
 #include "klog.h" // IWYU pragma: keep
 #include "ksud.h"
-#include "kernel_compat.h"
+#include "sucompat.h"
 #include "app_profile.h"
 #include "util.h"
 
-#ifdef CONFIG_KSU_SUSFS_SUS_SU
-#include <linux/susfs_def.h>
-#endif
+extern void write_sulog(uint8_t sym);
 
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
@@ -58,7 +60,7 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 
 static inline char __user *sh_user_path(void)
 {
-    static const char sh_path[] = SH_PATH;
+    static const char sh_path[] = "/system/bin/sh";
     return userspace_stack_buffer(sh_path, sizeof(sh_path));
 }
 
@@ -68,8 +70,8 @@ static inline char __user *ksud_user_path(void)
     return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
 }
 
-int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
-                         int *__unused_flags)
+int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
+                         int *mode, int *__unused_flags)
 {
 #ifndef CONFIG_KSU_KPROBES_HOOK
     if (!ksu_sucompat_non_kp) {
@@ -83,11 +85,10 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
     }
 #endif
 
-    const char su[] = SU_PATH;
-    char path[sizeof(su) + 1] = {0};
+    char path[sizeof(SU_PATH) + 1] = {0};
     ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 
-    if (unlikely(!memcmp(path, su, sizeof(su)))) {
+    if (unlikely(!memcmp(path, SU_PATH, sizeof(SU_PATH)))) {
         pr_info("faccessat su->sh!\n");
         *filename_user = sh_user_path();
     }
@@ -128,16 +129,20 @@ int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
     }
 #endif
 
-    const char su[] = SU_PATH;
-    char path[sizeof(su) + 1] = {0};
+    if (unlikely(!filename_user)) {
+        return 0;
+    }
+
+    char path[sizeof(SU_PATH) + 1] = {0};
     ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
 
-    if (unlikely(memcmp(path, su, sizeof(su)))) {
+    if (likely(memcmp(path, SU_PATH, sizeof(SU_PATH)))) {
         return 0;
     }
 
     pr_info("newfstatat su->sh!\n");
     *filename_user = sh_user_path();
+
     return 0;
 }
 
@@ -151,21 +156,21 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
     }
 #endif
 
-    if (unlikely(!filename_user)) return 0;
-    if (!ksu_is_allow_uid(current_uid().val)) return 0;
-
-    const char su[] = SU_PATH;
-    char path[sizeof(su) + 1] = {0};
-
-    ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
-
-    if (likely(memcmp(path, su, sizeof(su))))
+    if (unlikely(!filename_user))
         return 0;
 
+    char path[sizeof(SU_PATH) + 1] = {0};
+    ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
+
+    if (likely(memcmp(path, SU_PATH, sizeof(SU_PATH))))
+        return 0;
+
+    write_sulog('x');
     pr_info("sys_execve su found\n");
     *filename_user = ksud_user_path();
 
     escape_with_root_profile();
+
     return 0;
 }
 
