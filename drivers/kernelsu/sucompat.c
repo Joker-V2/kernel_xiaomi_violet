@@ -2,13 +2,7 @@
 #include <linux/preempt.h>
 #include <linux/printk.h>
 #include <linux/mm.h>
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
 #include <linux/pgtable.h>
-#else
-#include <asm/pgtable.h>
-#endif
-
 #include <linux/uaccess.h>
 #include <asm/current.h>
 #include <linux/cred.h>
@@ -19,14 +13,16 @@
 #include <linux/ptrace.h>
 
 #include "allowlist.h"
-#include "feature.h"
+#include "arch.h"
 #include "klog.h" // IWYU pragma: keep
 #include "ksud.h"
-#include "sucompat.h"
+#include "kernel_compat.h"
 #include "app_profile.h"
 #include "util.h"
 
-extern void write_sulog(uint8_t sym);
+#ifdef CONFIG_KSU_SUSFS_SUS_SU
+#include <linux/susfs_def.h>
+#endif
 
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
@@ -60,32 +56,38 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
     return copy_to_user(p, d, len) ? NULL : p;
 }
 
-static char __user *sh_user_path(void)
+static inline char __user *sh_user_path(void)
 {
-    static const char sh_path[] = "/system/bin/sh";
+    static const char sh_path[] = SH_PATH;
     return userspace_stack_buffer(sh_path, sizeof(sh_path));
 }
 
-static char __user *ksud_user_path(void)
+static inline char __user *ksud_user_path(void)
 {
     static const char ksud_path[] = KSUD_PATH;
     return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
 }
 
-int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
-        int *mode, int *__unused_flags)
+int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
+                         int *__unused_flags)
 {
-    const char su[] = SU_PATH;
-
-    if (!ksu_is_allow_uid_for_current(current_uid().val))
+#ifndef CONFIG_KSU_KPROBES_HOOK
+    if (!ksu_sucompat_non_kp) {
         return 0;
+    }
+#endif
 
-    char path[sizeof(su) + 1];
-    memset(path, 0, sizeof(path));
-    strncpy_from_user_nofault(path, *filename_user, sizeof(path));
+#ifndef CONFIG_KSU_SUSFS_SUS_SU
+    if (!ksu_is_allow_uid(current_uid().val)) {
+        return 0;
+    }
+#endif
+
+    const char su[] = SU_PATH;
+    char path[sizeof(su) + 1] = {0};
+    ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 
     if (unlikely(!memcmp(path, su, sizeof(su)))) {
-        write_sulog('a');
         pr_info("faccessat su->sh!\n");
         *filename_user = sh_user_path();
     }
@@ -93,75 +95,77 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
     return 0;
 }
 
-int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
-{
-    const char su[] = SU_PATH;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) && defined(CONFIG_KSU_SUSFS_SUS_SU)
+struct filename* susfs_ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) {
+    struct filename *name = getname_flags(*filename_user, getname_statx_lookup_flags(*flags), NULL);
 
-    if (!ksu_is_allow_uid_for_current(current_uid().val))
-        return 0;
-
-    if (unlikely(!filename_user))
-        return 0;
-
-    char path[sizeof(su) + 1];
-    memset(path, 0, sizeof(path));
-    strncpy_from_user_nofault(path, *filename_user, sizeof(path));
-
-    if (unlikely(!memcmp(path, su, sizeof(su)))) {
-        write_sulog('s');
-        pr_info("newfstatat su->sh!\n");
-        *filename_user = sh_user_path();
+    if (unlikely(IS_ERR(name) || name->name == NULL)) {
+        return name;
     }
 
+    if (likely(memcmp(name->name, SU_PATH, sizeof(SU_PATH)))) {
+        return name;
+    }
+
+    const char sh[] = SH_PATH;
+    pr_info("vfs_fstatat su->sh!\n");
+    memcpy((void *)name->name, sh, sizeof(sh));
+    return name;
+}
+#endif
+
+int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
+{
+#ifndef CONFIG_KSU_KPROBES_HOOK
+    if (!ksu_sucompat_non_kp) {
+        return 0;
+    }
+#endif
+
+#ifndef CONFIG_KSU_SUSFS_SUS_SU
+    if (!ksu_is_allow_uid(current_uid().val)) {
+        return 0;
+    }
+#endif
+
+    const char su[] = SU_PATH;
+    char path[sizeof(su) + 1] = {0};
+    ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
+
+    if (unlikely(memcmp(path, su, sizeof(su)))) {
+        return 0;
+    }
+
+    pr_info("newfstatat su->sh!\n");
+    *filename_user = sh_user_path();
     return 0;
 }
 
-int ksu_handle_execve_sucompat(const char __user **filename_user,
-                void *__never_use_argv, void *__never_use_envp,
-                int *__never_use_flags)
+int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+                               void *__never_use_argv, void *__never_use_envp,
+                               int *__never_use_flags)
 {
+#ifndef CONFIG_KSU_KPROBES_HOOK
+    if (!ksu_sucompat_non_kp) {
+        return 0;
+    }
+#endif
+
+    if (unlikely(!filename_user)) return 0;
+    if (!ksu_is_allow_uid(current_uid().val)) return 0;
+
     const char su[] = SU_PATH;
-    const char __user *fn;
-    char path[sizeof(su) + 1];
-    long ret;
-    unsigned long addr;
+    char path[sizeof(su) + 1] = {0};
 
-    if (unlikely(!filename_user))
-        return 0;
-
-    if (!ksu_is_allow_uid_for_current(current_uid().val))
-        return 0;
-
-    addr = untagged_addr((unsigned long)*filename_user);
-    fn = (const char __user *)addr;
-    memset(path, 0, sizeof(path));
-    ret = strncpy_from_user_nofault(path, fn, sizeof(path));
-
-    if (ret < 0 && try_set_access_flag(addr)) {
-        ret = strncpy_from_user_nofault(path, fn, sizeof(path));
-    }
-
-    if (ret < 0 && preempt_count()) {
-        pr_info("Access filename failed, try rescue..\n");
-        preempt_enable_no_resched_notrace();
-        ret = strncpy_from_user(path, fn, sizeof(path));
-        preempt_disable_notrace();
-    }
-
-    if (ret < 0) {
-        pr_warn("Access filename when execve failed: %ld", ret);
-        return 0;
-    }
+    ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
 
     if (likely(memcmp(path, su, sizeof(su))))
         return 0;
 
-    write_sulog('x');
     pr_info("sys_execve su found\n");
     *filename_user = ksud_user_path();
 
     escape_with_root_profile();
-
     return 0;
 }
 
