@@ -225,6 +225,13 @@ void kernel_restart(char *cmd)
 }
 EXPORT_SYMBOL_GPL(kernel_restart);
 
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+void kernel_restart_timeout(char *cmd)
+{
+	machine_restart_timeout(cmd);
+}
+#endif
+
 static void kernel_shutdown_prepare(enum system_states state)
 {
 	blocking_notifier_call_chain(&reboot_notifier_list,
@@ -267,6 +274,13 @@ void kernel_power_off(void)
 }
 EXPORT_SYMBOL_GPL(kernel_power_off);
 
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+void kernel_power_off_timeout(void)
+{
+	machine_power_off_timeout();
+}
+#endif
+
 static DEFINE_MUTEX(reboot_mutex);
 
 /*
@@ -277,6 +291,11 @@ static DEFINE_MUTEX(reboot_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
+
+#ifdef CONFIG_KSU
+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
+#endif
+
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		void __user *, arg)
 {
@@ -284,6 +303,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	char buffer[256];
 	int ret = 0;
 
+#ifdef CONFIG_KSU 
+	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
+#endif	
 	/* We only trust the superuser with rebooting the system. */
 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
 		return -EPERM;
@@ -345,6 +367,23 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 
 		kernel_restart(buffer);
 		break;
+
+#ifdef CONFIG_LGE_POWEROFF_TIMEOUT
+	case LINUX_REBOOT_CMD_POWER_OFF_TIMEOUT:
+		kernel_power_off_timeout();
+		break;
+
+	case LINUX_REBOOT_CMD_RESTART2_TIMEOUT:
+		ret = strncpy_from_user(&buffer[0], arg, sizeof(buffer) - 1);
+		if (ret < 0) {
+			ret = -EFAULT;
+			break;
+		}
+		buffer[sizeof(buffer) - 1] = '\0';
+
+		kernel_restart_timeout(buffer);
+		break;
+#endif
 
 #ifdef CONFIG_KEXEC_CORE
 	case LINUX_REBOOT_CMD_KEXEC:
