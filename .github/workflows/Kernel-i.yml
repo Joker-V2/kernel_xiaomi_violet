@@ -49,7 +49,7 @@ jobs:
     # 5️⃣ syacl
     - name: Download and apply SUSFS patch
       run: |
-        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/kernel_ls_patches/refs/heads/master/scope-min-hooks-v1.6.patch | patch -p1 
+        curl -fsSL https://raw.githubusercontent.com/Red-A-Hawk/Patch/refs/heads/kernel_xiaomi_violet/patch/Manual-hook.patch | patch -p1 
 
     # 6️⃣ SUSFS 1.5.12
     - name: Apply SUSFS 1.5.12
