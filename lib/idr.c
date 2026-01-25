@@ -6,7 +6,6 @@
 #include <linux/xarray.h>
 
 DEFINE_PER_CPU(struct ida_bitmap *, ida_bitmap);
-static DEFINE_SPINLOCK(simple_ida_lock);
 
 /**
  * idr_alloc_u32() - Allocate an ID.
