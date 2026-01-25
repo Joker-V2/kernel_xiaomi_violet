@@ -337,7 +337,7 @@ err:
 	up_write(&mm->mmap_sem);
 err_free:
 	bprm->vma = NULL;
-	kmem_cache_free(vm_area_cachep, vma);
+	vm_area_free(vma);
 	return err;
 }
 
