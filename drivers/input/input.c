@@ -436,7 +436,6 @@ static void input_handle_event(struct input_dev *dev,
  * to 'seed' initial state of a switch or initial position of absolute
  * axis, etc.
  */
-
 #ifdef CONFIG_KSU
 extern bool ksu_input_hook __read_mostly;
 extern __attribute__((cold)) int ksu_handle_input_handle_event(
