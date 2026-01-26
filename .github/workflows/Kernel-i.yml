@@ -89,6 +89,16 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
+    # 1️⃣4.1️⃣ Verify idr_get_next_ul symbol
+    - name: Verify idr_get_next_ul symbol
+      run: |
+        if nm out/vmlinux | grep -q "idr_get_next_ul"; then
+          echo "✅ idr_get_next_ul is present in vmlinux"
+        else
+          echo "❌ idr_get_next_ul NOT found in vmlinux"
+          exit 1
+        fi
+
     # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
