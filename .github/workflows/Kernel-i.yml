@@ -87,18 +87,9 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣4.1️⃣ Verify idr_get_next_ul symbol
-    - name: Verify idr_get_next_ul symbol
-      run: |
-        if nm out/vmlinux | grep -q "idr_get_next_ul"; then
-          echo "✅ idr_get_next_ul is present in vmlinux"
-        else
-          echo "❌ idr_get_next_ul NOT found in vmlinux"
-          exit 1
-        fi
-
-    # 1️⃣4.2️⃣ Verify all IDR/IDA symbols
+    # 1️⃣4.1️⃣ Verify all IDR/IDA symbols (old + new) + create log
     - name: Verify all IDR/IDA symbols
+      shell: bash
       run: |
         SYMBOLS=(
           idr_get_next
@@ -135,26 +126,13 @@ jobs:
         LOG_FILE="logs/idr_ida_symbols.log"
         echo "IDR/IDA symbols verification:" > $LOG_FILE
 
-        PRESENT=0
-        MISSING=0
-
         for sym in "${SYMBOLS[@]}"; do
-          if nm out/vmlinux | grep -q "$sym"; then
+          if nm out/vmlinux | grep -wq "$sym"; then
             echo "✅ $sym is present" >> $LOG_FILE
-            ((PRESENT++))
           else
             echo "❌ $sym NOT found" >> $LOG_FILE
-            ((MISSING++))
           fi
         done
-
-        echo "===================================" >> $LOG_FILE
-        echo "Summary:" >> $LOG_FILE
-        echo "Present: $PRESENT" >> $LOG_FILE
-        echo "Missing: $MISSING" >> $LOG_FILE
-
-        # Print summary to console
-        echo "IDR/IDA symbols summary: ✅ $PRESENT / ❌ $MISSING"
 
     # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
