@@ -149,6 +149,10 @@ void *idr_get_next_ext(struct idr *idr, unsigned long *nextid)
 }
 EXPORT_SYMBOL(idr_get_next_ext);
 
+void *idr_get_next_ul(struct idr *idr, unsigned long *nextid)
+    __attribute__((alias("idr_get_next_ext")));
+EXPORT_SYMBOL(idr_get_next_ul);
+
 /**
  * idr_replace - replace pointer for given id
  * @idr: idr handle
