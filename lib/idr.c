@@ -149,8 +149,28 @@ void *idr_get_next_ext(struct idr *idr, unsigned long *nextid)
 }
 EXPORT_SYMBOL(idr_get_next_ext);
 
+/**
+ * idr_get_next_ul - Find next populated entry
+ * @idr: idr handle
+ * @nextid: Pointer to an ID
+ *
+ * Returns the next populated entry in the tree with an ID greater than
+ * or equal to the value pointed to by @nextid.  On exit, @nextid is updated
+ * to the ID of the found value.  To use in a loop, the value pointed to by
+ * nextid must be incremented by the user.
+ */
 void *idr_get_next_ul(struct idr *idr, unsigned long *nextid)
-    __attribute__((alias("idr_get_next_ext")));
+{
+	struct radix_tree_iter iter;
+	void __rcu **slot;
+
+	slot = radix_tree_iter_find(&idr->idr_rt, &iter, *nextid);
+	if (!slot)
+		return NULL;
+
+	*nextid = iter.index;
+	return rcu_dereference_raw(*slot);
+}
 EXPORT_SYMBOL(idr_get_next_ul);
 
 /**
