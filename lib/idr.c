@@ -34,18 +34,6 @@ int idr_alloc_cmn(struct idr *idr, void *ptr, unsigned long *index,
 }
 EXPORT_SYMBOL_GPL(idr_alloc_cmn);
 
-/**
- * idr_alloc_cyclic - allocate new idr entry in a cyclical fashion
- * @idr: idr handle
- * @ptr: pointer to be associated with the new id
- * @start: the minimum id (inclusive)
- * @end: the maximum id (exclusive)
- * @gfp: memory allocation flags
- *
- * Allocates an ID larger than the last ID allocated if one is available.
- * If not, it will attempt to allocate the smallest ID that is larger or
- * equal to @start.
- */
 int idr_alloc_cyclic(struct idr *idr, void *ptr, int start, int end, gfp_t gfp)
 {
 	int id, curr = idr->idr_next;
@@ -64,23 +52,6 @@ int idr_alloc_cyclic(struct idr *idr, void *ptr, int start, int end, gfp_t gfp)
 }
 EXPORT_SYMBOL(idr_alloc_cyclic);
 
-/**
- * idr_for_each - iterate through all stored pointers
- * @idr: idr handle
- * @fn: function to be called for each pointer
- * @data: data passed to callback function
- *
- * The callback function will be called for each entry in @idr, passing
- * the id, the pointer and the data pointer passed to this function.
- *
- * If @fn returns anything other than %0, the iteration stops and that
- * value is returned from this function.
- *
- * idr_for_each() can be called concurrently with idr_alloc() and
- * idr_remove() if protected by RCU.  Newly added entries may not be
- * seen and deleted entries may be seen, but adding and removing entries
- * will not cause other entries to be skipped, nor spurious ones to be seen.
- */
 int idr_for_each(const struct idr *idr,
 		int (*fn)(int id, void *p, void *data), void *data)
 {
@@ -97,16 +68,6 @@ int idr_for_each(const struct idr *idr,
 }
 EXPORT_SYMBOL(idr_for_each);
 
-/**
- * idr_get_next - Find next populated entry
- * @idr: idr handle
- * @nextid: Pointer to lowest possible ID to return
- *
- * Returns the next populated entry in the tree with an ID greater than
- * or equal to the value pointed to by @nextid.  On exit, @nextid is updated
- * to the ID of the found value.  To use in a loop, the value pointed to by
- * nextid must be incremented by the user.
- */
 void *idr_get_next(struct idr *idr, int *nextid)
 {
 	struct radix_tree_iter iter;
@@ -153,20 +114,6 @@ void *idr_get_next_ul(struct idr *idr, unsigned long *nextid)
     __attribute__((alias("idr_get_next_ext")));
 EXPORT_SYMBOL(idr_get_next_ul);
 
-/**
- * idr_replace - replace pointer for given id
- * @idr: idr handle
- * @ptr: New pointer to associate with the ID
- * @id: Lookup key
- *
- * Replace the pointer registered with an ID and return the old value.
- * This function can be called under the RCU read lock concurrently with
- * idr_alloc() and idr_remove() (as long as the ID being removed is not
- * the one being replaced!).
- *
- * Returns: the old value on success.  %-ENOENT indicates that @id was not
- * found.  %-EINVAL indicates that @id or @ptr were not valid.
- */
 void *idr_replace(struct idr *idr, void *ptr, int id)
 {
 	if (id < 0)
@@ -195,85 +142,8 @@ void *idr_replace_ext(struct idr *idr, void *ptr, unsigned long id)
 }
 EXPORT_SYMBOL(idr_replace_ext);
 
-/**
- * DOC: IDA description
- *
- * The IDA is an ID allocator which does not provide the ability to
- * associate an ID with a pointer.  As such, it only needs to store one
- * bit per ID, and so is more space efficient than an IDR.  To use an IDA,
- * define it using DEFINE_IDA() (or embed a &struct ida in a data structure,
- * then initialise it using ida_init()).  To allocate a new ID, call
- * ida_alloc(), ida_alloc_min(), ida_alloc_max() or ida_alloc_range().
- * To free an ID, call ida_free().
- *
- * If you have more complex locking requirements, use a loop around
- * ida_pre_get() and ida_get_new() to allocate a new ID.  Then use
- * ida_remove() to free an ID.  You must make sure that ida_get_new() and
- * ida_remove() cannot be called at the same time as each other for the
- * same IDA.
- *
- * You can also use ida_get_new_above() if you need an ID to be allocated
- * above a particular number.  ida_destroy() can be used to dispose of an
- * IDA without needing to free the individual IDs in it.  You can use
- * ida_is_empty() to find out whether the IDA has any IDs currently allocated.
- *
- * IDs are currently limited to the range [0-INT_MAX].  If this is an awkward
- * limitation, it should be quite straightforward to raise the maximum.
- */
-
-/*
- * Developer's notes:
- *
- * The IDA uses the functionality provided by the IDR & radix tree to store
- * bitmaps in each entry.  The IDR_FREE tag means there is at least one bit
- * free, unlike the IDR where it means at least one entry is free.
- *
- * I considered telling the radix tree that each slot is an order-10 node
- * and storing the bit numbers in the radix tree, but the radix tree can't
- * allow a single multiorder entry at index 0, which would significantly
- * increase memory consumption for the IDA.  So instead we divide the index
- * by the number of bits in the leaf bitmap before doing a radix tree lookup.
- *
- * As an optimisation, if there are only a few low bits set in any given
- * leaf, instead of allocating a 128-byte bitmap, we use the 'exceptional
- * entry' functionality of the radix tree to store BITS_PER_LONG - 2 bits
- * directly in the entry.  By being really tricksy, we could store
- * BITS_PER_LONG - 1 bits, but there're diminishing returns after optimising
- * for 0-3 allocated IDs.
- *
- * We allow the radix tree 'exceptional' count to get out of date.  Nothing
- * in the IDA nor the radix tree code checks it.  If it becomes important
- * to maintain an accurate exceptional count, switch the rcu_assign_pointer()
- * calls to radix_tree_iter_replace() which will correct the exceptional
- * count.
- *
- * The IDA always requires a lock to alloc/free.  If we add a 'test_bit'
- * equivalent, it will still need locking.  Going to RCU lookup would require
- * using RCU to free bitmaps, and that's not trivial without embedding an
- * RCU head in the bitmap, which adds a 2-pointer overhead to each 128-byte
- * bitmap, which is excessive.
- */
-
 #define IDA_MAX (0x80000000U / IDA_BITMAP_BITS)
 
-/**
- * ida_get_new_above - allocate new ID above or equal to a start id
- * @ida: ida handle
- * @start: id to start search at
- * @id: pointer to the allocated handle
- *
- * Allocate new ID above or equal to @start.  It should be called
- * with any required locks to ensure that concurrent calls to
- * ida_get_new_above() / ida_get_new() / ida_remove() are not allowed.
- * Consider using ida_alloc_range() if you do not have complex locking
- * requirements.
- *
- * If memory is required, it will return %-EAGAIN, you should unlock
- * and go back to the ida_pre_get() call.  If the ida is full, it will
- * return %-ENOSPC.  On success, it will return 0.
- *
- * @id returns a value in the range @start ... %0x7fffffff.
- */
 int ida_get_new_above(struct ida *ida, int start, int *id)
 {
 	struct radix_tree_root *root = &ida->ida_rt;
@@ -363,13 +233,6 @@ int ida_get_new_above(struct ida *ida, int start, int *id)
 }
 EXPORT_SYMBOL(ida_get_new_above);
 
-/**
- * ida_remove - Free the given ID
- * @ida: ida handle
- * @id: ID to free
- *
- * This function should not be called at the same time as ida_get_new_above().
- */
 void ida_remove(struct ida *ida, int id)
 {
 	unsigned long index = id / IDA_BITMAP_BITS;
@@ -411,17 +274,6 @@ void ida_remove(struct ida *ida, int id)
 }
 EXPORT_SYMBOL(ida_remove);
 
-/**
- * ida_destroy() - Free all IDs.
- * @ida: IDA handle.
- *
- * Calling this function frees all IDs and releases all resources used
- * by an IDA.  When this call returns, the IDA is empty and can be reused
- * or freed.  If the IDA is already empty, there is no need to call this
- * function.
- *
- * Context: Any context.
- */
 void ida_destroy(struct ida *ida)
 {
 	unsigned long flags;
@@ -439,20 +291,6 @@ void ida_destroy(struct ida *ida)
 }
 EXPORT_SYMBOL(ida_destroy);
 
-/**
- * ida_alloc_range() - Allocate an unused ID.
- * @ida: IDA handle.
- * @min: Lowest ID to allocate.
- * @max: Highest ID to allocate.
- * @gfp: Memory allocation flags.
- *
- * Allocate an ID between @min and @max, inclusive.  The allocated ID will
- * not exceed %INT_MAX, even if @max is larger.
- *
- * Context: Any context.
- * Return: The allocated ID, or %-ENOMEM if memory could not be allocated,
- * or %-ENOSPC if there are no free IDs.
- */
 int ida_alloc_range(struct ida *ida, unsigned int min, unsigned int max,
 			gfp_t gfp)
 {
@@ -488,13 +326,6 @@ again:
 }
 EXPORT_SYMBOL(ida_alloc_range);
 
-/**
- * ida_free() - Release an allocated ID.
- * @ida: IDA handle.
- * @id: Previously allocated ID.
- *
- * Context: Any context.
- */
 void ida_free(struct ida *ida, unsigned int id)
 {
 	unsigned long flags;
