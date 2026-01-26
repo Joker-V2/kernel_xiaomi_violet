@@ -137,6 +137,7 @@ int idr_alloc_cyclic(struct idr *, void *entry, int start, int end, gfp_t);
 int idr_for_each(const struct idr *,
 		 int (*fn)(int id, void *p, void *data), void *data);
 void *idr_get_next(struct idr *, int *nextid);
+void *idr_get_next_ext(struct idr *idr, unsigned long *nextid);
 void *idr_get_next_ul(struct idr *, unsigned long *nextid);
 void *idr_replace(struct idr *, void *, int id);
 void *idr_replace_ext(struct idr *idr, void *ptr, unsigned long id);
@@ -211,6 +212,8 @@ static inline void *idr_find(const struct idr *idr, int id)
  */
 #define idr_for_each_entry(idr, entry, id)			\
 	for (id = 0; ((entry) = idr_get_next(idr, &(id))) != NULL; ++id)
+#define idr_for_each_entry_ext(idr, entry, id)			\
+	for (id = 0; ((entry) = idr_get_next_ext(idr, &(id))) != NULL; ++id)
 
 /**
  * idr_for_each_entry_ul() - Iterate over an IDR's elements of a given type.
