@@ -107,7 +107,7 @@ jobs:
           idr_replace_ext
           idr_destroy
           idr_alloc_cmn
-          idr_alloc_u32
+          # idr_alloc_u32
           idr_alloc_cyclic
           idr_for_each
           idr_preload
