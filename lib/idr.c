@@ -35,57 +35,6 @@ int idr_alloc_cmn(struct idr *idr, void *ptr, unsigned long *index,
 EXPORT_SYMBOL_GPL(idr_alloc_cmn);
 
 /**
- * idr_alloc_u32() - Allocate an ID.
- * @idr: IDR handle.
- * @ptr: Pointer to be associated with the new ID.
- * @nextid: Pointer to an ID.
- * @max: The maximum ID to allocate (inclusive).
- * @gfp: Memory allocation flags.
- *
- * Allocates an unused ID in the range specified by @nextid and @max.
- * Note that @max is inclusive whereas the @end parameter to idr_alloc()
- * is exclusive.  The new ID is assigned to @nextid before the pointer
- * is inserted into the IDR, so if @nextid points into the object pointed
- * to by @ptr, a concurrent lookup will not find an uninitialised ID.
- *
- * The caller should provide their own locking to ensure that two
- * concurrent modifications to the IDR are not possible.  Read-only
- * accesses to the IDR may be done under the RCU read lock or may
- * exclude simultaneous writers.
- *
- * Return: 0 if an ID was allocated, -ENOMEM if memory allocation failed,
- * or -ENOSPC if no free IDs could be found.  If an error occurred,
- * @nextid is unchanged.
- */
-int idr_alloc_u32(struct idr *idr, void *ptr, u32 *nextid,
-			unsigned long max, gfp_t gfp)
-{
-	struct radix_tree_iter iter;
-	void __rcu **slot;
-	unsigned int base = idr->idr_base;
-	unsigned int id = *nextid;
-
-	if (WARN_ON_ONCE(radix_tree_is_internal_node(ptr)))
-		return -EINVAL;
-	if (WARN_ON_ONCE(!(idr->idr_rt.gfp_mask & ROOT_IS_IDR)))
-		idr->idr_rt.gfp_mask |= IDR_RT_MARKER;
-
-	id = (id < base) ? 0 : id - base;
-	radix_tree_iter_init(&iter, id);
-	slot = idr_get_free(&idr->idr_rt, &iter, gfp, max - base);
-	if (IS_ERR(slot))
-		return PTR_ERR(slot);
-
-	*nextid = iter.index + base;
-	/* there is a memory barrier inside radix_tree_iter_replace() */
-	radix_tree_iter_replace(&idr->idr_rt, &iter, slot, ptr);
-	radix_tree_iter_tag_clear(&idr->idr_rt, &iter, IDR_FREE);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(idr_alloc_u32);
-
-/**
  * idr_alloc_cyclic - allocate new idr entry in a cyclical fashion
  * @idr: idr handle
  * @ptr: pointer to be associated with the new id
@@ -267,41 +216,6 @@ void *idr_replace_ext(struct idr *idr, void *ptr, unsigned long id)
 EXPORT_SYMBOL(idr_replace_ext);
 
 /**
- * idr_destroy() - release all internal memory from IDR
- * @idr: idr handle
- *
- * After this function is called, the IDR is empty, and may be reused or
- * the data structure containing it may be freed.
- *
- * A typical clean-up sequence for objects stored in an idr tree will use
- * idr_for_each() to free all objects, if necessary, then idr_destroy() to
- * free the memory used to keep track of those objects.
- */
-void idr_destroy(struct idr *idr)
-{
-	struct radix_tree_node *node = rcu_dereference_raw(idr->idr_rt.rnode);
-	if (radix_tree_is_internal_node(node))
-		radix_tree_free_nodes(node);
-	idr->idr_rt.rnode = NULL;
-	root_tag_set(&idr->idr_rt, IDR_FREE);
-}
-EXPORT_SYMBOL(idr_destroy);
-
-/**
- * idr_preload() - preload for idr_alloc()
- * @gfp_mask: allocation mask to use for preloading
- *
- * Preallocate memory to use for the next call to idr_alloc().  This function
- * returns with preemption disabled.  It will be enabled by idr_preload_end().
- */
-void idr_preload(gfp_t gfp_mask)
-{
-	if (__radix_tree_preload(gfp_mask, IDR_PRELOAD_SIZE))
-		preempt_disable();
-}
-EXPORT_SYMBOL(idr_preload);
-
-/**
  * DOC: IDA description
  *
  * The IDA is an ID allocator which does not provide the ability to
@@ -361,33 +275,6 @@ EXPORT_SYMBOL(idr_preload);
  */
 
 #define IDA_MAX (0x80000000U / IDA_BITMAP_BITS)
-
-/**
- * ida_pre_get - reserve resources for ida allocation
- * @ida: ida handle
- * @gfp: memory allocation flags
- *
- * This function should be called before calling ida_get_new_above().  If it
- * is unable to allocate memory, it will return %0.  On success, it returns %1.
- */
-int ida_pre_get(struct ida *ida, gfp_t gfp)
-{
-	/*
-	 * The IDA API has no preload_end() equivalent.  Instead,
-	 * ida_get_new() can return -EAGAIN, prompting the caller
-	 * to return to the ida_pre_get() step.
-	 */
-	__radix_tree_preload(gfp, IDA_PRELOAD_SIZE);
-	if (!this_cpu_read(ida_bitmap)) {
-		struct ida_bitmap *bitmap = kzalloc(sizeof(*bitmap), gfp);
-		if (!bitmap)
-			return 0;
-		if (this_cpu_cmpxchg(ida_bitmap, NULL, bitmap))
-			kfree(bitmap);
-	}
-	return 1;
-}
-EXPORT_SYMBOL(ida_pre_get);
 
 /**
  * ida_get_new_above - allocate new ID above or equal to a start id
