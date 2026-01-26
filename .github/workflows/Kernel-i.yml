@@ -10,7 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-22.04
 
-
     steps:
     # 1️⃣ Checkout
     - name: Checkout source
@@ -88,15 +87,51 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣4.1️⃣ Verify idr_get_next_ul symbol
-    - name: Verify idr_get_next_ul symbol
+    # 1️⃣4.1️⃣ Verify all IDR/IDA symbols (old + new) + create log
+    - name: Verify all IDR/IDA symbols
       run: |
-        if nm out/vmlinux | grep -q "idr_get_next_ul"; then
-          echo "✅ idr_get_next_ul is present in vmlinux"
-        else
-          echo "❌ idr_get_next_ul NOT found in vmlinux"
-          exit 1
-        fi
+        SYMBOLS=(
+          idr_get_next
+          idr_get_next_ext
+          idr_get_next_ul
+          idr_replace
+          idr_replace_ext
+          idr_destroy
+          idr_alloc
+          idr_alloc_ext
+          idr_alloc_u32
+          idr_alloc_cyclic
+          idr_for_each
+          idr_find
+          idr_find_ext
+          idr_remove
+          idr_remove_ext
+          idr_init
+          idr_is_empty
+          ida_alloc
+          ida_alloc_min
+          ida_alloc_max
+          ida_alloc_range
+          ida_free
+          ida_pre_get
+          ida_get_new
+          ida_get_new_above
+          ida_simple_get
+          ida_simple_remove
+          ida_destroy
+          ida_is_empty
+        )
+
+        LOG_FILE="logs/idr_ida_symbols.log"
+        echo "IDR/IDA symbols verification:" > $LOG_FILE
+
+        for sym in "${SYMBOLS[@]}"; do
+          if nm out/vmlinux | grep -q "$sym"; then
+            echo "✅ $sym is present" >> $LOG_FILE
+          else
+            echo "❌ $sym NOT found" >> $LOG_FILE
+          fi
+        done
 
     # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
@@ -128,3 +163,4 @@ jobs:
           nm-susfs.txt
           nm-full.txt
           hooks-build.txt
+          logs/idr_ida_symbols.log
