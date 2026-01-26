@@ -87,7 +87,7 @@ jobs:
         nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
         nm out/vmlinux > nm-full.txt
 
-    # 1️⃣4.1️⃣ Verify all IDR/IDA symbols (improved version)
+    # 1️⃣4.1️⃣ Verify all IDR/IDA symbols
     - name: Verify all IDR/IDA symbols
       shell: bash
       run: |
@@ -96,7 +96,7 @@ jobs:
         echo "=====================================" >> $LOG_FILE
         echo "" >> $LOG_FILE
 
-        # 1️⃣ Check EXPORTED symbols (from .c files)
+        # EXPORTED symbols
         echo "📦 EXPORTED SYMBOLS (from idr.c):" >> $LOG_FILE
         EXPORTED_SYMBOLS=(
           idr_get_next
@@ -117,7 +117,6 @@ jobs:
           ida_remove
           ida_destroy
         )
-
         for sym in "${EXPORTED_SYMBOLS[@]}"; do
           if nm out/vmlinux | grep -wq "$sym"; then
             echo "  ✅ $sym" >> $LOG_FILE
@@ -130,7 +129,7 @@ jobs:
         echo "=====================================" >> $LOG_FILE
         echo "" >> $LOG_FILE
 
-        # 2️⃣ Check INLINE functions (from idr.h)
+        # INLINE functions
         echo "🔧 INLINE FUNCTIONS (from idr.h):" >> $LOG_FILE
         echo "These are defined as 'static inline' in header file" >> $LOG_FILE
         echo "They don't appear in nm but work correctly if header is included" >> $LOG_FILE
@@ -158,7 +157,6 @@ jobs:
           ida_is_empty
         )
 
-        # Check if idr.h exists and contains these functions
         if [ -f "include/linux/idr.h" ]; then
           echo "  📄 Checking include/linux/idr.h..." >> $LOG_FILE
           for func in "${INLINE_FUNCTIONS[@]}"; do
@@ -176,7 +174,7 @@ jobs:
         echo "=====================================" >> $LOG_FILE
         echo "" >> $LOG_FILE
 
-        # 3️⃣ Summary
+        # Summary
         echo "📊 SUMMARY:" >> $LOG_FILE
         EXPORTED_FOUND=0
         for sym in "${EXPORTED_SYMBOLS[@]}"; do
@@ -192,35 +190,47 @@ jobs:
         echo "⚠️  NOTE: Inline functions won't appear in 'nm' output" >> $LOG_FILE
         echo "    but they work if properly defined in the header file" >> $LOG_FILE
 
-    # 1️⃣4.2️⃣ Check for actual compilation errors related to IDR/IDA
+    # 1️⃣4.2 Check for IDR/IDA compilation errors (resilient)
     - name: Check for IDR/IDA compilation errors
       shell: bash
       run: |
         LOG_FILE="logs/idr_ida_errors.log"
         echo "Checking for IDR/IDA related compilation errors:" > $LOG_FILE
-        
-        if grep -i "undefined.*idr_\|undefined.*ida_" logs/build.log > /dev/null 2>&1; then
+        echo "=============================================" >> $LOG_FILE
+        echo "" >> $LOG_FILE
+
+        ERRORS=$(grep -i "undefined.*idr_\|undefined.*ida_" logs/build.log || true)
+
+        if [ -n "$ERRORS" ]; then
           echo "❌ Found undefined IDR/IDA references:" >> $LOG_FILE
-          grep -i "undefined.*idr_\|undefined.*ida_" logs/build.log >> $LOG_FILE
+          echo "$ERRORS" >> $LOG_FILE
         else
           echo "✅ No undefined IDR/IDA references found in build log" >> $LOG_FILE
         fi
 
-    # 1️⃣4.3️⃣ Verify idr.c was actually compiled
+        echo "" >> $LOG_FILE
+        echo "Check complete. All results logged." >> $LOG_FILE
+
+    # 1️⃣4.3 Verify idr.c compilation (resilient)
     - name: Verify idr.c compilation
       shell: bash
       run: |
         LOG_FILE="logs/idr_compilation.log"
         echo "Checking if lib/idr.c was compiled:" > $LOG_FILE
-        
+        echo "===================================" >> $LOG_FILE
+        echo "" >> $LOG_FILE
+
         if [ -f "out/lib/idr.o" ]; then
           echo "✅ lib/idr.o exists" >> $LOG_FILE
           echo "" >> $LOG_FILE
           echo "Symbols in idr.o:" >> $LOG_FILE
-          nm out/lib/idr.o | grep -E "T |t " >> $LOG_FILE || echo "  (no symbols found)" >> $LOG_FILE
+          nm out/lib/idr.o 2>/dev/null | grep -E "T |t " >> $LOG_FILE || echo "  (no symbols found)" >> $LOG_FILE
         else
           echo "❌ lib/idr.o NOT found - idr.c was not compiled!" >> $LOG_FILE
         fi
+
+        echo "" >> $LOG_FILE
+        echo "Verification complete. All results logged." >> $LOG_FILE
 
     # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
