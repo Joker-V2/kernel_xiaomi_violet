@@ -66,6 +66,7 @@ jobs:
         ccache -M 2G
         ccache -z
 
+        # Make build visible مع لوغ مباشر
         stdbuf -oL -eL make O=out -j2 \
           CC="ccache clang" \
           ARCH=arm64 \
