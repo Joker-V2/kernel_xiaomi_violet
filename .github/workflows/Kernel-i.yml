@@ -58,15 +58,15 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ Build kernel (SAFE + visible log)
+    # 1️⃣2️⃣ Build kernel
     - name: Build kernel
       shell: bash
       run: |
+        set -o pipefail
         mkdir -p logs
         ccache -M 2G
         ccache -z
 
-        # Make build visible مع لوغ مباشر
         stdbuf -oL -eL make O=out -j2 \
           CC="ccache clang" \
           ARCH=arm64 \
@@ -78,8 +78,7 @@ jobs:
 
     # 1️⃣3️⃣ Verify hooks
     - name: Verify hooks.o
-      run: |
-        grep -E "hooks\.o" logs/build.log > hooks-build.txt || true
+      run: grep -E "hooks\.o" logs/build.log > hooks-build.txt || true
 
     # 1️⃣4️⃣ Symbol analysis
     - name: Symbol analysis
@@ -92,13 +91,13 @@ jobs:
     - name: Verify all IDR/IDA symbols
       shell: bash
       run: |
+        set -o pipefail
         LOG_FILE="logs/idr_ida_symbols.log"
+        mkdir -p logs
         echo "IDR/IDA symbols verification:" > $LOG_FILE
         echo "=====================================" >> $LOG_FILE
         echo "" >> $LOG_FILE
 
-        # EXPORTED symbols
-        echo "📦 EXPORTED SYMBOLS (from idr.c):" >> $LOG_FILE
         EXPORTED_SYMBOLS=(
           idr_get_next
           idr_get_next_ext
@@ -107,7 +106,6 @@ jobs:
           idr_replace_ext
           idr_destroy
           idr_alloc_cmn
-          # idr_alloc_u32
           idr_alloc_cyclic
           idr_for_each
           idr_preload
@@ -128,12 +126,6 @@ jobs:
 
         echo "" >> $LOG_FILE
         echo "=====================================" >> $LOG_FILE
-        echo "" >> $LOG_FILE
-
-        # INLINE functions
-        echo "🔧 INLINE FUNCTIONS (from idr.h):" >> $LOG_FILE
-        echo "These are defined as 'static inline' in header file" >> $LOG_FILE
-        echo "They don't appear in nm but work correctly if header is included" >> $LOG_FILE
         echo "" >> $LOG_FILE
 
         INLINE_FUNCTIONS=(
@@ -157,7 +149,6 @@ jobs:
           ida_init
           ida_is_empty
         )
-
         if [ -f "include/linux/idr.h" ]; then
           echo "  📄 Checking include/linux/idr.h..." >> $LOG_FILE
           for func in "${INLINE_FUNCTIONS[@]}"; do
@@ -176,7 +167,6 @@ jobs:
         echo "" >> $LOG_FILE
 
         # Summary
-        echo "📊 SUMMARY:" >> $LOG_FILE
         EXPORTED_FOUND=0
         for sym in "${EXPORTED_SYMBOLS[@]}"; do
           if nm out/vmlinux | grep -wq "$sym"; then
@@ -184,24 +174,19 @@ jobs:
           fi
         done
         TOTAL_EXPORTED=${#EXPORTED_SYMBOLS[@]}
-        
+        echo "📊 SUMMARY:" >> $LOG_FILE
         echo "  - Exported symbols found: $EXPORTED_FOUND/$TOTAL_EXPORTED" >> $LOG_FILE
         echo "  - Inline functions are checked against idr.h" >> $LOG_FILE
-        echo "" >> $LOG_FILE
-        echo "⚠️  NOTE: Inline functions won't appear in 'nm' output" >> $LOG_FILE
-        echo "    but they work if properly defined in the header file" >> $LOG_FILE
+        echo "⚠️  NOTE: Inline functions won't appear in 'nm' output but work if properly defined" >> $LOG_FILE
 
-    # 1️⃣4.2 Check for IDR/IDA compilation errors (resilient)
+    # 1️⃣4.2 Check for IDR/IDA compilation errors
     - name: Check for IDR/IDA compilation errors
       shell: bash
       run: |
         LOG_FILE="logs/idr_ida_errors.log"
+        mkdir -p logs
         echo "Checking for IDR/IDA related compilation errors:" > $LOG_FILE
-        echo "=============================================" >> $LOG_FILE
-        echo "" >> $LOG_FILE
-
         ERRORS=$(grep -i "undefined.*idr_\|undefined.*ida_" logs/build.log || true)
-
         if [ -n "$ERRORS" ]; then
           echo "❌ Found undefined IDR/IDA references:" >> $LOG_FILE
           echo "$ERRORS" >> $LOG_FILE
@@ -209,18 +194,13 @@ jobs:
           echo "✅ No undefined IDR/IDA references found in build log" >> $LOG_FILE
         fi
 
-        echo "" >> $LOG_FILE
-        echo "Check complete. All results logged." >> $LOG_FILE
-
-    # 1️⃣4.3 Verify idr.c compilation (resilient)
+    # 1️⃣4.3 Verify idr.c compilation
     - name: Verify idr.c compilation
       shell: bash
       run: |
         LOG_FILE="logs/idr_compilation.log"
+        mkdir -p logs
         echo "Checking if lib/idr.c was compiled:" > $LOG_FILE
-        echo "===================================" >> $LOG_FILE
-        echo "" >> $LOG_FILE
-
         if [ -f "out/lib/idr.o" ]; then
           echo "✅ lib/idr.o exists" >> $LOG_FILE
           echo "" >> $LOG_FILE
@@ -229,9 +209,6 @@ jobs:
         else
           echo "❌ lib/idr.o NOT found - idr.c was not compiled!" >> $LOG_FILE
         fi
-
-        echo "" >> $LOG_FILE
-        echo "Verification complete. All results logged." >> $LOG_FILE
 
     # 1️⃣5️⃣ AnyKernel3
     - name: Package AnyKernel3
