@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - test5
+      - test6
 
 jobs:
   build:
@@ -15,7 +15,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
       with:
-        ref: test5
+        ref: test6
         fetch-depth: 1
 
     # 2️⃣ Dependencies + ccache
