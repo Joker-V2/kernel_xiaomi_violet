@@ -6,7 +6,6 @@ on:
     branches:
       - test6
 
-
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -32,16 +31,31 @@ jobs:
           zip unzip curl wget git \
           python3 \
           openjdk-17-jre-headless \
-          ccache
+          ccache \
+          zstd
 
-    # 3️⃣ ZyC Clang 22
-    - name: Setup ZyC Clang 22
+    # 3️⃣ Neutron Clang (اكتشاف تلقائي)
+    - name: Setup Neutron Clang
       run: |
-        mkdir clang
-        wget -q https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260118-release/Clang-23.0.0git-20260118.tar.gz
-        tar -xf Clang-23.0.0git-20260118.tar.gz -C clang
-        echo "$PWD/clang/bin" >> $GITHUB_PATH
-        clang --version
+        wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
+        tar -I zstd -xf neutron-clang-10032024.tar.zst
+        
+        # البحث عن clang وإيجاد مساره
+        CLANG_PATH=$(find . -name "clang" -type f -executable | head -1)
+        if [ -z "$CLANG_PATH" ]; then
+            echo "❌ لم يتم العثور على clang!"
+            exit 1
+        fi
+        
+        CLANG_PATH=$(realpath "$CLANG_PATH")
+        echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
+        echo "CLANG_DIR=$(dirname "$CLANG_PATH")" >> $GITHUB_ENV
+        
+        # إضافة المسار إلى PATH
+        echo "$(dirname "$CLANG_PATH")" >> $GITHUB_PATH
+        
+        echo "✅ مسار clang: $CLANG_PATH"
+        $CLANG_PATH --version
 
     # 🔟 Build environment
     - name: Export env
@@ -59,17 +73,21 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ Build kernel
+    # 1️⃣2️⃣ Build kernel (باستخدام المسار المباشر)
     - name: Build kernel
       shell: bash
+      env:
+        CLANG_PATH: ${{ env.CLANG_PATH }}
       run: |
         set -o pipefail
         mkdir -p logs
         ccache -M 1G
         ccache -z
-
+        
+        echo "🚀 بدء البناء باستخدام: $CLANG_PATH"
+        
         stdbuf -oL -eL make O=out -j2 \
-          CC="ccache clang" \
+          CC="ccache $CLANG_PATH" \
           ARCH=arm64 \
           LLVM=1 \
           LLVM_IAS=0 \
