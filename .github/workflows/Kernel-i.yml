@@ -34,7 +34,7 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang - التحميل والتهيئة المبسطة
+    # 3️⃣ Neutron Clang - النسخة المصححة
     - name: Setup Neutron Clang
       run: |
         echo "📥 تحميل Neutron Clang..."
@@ -43,29 +43,26 @@ jobs:
         echo "📦 فك الضغط..."
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
-        # المسار الصحيح
         CLANG_PATH="$PWD/bin"
         
         echo "🔍 محتويات مجلد bin/:"
         ls -la $CLANG_PATH/
         
-        # 💾 حفظ المتغيرات البيئية مباشرة بالأسماء الصحيحة
-        echo "💾 تعيين متغيرات الأدوات..."
-        echo "CLANG=$CLANG_PATH/clang-19" >> $GITHUB_ENV
+        # 💾 حفظ المتغيرات - أضف CLANG هنا
+        echo "CC=$CLANG_PATH/clang-19" >> $GITHUB_ENV
+        echo "CLANG=$CLANG_PATH/clang-19" >> $GITHUB_ENV  # ⬅️ أضف هذا السطر!
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
+        # ⬅️ أضف هذا السطر المهم!
+        echo "$CLANG_PATH" >> $GITHUB_PATH
         
         echo "✅ Neutron Clang جاهز!"
-        echo "📋 الأدوات:"
-        echo "  CC/clang: $CLANG_PATH/clang-19"
-        echo "  AR: $CLANG_PATH/llvm-ar"
-        echo "  NM: $CLANG_PATH/llvm-nm"
 
-    # 4️⃣ Export env
+    # 4️⃣ Export env - نسخة مصححة
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -75,28 +72,27 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         
-        # عرض المتغيرات للتأكد
+        # عرض المتغيرات - الآن CLANG معرف
         echo "🎯 متغيرات البناء:"
-        echo "CLANG=${{ env.CLANG }}"
+        echo "CC=${{ env.CC }}"
         echo "AR=${{ env.AR }}"
-        echo "NM=${{ env.NM }}"
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - النسخة النهائية المختصرة
+    # 6️⃣ Build kernel - مصححة
     - name: Build kernel
       shell: bash
       env:
-        CLANG: ${{ env.CLANG }}
+        CC: ${{ env.CC }}
+        CLANG: ${{ env.CLANG }}  # ⬅️ الآن معرف
         AR: ${{ env.AR }}
         NM: ${{ env.NM }}
         OBJCOPY: ${{ env.OBJCOPY }}
         OBJDUMP: ${{ env.OBJDUMP }}
         STRIP: ${{ env.STRIP }}
-        CC: ${{ env.CC }}
       run: |
         set -o pipefail
         mkdir -p logs
@@ -104,21 +100,16 @@ jobs:
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
-        echo "🔧 أدوات البناء:"
-        echo "  CLANG: $CLANG"
-        echo "  CC: $CC"
-        echo "  AR: $AR"
-        echo "  NM: $NM"
+        echo "🔧 CC: $CC"
+        echo "🔧 AR: $AR"
         
-        # اختبار clang
-        echo "🧪 اختبار CLANG..."
-        $CLANG --version || $CC --version
+        # اختبار
+        echo "🧪 اختبار المترجم..."
+        $CC --version
         
-        # بناء النواة - الإصدار المختصر النظيف
-        echo "🏗️  جاري البناء..."
-        
+        # البناء باستخدام CC فقط (أبسط)
         stdbuf -oL -eL make O=out -j$(nproc) \
-          CC="ccache $CLANG" \
+          CC="ccache $CC" \
           AR="$AR" \
           NM="$NM" \
           OBJCOPY="$OBJCOPY" \
@@ -126,20 +117,8 @@ jobs:
           STRIP="$STRIP" \
           2>&1 | tee logs/build.log
         
-        # أو استخدام CC إذا أردت
-        # stdbuf -oL -eL make O=out -j$(nproc) \
-        #   CC="ccache $CC" \
-        #   AR="$AR" \
-        #   NM="$NM" \
-        #   OBJCOPY="$OBJCOPY" \
-        #   OBJDUMP="$OBJDUMP" \
-        #   STRIP="$STRIP" \
-        #   2>&1 | tee logs/build.log
-
-        echo "📊 إحصائيات ccache:"
         ccache -s
         
-        # التحقق من وجود الناتج
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ تم بناء النواة بنجاح!"
         else
