@@ -317,7 +317,6 @@ EOF
       with:
         name: Kernel-ZIP-zycromerz
         path: Kernel-violet-zycromerz-signed.zip
-        retention-days: 30
 
     # 1️⃣2️⃣ Upload Logs and Analysis
     - name: Upload Logs and Analysis
@@ -332,7 +331,6 @@ EOF
           nm-full.txt
           build-report.txt
           AK3/build-info.txt
-        retention-days: 30
 
     # 1️⃣3️⃣ Upload Raw Kernel Image
     - name: Upload Raw Kernel Image
@@ -343,4 +341,3 @@ EOF
         path: |
           out/arch/arm64/boot/Image.gz
           out/arch/arm64/boot/dtbo.img
-        retention-days: 30
