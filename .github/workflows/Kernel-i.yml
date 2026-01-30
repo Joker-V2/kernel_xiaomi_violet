@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     # 1️⃣ Checkout
@@ -18,7 +18,7 @@ jobs:
         ref: test6
         fetch-depth: 1
 
-    # 2️⃣ Dependencies + ccache
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -41,8 +41,8 @@ jobs:
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
         CLANG_PATH="$PWD/bin"
+        clang --version
         
-        # متغيرات clang (بدون إصلاح)
         echo "CLANG=$CLANG_PATH/clang" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -51,25 +51,24 @@ jobs:
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        clang --version
+        echo "✅ Neutron جاهز"
 
-    # 🔟 Build environment
+    # 🔟 Export env
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "LLVM=1" >> $GITHUB_ENV
-        echo "LLVM_IAS=0" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 1️⃣1️⃣ Defconfig
+    # 1️⃣1️⃣ Defconfig - ⚠️ بدون CC=clang (كما في الأصلي)
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ Build kernel
+    # 1️⃣2️⃣ Build kernel - ⚠️ مع CC=clang (كما في الأصلي)
     - name: Build kernel
       shell: bash
       env:
@@ -84,8 +83,8 @@ jobs:
         mkdir -p logs
         ccache -M 1G
         ccache -z
-
-        stdbuf -oL -eL make O=out -j2 \
+        
+        stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CLANG" \
           AR="$AR" \
           NM="$NM" \
@@ -93,8 +92,6 @@ jobs:
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           ARCH=arm64 \
-          LLVM=1 \
-          LLVM_IAS=0 \
           2>&1 | tee logs/build.log
 
         ccache -s
