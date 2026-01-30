@@ -34,19 +34,31 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang - مختصر
+    # 3️⃣ Neutron Clang - النسخة المصححة
     - name: Setup Neutron Clang
       run: |
+        echo "📥 تحميل Neutron Clang..."
         wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
-        tar -I zstd -xf neutron-clang-10032024.tar.zst
-        echo "$PWD/bin" >> $GITHUB_PATH
-        echo "CC=$PWD/bin/clang-19" >> $GITHUB_ENV
-        echo "AR=$PWD/bin/llvm-ar" >> $GITHUB_ENV
-        echo "NM=$PWD/bin/llvm-nm" >> $GITHUB_ENV
-        echo "OBJCOPY=$PWD/bin/llvm-objcopy" >> $GITHUB_ENV
-        echo "OBJDUMP=$PWD/bin/llvm-objdump" >> $GITHUB_ENV
-        echo "STRIP=$PWD/bin/llvm-strip" >> $GITHUB_ENV
         
+        echo "📦 فك الضغط..."
+        tar -I zstd -xf neutron-clang-10032024.tar.zst
+        
+        CLANG_PATH="$PWD/bin"
+        
+        echo "🔍 محتويات مجلد bin/:"
+        ls -la $CLANG_PATH/
+        
+        # 💾 حفظ المتغيرات - أضف CLANG هنا
+        echo "CC=$CLANG_PATH/clang-19" >> $GITHUB_ENV
+        echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
+        echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
+        echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
+        echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
+        echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
+        
+        # ⬅️ okeay bb 
+        echo "$CLANG_PATH" >> $GITHUB_PATH
+        echo "✅ Neutron Clang جاهز!"
 
     # 4️⃣ Export env 
     - name: Export env
