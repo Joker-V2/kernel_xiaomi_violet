@@ -1,3 +1,6 @@
+سكربت GitHub Actions مع Neutron Clang - بدون إصلاح clang
+
+```yaml
 name: Build Kernel (violet | KernelSu-Next-legacy | susfs-V2.0.0)
 
 on:
@@ -8,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
     # 1️⃣ Checkout
@@ -18,7 +21,7 @@ jobs:
         ref: test6
         fetch-depth: 1
 
-    # 2️⃣ Dependencies
+    # 2️⃣ Dependencies + ccache
     - name: Install dependencies
       run: |
         sudo apt update
@@ -34,18 +37,19 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang
+    # 3️⃣ Neutron Clang - بدون إصلاح clang الفارغ
     - name: Setup Neutron Clang
       run: |
+        # تحميل Neutron
         wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
+        
+        # فك الضغط
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
+        # ⚠️ استخدام clang كما هو (حتى لو فارغ)
         CLANG_PATH="$PWD/bin"
         
-        # إصلاح رابط clang الفارغ
-        [ -L "$CLANG_PATH/clang" ] && rm "$CLANG_PATH/clang"
-        ln -s "clang-19" "$CLANG_PATH/clang"
-        
+        # ⚠️ بدون إصلاح - مثل جهازك تماماً
         echo "CLANG=$CLANG_PATH/clang" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -53,25 +57,26 @@ jobs:
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
+        # إضافة إلى PATH
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ Neutron جاهز"
-
-    # 🔟 Export env
+        
+    # 🔟 Build environment
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
+        echo "LLVM=1" >> $GITHUB_ENV
+        echo "LLVM_IAS=0" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 1️⃣1️⃣ Defconfig - ⚠️ بدون CC=clang (كما في الأصلي)
+    # 1️⃣1️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ Build kernel - ⚠️ مع CC=clang (كما في الأصلي)
+    # 1️⃣2️⃣ Build kernel - يستخدم clang الفارغ
     - name: Build kernel
       shell: bash
       env:
@@ -86,8 +91,9 @@ jobs:
         mkdir -p logs
         ccache -M 1G
         ccache -z
-        
-        stdbuf -oL -eL make O=out -j$(nproc) \
+
+        # ⚠️ يستخدم clang كما هو (سواء كان فارغاً أو لا)
+        stdbuf -oL -eL make O=out -j2 \
           CC="ccache $CLANG" \
           AR="$AR" \
           NM="$NM" \
@@ -95,6 +101,8 @@ jobs:
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           ARCH=arm64 \
+          LLVM=1 \
+          LLVM_IAS=0 \
           2>&1 | tee logs/build.log
 
         ccache -s
@@ -135,3 +143,18 @@ jobs:
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
+          hooks-build.txt
+```
+
+✅ هذا السكربت:
+
+1. يستخدم clang كما هو - حتى لو كان فارغاً (0B)
+2. لا يحاول إصلاحه - مثل جهازك تماماً
+3. سيحاول البناء - وسنرى إذا كان سينجح أو يفشل
+
+🔍 سنكتشف:
+
+· إذا كان GitHub Actions يتعامل مع clang الفارغ مثل جهازك
+· أو إذا كان سيفشل لأن البيئة مختلفة
+
+جرب هذا السكربت وراقب النتيجة!
