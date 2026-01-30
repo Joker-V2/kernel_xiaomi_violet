@@ -1,4 +1,4 @@
-name: Build Kernel (AOSP LLVM + Existing Tools)
+name: Build Kernel (AOSP LLVM + System GCC)
 
 on:
   workflow_dispatch:
@@ -15,10 +15,9 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
 
-    # 2️⃣ 📦 تثبيت كل الأدوات (كما هي)
-    - name: Install ALL dependencies (NO CHANGE)
+    # 2️⃣ 📦 أدوات التثبيت كما هي
+    - name: Install system tools
       run: |
-        echo "📦 تثبيت كل الأدوات كما هي..."
         sudo apt update
         sudo apt install -y \
           bc bison flex \
@@ -32,59 +31,72 @@ jobs:
           ccache \
           zstd
         
-        echo "✅ كل الأدوات مثبتة!"
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
 
-    # 3️⃣ 📥 أضف فقط AOSP Clang
-    - name: Add AOSP Clang ONLY
+    # 3️⃣ 📥 AOSP Clang مع كل أدوات LLVM
+    - name: Setup AOSP Clang with ALL LLVM tools
       run: |
-        echo "📥 إضافة AOSP Clang فقط..."
-        wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747c.tar.gz" -O aosp-clang.tar.gz
-        
+        echo "📥 تحميل AOSP Clang..."
+        wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
         tar -xf aosp-clang.tar.gz
         
-        # هذا الإصدار فيه bin/ جاهز
-        LLVM_PATH="$PWD/bin"
+        echo "🔍 جمع كل أدوات LLVM..."
         
-        # إذا لم يكن bin موجود، ابحث عنه
-        if [ ! -d "$LLVM_PATH" ]; then
-            mkdir -p llvm-bin
-            find . -type f -name "clang" -exec cp {} llvm-bin/ \;
-            find . -type f -name "llvm-*" -exec cp {} llvm-bin/ \;
-            find . -type f -name "ld.lld" -exec cp {} llvm-bin/ \;
-            LLVM_PATH="$PWD/llvm-bin"
-        fi
+        # إنشاء مجلد موحد لكل أدوات LLVM
+        mkdir -p aosp-llvm-bin
         
-        echo "$LLVM_PATH" >> $GITHUB_PATH
+        # نسخ كل الملفات التنفيذية
+        find . -type f -executable -exec cp {} aosp-llvm-bin/ 2>/dev/null \; || true
         
-        # ⭐ تعيين أدوات LLVM من AOSP
-        echo "CC=$LLVM_PATH/clang" >> $GITHUB_ENV
-        echo "AR=$LLVM_PATH/llvm-ar" >> $GITHUB_ENV
-        echo "NM=$LLVM_PATH/llvm-nm" >> $GITHUB_ENV
-        echo "OBJCOPY=$LLVM_PATH/llvm-objcopy" >> $GITHUB_ENV
-        echo "OBJDUMP=$LLVM_PATH/llvm-objdump" >> $GITHUB_ENV
-        echo "READELF=$LLVM_PATH/llvm-readelf" >> $GITHUB_ENV
-        echo "OBJSIZE=$LLVM_PATH/llvm-size" >> $GITHUB_ENV
-        echo "STRIP=$LLVM_PATH/llvm-strip" >> $GITHUB_ENV
-        echo "HOSTCC=$LLVM_PATH/clang" >> $GITHUB_ENV
-        echo "HOSTCXX=$LLVM_PATH/clang++" >> $GITHUB_ENV
-        echo "LD=$LLVM_PATH/ld.lld" >> $GITHUB_ENV
+        cd aosp-llvm-bin
+        
+        # ⭐⭐ البحث عن الملفات الأساسية
+        CLANG_FILE="clang"
+        [ ! -f "$CLANG_FILE" ] && CLANG_FILE=$(ls clang* 2>/dev/null | head -1)
+        
+        # إنشاء روابط للأسماء المطلوبة
+        [ ! -f "clang++" ] && ln -sf "$CLANG_FILE" clang++
+        [ ! -f "ld.lld" ] && [ -f "lld" ] && ln -sf lld ld.lld
+        
+        # جعل كل الملفات قابلة للتنفيذ
+        chmod +x *
+        
+        AOSP_PATH="$PWD"
+        echo "AOSP_PATH=$AOSP_PATH" >> $GITHUB_ENV
+        
+        # إضافة إلى PATH
+        echo "$AOSP_PATH" >> $GITHUB_PATH
+        
+        # ⭐⭐ تعيين كل المتغيرات كما طلبت
+        echo "CC=$AOSP_PATH/clang" >> $GITHUB_ENV
+        echo "AR=$AOSP_PATH/llvm-ar" >> $GITHUB_ENV
+        echo "NM=$AOSP_PATH/llvm-nm" >> $GITHUB_ENV
+        echo "OBJCOPY=$AOSP_PATH/llvm-objcopy" >> $GITHUB_ENV
+        echo "OBJDUMP=$AOSP_PATH/llvm-objdump" >> $GITHUB_ENV
+        echo "READELF=$AOSP_PATH/llvm-readelf" >> $GITHUB_ENV
+        echo "OBJSIZE=$AOSP_PATH/llvm-size" >> $GITHUB_ENV
+        echo "STRIP=$AOSP_PATH/llvm-strip" >> $GITHUB_ENV
+        echo "HOSTCC=$AOSP_PATH/clang" >> $GITHUB_ENV
+        echo "HOSTCXX=$AOSP_PATH/clang++" >> $GITHUB_ENV
+        echo "LD=$AOSP_PATH/ld.lld" >> $GITHUB_ENV
 
     # 4️⃣ Export env
     - name: Export environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
+        echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "LLVM=1" >> $GITHUB_ENV
         echo "LLVM_IAS=1" >> $GITHUB_ENV
+        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ 🔥 البناء بالإعداد الكامل
-    - name: Build with full setup
+    # 6️⃣ 🔥 البناء بالضبط كما تريد
+    - name: Build exact as requested
       shell: bash
       env:
         CC: ${{ env.CC }}
@@ -101,10 +113,14 @@ jobs:
         CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
         CROSS_COMPILE_ARM32: ${{ env.CROSS_COMPILE_ARM32 }}
       run: |
-        echo "🚀 البناء بالإعداد الكامل..."
+        echo "🚀 البناء بالإعداد الدقيق..."
+        echo "📋 الإعدادات:"
+        echo "CC=$CC"
+        echo "AR=$AR"
+        echo "CROSS_COMPILE=$CROSS_COMPILE"
         
-        # ⭐ البناء الآمن للحساب المجاني
-        make -j2 \
+        # ⭐ بناء آمن
+        make -j1 \
           O=out \
           ARCH=arm64 \
           CC="$CC" \
@@ -123,10 +139,10 @@ jobs:
           LLVM=1 \
           LLVM_IAS=1 \
           CLANG_TRIPLE="aarch64-linux-gnu-" \
-          2>&1 | tee build_final.log
+          2>&1 | tee build_exact.log
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ ✅ ✅ نجاح!"
+            echo "✅ ✅ ✅ نجاح دقيق!"
         else
             echo "❌ فشل"
             exit 1
@@ -139,4 +155,4 @@ jobs:
         cp out/arch/arm64/boot/Image.gz AK3/
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../kernel-final.zip *
+        zip -r9 ../kernel-exact.zip *
