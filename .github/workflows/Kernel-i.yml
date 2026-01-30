@@ -1,4 +1,4 @@
-name: Build Kernel (Clang + Official GCC Cross)
+name: Build Kernel (AOSP LLVM + Existing Tools)
 
 on:
   workflow_dispatch:
@@ -14,97 +14,129 @@ jobs:
     # 1️⃣ Checkout
     - name: Checkout source
       uses: actions/checkout@v4
-      with:
-        ref: test7
-        fetch-depth: 1
 
-    # 2️⃣ 📥 تحميل GCC Cross Compiler الرسمي من kernel.org
-    - name: Download Official GCC Cross Compiler
+    # 2️⃣ 📦 تثبيت كل الأدوات (كما هي)
+    - name: Install ALL dependencies (NO CHANGE)
       run: |
-        echo "📥 تحميل GCC 14.2.0 من kernel.org..."
-        wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/14.2.0/x86_64-gcc-14.2.0-nolibc-aarch64-linux.tar.gz
-        tar -xf x86_64-gcc-14.2.0-nolibc-aarch64-linux.tar.gz
+        echo "📦 تثبيت كل الأدوات كما هي..."
+        sudo apt update
+        sudo apt install -y \
+          bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd
         
-        GCC_PATH="$PWD/x86_64-gcc-14.2.0-nolibc/aarch64-linux/bin"
-        echo "GCC_CROSS=$GCC_PATH/aarch64-linux-" >> $GITHUB_ENV
-        echo "GCC_CC=$GCC_PATH/aarch64-linux-gcc" >> $GITHUB_ENV
-        echo "✅ GCC Cross Compiler جاهز!"
+        echo "✅ كل الأدوات مثبتة!"
+        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
 
-    # 3️⃣ 📥 تحميل Zycromerz Clang
-    - name: Download Zycromerz Clang
+    # 3️⃣ 📥 أضف فقط AOSP Clang
+    - name: Add AOSP Clang ONLY
       run: |
-        echo "📥 تحميل Zycromerz Clang..."
-        wget -q https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260129-release/Clang-23.0.0git-20260129.tar.gz
-        tar -xf Clang-23.0.0git-20260129.tar.gz
+        echo "📥 إضافة AOSP Clang فقط..."
+        wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747c.tar.gz" -O aosp-clang.tar.gz
         
-        CLANG_PATH="$PWD/bin/clang-23"
-        echo "CLANG_CC=$CLANG_PATH" >> $GITHUB_ENV
-        echo "✅ Zycromerz Clang جاهز!"
+        tar -xf aosp-clang.tar.gz
+        
+        # هذا الإصدار فيه bin/ جاهز
+        LLVM_PATH="$PWD/bin"
+        
+        # إذا لم يكن bin موجود، ابحث عنه
+        if [ ! -d "$LLVM_PATH" ]; then
+            mkdir -p llvm-bin
+            find . -type f -name "clang" -exec cp {} llvm-bin/ \;
+            find . -type f -name "llvm-*" -exec cp {} llvm-bin/ \;
+            find . -type f -name "ld.lld" -exec cp {} llvm-bin/ \;
+            LLVM_PATH="$PWD/llvm-bin"
+        fi
+        
+        echo "$LLVM_PATH" >> $GITHUB_PATH
+        
+        # ⭐ تعيين أدوات LLVM من AOSP
+        echo "CC=$LLVM_PATH/clang" >> $GITHUB_ENV
+        echo "AR=$LLVM_PATH/llvm-ar" >> $GITHUB_ENV
+        echo "NM=$LLVM_PATH/llvm-nm" >> $GITHUB_ENV
+        echo "OBJCOPY=$LLVM_PATH/llvm-objcopy" >> $GITHUB_ENV
+        echo "OBJDUMP=$LLVM_PATH/llvm-objdump" >> $GITHUB_ENV
+        echo "READELF=$LLVM_PATH/llvm-readelf" >> $GITHUB_ENV
+        echo "OBJSIZE=$LLVM_PATH/llvm-size" >> $GITHUB_ENV
+        echo "STRIP=$LLVM_PATH/llvm-strip" >> $GITHUB_ENV
+        echo "HOSTCC=$LLVM_PATH/clang" >> $GITHUB_ENV
+        echo "HOSTCXX=$LLVM_PATH/clang++" >> $GITHUB_ENV
+        echo "LD=$LLVM_PATH/ld.lld" >> $GITHUB_ENV
 
-    # 4️⃣ إعداد متغيرات البيئة
+    # 4️⃣ Export env
     - name: Export environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "LLVM=1" >> $GITHUB_ENV
         echo "LLVM_IAS=1" >> $GITHUB_ENV
-        echo "SUBARCH=arm64" >> $GITHUB_ENV
 
-    # 5️⃣ تحميل ملف الإعدادات
+    # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ 🔥 البناء باستخدام المزيج Clang + GCC Cross (مع إصلاح Pipe)
-    - name: Build with Hybrid Toolchain
+    # 6️⃣ 🔥 البناء بالإعداد الكامل
+    - name: Build with full setup
       shell: bash
       env:
-        CC: ${{ env.CLANG_CC }}
-        CROSS_COMPILE: ${{ env.GCC_CROSS }}
+        CC: ${{ env.CC }}
+        AR: ${{ env.AR }}
+        NM: ${{ env.NM }}
+        OBJCOPY: ${{ env.OBJCOPY }}
+        OBJDUMP: ${{ env.OBJDUMP }}
+        READELF: ${{ env.READELF }}
+        OBJSIZE: ${{ env.OBJSIZE }}
+        STRIP: ${{ env.STRIP }}
+        HOSTCC: ${{ env.HOSTCC }}
+        HOSTCXX: ${{ env.HOSTCXX }}
+        LD: ${{ env.LD }}
+        CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+        CROSS_COMPILE_ARM32: ${{ env.CROSS_COMPILE_ARM32 }}
       run: |
-        echo "🚀 بدء البناء بـ Hybrid Toolchain..."
-        echo "• المترجم (CC): Zycromerz Clang"
-        echo "• أدوات التجميع المتقاطعة (CROSS_COMPILE): GCC من kernel.org"
+        echo "🚀 البناء بالإعداد الكامل..."
         
-        # ⭐ الإعدادات لحساب GitHub المجاني لمنع Broken Pipe
-        ulimit -n 65536
-        
-        # ⭐ البناء بعدد محدود من المهام للحفاظ على الاستقرار
+        # ⭐ البناء الآمن للحساب المجاني
         make -j2 \
           O=out \
           ARCH=arm64 \
           CC="$CC" \
+          AR="$AR" \
+          NM="$NM" \
+          OBJCOPY="$OBJCOPY" \
+          OBJDUMP="$OBJDUMP" \
+          READELF="$READELF" \
+          OBJSIZE="$OBJSIZE" \
+          STRIP="$STRIP" \
+          HOSTCC="$HOSTCC" \
+          HOSTCXX="$HOSTCXX" \
+          LD="$LD" \
           CROSS_COMPILE="$CROSS_COMPILE" \
+          CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
           LLVM=1 \
           LLVM_IAS=1 \
           CLANG_TRIPLE="aarch64-linux-gnu-" \
-          2>&1 | tee build_hybrid.log
+          2>&1 | tee build_final.log
         
-        # التحقق من النتيجة
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ ✅ ✅ تم بناء النواة بنجاح باستخدام المزيج!"
-            echo "📁 الملف النهائي: out/arch/arm64/boot/Image.gz"
+            echo "✅ ✅ ✅ نجاح!"
         else
-            echo "❌ فشل عملية البناء."
-            echo "📋 عرض آخر 10 أسطر من السجل للتحقق من الخطأ:"
-            tail -10 build_hybrid.log
+            echo "❌ فشل"
             exit 1
         fi
 
-    # 7️⃣ تعبئة Kernel في AnyKernel3
-    - name: Package with AnyKernel3
+    # 7️⃣ Packaging
+    - name: Package Kernel
       run: |
-        echo "📦 تعبئة النواة باستخدام AnyKernel3..."
         git clone --depth=1 https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../kernel-hybrid-toolchain.zip *
-        echo "✅ تم إنشاء الأرشيف: kernel-hybrid-toolchain.zip"
-
-    # 8️⃣ رفع الناتج
-    - name: Upload Kernel Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Kernel-Hybrid-Build
-        path: |
-          kernel-hybrid-toolchain.zip
+        zip -r9 ../kernel-final.zip *
