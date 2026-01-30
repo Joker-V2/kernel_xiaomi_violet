@@ -50,7 +50,6 @@ jobs:
         [ -s "$CLANG_PATH/llvm-objcopy" ] && echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
         [ -s "$CLANG_PATH/llvm-objdump" ] && echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         [ -s "$CLANG_PATH/llvm-strip" ] && echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
-        [ -s "$CLANG_PATH/lld" ] && echo "LD=$CLANG_PATH/lld" >> $GITHUB_ENV
         
         echo "CROSS_COMPILE=$CLANG_PATH/aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=$CLANG_PATH/arm-linux-gnueabi-" >> $GITHUB_ENV
@@ -83,7 +82,6 @@ jobs:
         OBJCOPY: ${{ env.OBJCOPY }}
         OBJDUMP: ${{ env.OBJDUMP }}
         STRIP: ${{ env.STRIP }}
-        LD: ${{ env.LD }}
         CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
         CROSS_COMPILE_ARM32: ${{ env.CROSS_COMPILE_ARM32 }}
       run: |
@@ -108,7 +106,6 @@ jobs:
           OBJCOPY="$OBJCOPY" \
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
-          LD="$LD" \
           CLANG_TRIPLE="aarch64-linux-gnu-" \
           CROSS_COMPILE="$CROSS_COMPILE" \
           CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
