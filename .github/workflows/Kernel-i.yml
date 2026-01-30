@@ -43,6 +43,10 @@ jobs:
         CLANG_PATH="$PWD/bin"
         clang --version
         
+        # إصلاح رابط clang الفارغ
+        [ -L "$CLANG_PATH/clang" ] && rm "$CLANG_PATH/clang"
+        ln -s "clang-19" "$CLANG_PATH/clang"
+        
         echo "CLANG=$CLANG_PATH/clang" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
