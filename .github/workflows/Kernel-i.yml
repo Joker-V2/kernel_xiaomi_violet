@@ -44,7 +44,7 @@ jobs:
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
         # المسار الصحيح
-        CLANG_PATH="$PWD/neutron-clang-10032024/bin"
+        CLANG_PATH="$PWD/bin"
         
         echo "🔍 محتويات مجلد bin/:"
         ls -la $CLANG_PATH/
@@ -58,17 +58,6 @@ jobs:
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
-        # إنشاء رابط رمزي لـ clang إذا لزم الأمر
-        if [ ! -f "$CLANG_PATH/clang" ]; then
-            echo "🔗 إنشاء رابط clang → clang-19"
-            ln -sf "clang-19" "$CLANG_PATH/clang"
-            echo "CC=$CLANG_PATH/clang" >> $GITHUB_ENV
-        else
-            echo "CC=$CLANG_PATH/clang" >> $GITHUB_ENV
-        fi
-        
-        # إضافة المسار إلى PATH
-        echo "$CLANG_PATH" >> $GITHUB_PATH
         
         echo "✅ Neutron Clang جاهز!"
         echo "📋 الأدوات:"
