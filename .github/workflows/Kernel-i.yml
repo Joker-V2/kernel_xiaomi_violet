@@ -18,7 +18,7 @@ jobs:
         ref: test7
         fetch-depth: 1
 
-    # 2️⃣ Dependencies (مختصر)
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -32,7 +32,7 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Zycromerz Clang - المعدل
+    # 3️⃣ Zycromerz Clang - مع جميع الأدوات
     - name: Setup Zycromerz Clang
       run: |
         echo "📥 تحميل Zycromerz Clang..."
@@ -43,20 +43,22 @@ jobs:
         
         CLANG_PATH="$PWD/bin"
         
-        echo "🔍 محتويات مجلد bin/:"
-        ls -la $CLANG_PATH/
-        
-        # 💾 حفظ المتغيرات
+        # 💾 جميع الأدوات في 5 أسطر
         echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/llvm-ar" ] && echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/llvm-nm" ] && echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/llvm-objcopy" ] && echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/llvm-objdump" ] && echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/llvm-strip" ] && echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
+        [ -s "$CLANG_PATH/lld" ] && echo "LD=$CLANG_PATH/lld" >> $GITHUB_ENV
         
-        # ⭐ أضف cross-compilers من الملف
         echo "CROSS_COMPILE=$CLANG_PATH/aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=$CLANG_PATH/arm-linux-gnueabi-" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
         echo "✅ Zycromerz Clang جاهز!"
 
-    # 4️⃣ Export env - مع LLVM
+    # 4️⃣ Export env
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -71,11 +73,17 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - بنفس أسلوب compile()
+    # 6️⃣ Build kernel - مع جميع الأدوات
     - name: Build kernel
       shell: bash
       env:
         CC: ${{ env.CC }}
+        AR: ${{ env.AR }}
+        NM: ${{ env.NM }}
+        OBJCOPY: ${{ env.OBJCOPY }}
+        OBJDUMP: ${{ env.OBJDUMP }}
+        STRIP: ${{ env.STRIP }}
+        LD: ${{ env.LD }}
         CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
         CROSS_COMPILE_ARM32: ${{ env.CROSS_COMPILE_ARM32 }}
       run: |
@@ -86,17 +94,21 @@ jobs:
         
         echo "🚀 بدء بناء النواة..."
         echo "🔧 CC: $CC"
-        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
         
-        # اختبار
-        echo "🧪 اختبار المترجم..."
-        $CC --version
+        # اختبار المترجم
+        $CC --version | head -1
         
-        # بنفس أسلوب compile()
+        # ⭐ البناء مع جميع الأدوات
         stdbuf -oL -eL make -j$(nproc) \
           O=out \
           ARCH=arm64 \
           CC="ccache $CC" \
+          AR="$AR" \
+          NM="$NM" \
+          OBJCOPY="$OBJCOPY" \
+          OBJDUMP="$OBJDUMP" \
+          STRIP="$STRIP" \
+          LD="$LD" \
           CLANG_TRIPLE="aarch64-linux-gnu-" \
           CROSS_COMPILE="$CROSS_COMPILE" \
           CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
@@ -132,10 +144,7 @@ jobs:
         echo "📦 تعبئة AnyKernel3..."
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
-        
-        # إضافة dtbo.img إذا كان موجوداً
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
-        
         cd AK3
         zip -r9 ../Kernel-violet-zycromerz.zip *
         echo "✅ تم إنشاء Kernel-violet-zycromerz.zip"
@@ -150,16 +159,15 @@ jobs:
           Kernel-violet-zycromerz-signed.zip
         echo "✅ تم التوقيع: Kernel-violet-zycromerz-signed.zip"
 
-    # 🔟 رفع ملف ZIP لوحده
+    # 🔟 Upload Kernel ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Kernel-ZIP-zycromerz
-        path: |
-          Kernel-violet-zycromerz-signed.zip
+        path: Kernel-violet-zycromerz-signed.zip
 
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض
+    # 1️⃣1️⃣ Upload Logs and Analysis
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
