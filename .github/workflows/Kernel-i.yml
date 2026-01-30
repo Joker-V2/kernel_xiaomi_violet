@@ -11,14 +11,14 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    # 1️⃣ تحميل المصدر
+    # 1️⃣ Checkout
     - name: Checkout source
       uses: actions/checkout@v4
       with:
         ref: test6
         fetch-depth: 1
 
-    # 2️⃣ تثبيت التبعيات
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -34,58 +34,30 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang - الإصدار النهائي
+    # 3️⃣ Neutron Clang
     - name: Setup Neutron Clang
       run: |
-        echo "========================================"
-        echo "      إعداد Neutron Clang (مطابق لـ bash) "
-        echo "========================================"
-        
-        echo "📥 جاري تحميل Neutron Clang..."
         wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
-        
-        echo "📦 جاري فك الضغط..."
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
         CLANG_PATH="$PWD/bin"
         
-        echo "🔍 فحص محتويات bin/:"
-        ls -la "$CLANG_PATH/clang*" | head -5
+        # إصلاح رابط clang الفارغ
+        [ -L "$CLANG_PATH/clang" ] && rm "$CLANG_PATH/clang"
+        ln -s "clang-19" "$CLANG_PATH/clang"
         
-        # ⚠️ **إصلاح رابط clang الفارغ (0B) - هذا هو المهم!**
-        echo "🔗 إصلاح رابط clang الفارغ..."
-        if [ -L "$CLANG_PATH/clang" ] && [ ! -s "$CLANG_PATH/clang" ]; then
-            echo "📍 clang هو رابط رمزي فارغ (0B)"
-            rm -f "$CLANG_PATH/clang"
-            ln -s "clang-19" "$CLANG_PATH/clang"
-            echo "✅ clang الآن يشير إلى clang-19"
-        fi
-        
-        # إصلاح clang++ أيضاً
-        [ -L "$CLANG_PATH/clang++" ] && rm -f "$CLANG_PATH/clang++"
-        ln -s "clang-19" "$CLANG_PATH/clang++" 2>/dev/null || true
-        
-        echo "📄 الحالة النهائية:"
-        ls -la "$CLANG_PATH/clang" "$CLANG_PATH/clang-19"
-        
-        # ⚠️ **نفس متغيرات bash script بالضبط**
-        echo "💾 حفظ متغيرات البيئة..."
         echo "CLANG=$CLANG_PATH/clang" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
-        echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
         
-        # إضافة إلى PATH
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        
-        echo "✅ إعداد Neutron مكتمل"
-        echo "🔧 سيستخدم: CC=clang (الرابط المصلح)"
+        echo "✅ Neutron جاهز"
 
-    # 🔟 إعدادات بيئة البناء (مطابقة لـ bash)
-    - name: Export build environment
+    # 🔟 Export env
+    - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
@@ -94,47 +66,12 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 1️⃣1️⃣ تنظيف مجلد البناء
-    - name: Clean build directory
+    # 1️⃣1️⃣ Defconfig - ⚠️ بدون CC=clang (كما في الأصلي)
+    - name: Load defconfig
       run: |
-        echo "🧹 تنظيف مجلد البناء..."
-        make clean 2>/dev/null || true
-        make mrproper 2>/dev/null || true
-        rm -rf out 2>/dev/null || true
-        mkdir -p out
+        make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ تحميل إعدادات النواة (مطابق لـ bash)
-    - name: Load kernel defconfig
-      env:
-        CLANG: ${{ env.CLANG }}
-        AR: ${{ env.AR }}
-        NM: ${{ env.NM }}
-        OBJCOPY: ${{ env.OBJCOPY }}
-        OBJDUMP: ${{ env.OBJDUMP }}
-        STRIP: ${{ env.STRIP }}
-      run: |
-        echo "========================================"
-        echo "     تحميل إعدادات النواة (defconfig)   "
-        echo "========================================"
-        
-        echo "⚙️  الأدوات المستخدمة:"
-        echo "   CC: $CLANG"
-        echo "   AR: $AR"
-        echo "   NM: $NM"
-        
-        # ⚠️ **نفس سطر bash script بالضبط**
-        make CC="$CLANG" \
-             AR="$AR" \
-             NM="$NM" \
-             OBJCOPY="$OBJCOPY" \
-             OBJDUMP="$OBJDUMP" \
-             STRIP="$STRIP" \
-             O=out \
-             vendor/violet-perf_defconfig
-        
-        echo "✅ تحميل الإعدادات مكتمل"
-
-    # 1️⃣3️⃣ بناء النواة (مطابق لـ bash مع ccache)
+    # 1️⃣2️⃣ Build kernel - ⚠️ مع CC=clang (كما في الأصلي)
     - name: Build kernel
       shell: bash
       env:
@@ -145,24 +82,10 @@ jobs:
         OBJDUMP: ${{ env.OBJDUMP }}
         STRIP: ${{ env.STRIP }}
       run: |
-        echo "========================================"
-        echo "        بدء بناء النواة الرئيسي         "
-        echo "========================================"
-        
         set -o pipefail
         mkdir -p logs
-        ccache -M 2G
+        ccache -M 1G
         ccache -z
-        
-        echo "⚙️  إعدادات ccache:"
-        ccache -s
-        
-        echo "🔨 بدء عملية البناء..."
-        echo "   الخيوط: $(nproc)"
-        echo "   المترجم: $CLANG"
-        
-        # ⚠️ **نفس سطر bash script مع ccache و nproc**
-        start_time=$(date +%s)
         
         stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CLANG" \
@@ -173,167 +96,42 @@ jobs:
           STRIP="$STRIP" \
           ARCH=arm64 \
           2>&1 | tee logs/build.log
-        
-        build_exit=$?
-        end_time=$(date +%s)
-        build_duration=$((end_time - start_time))
-        
-        echo "⏱️  وقت البناء: $build_duration ثانية"
-        
-        # إحصائيات ccache
-        echo "📊 إحصائيات ccache النهائية:"
-        ccache -s
-        
-        if [ $build_exit -eq 0 ]; then
-            echo "✅ ✅ ✅ البناء نجح!"
-            
-            # عرض حجم النواة
-            if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-                echo "📦 حجم Image.gz: $(ls -lh out/arch/arm64/boot/Image.gz | awk '{print $5}')"
-            elif [ -f "out/arch/arm64/boot/Image" ]; then
-                echo "📦 حجم Image: $(ls -lh out/arch/arm64/boot/Image | awk '{print $5}')"
-            fi
-            
-        else
-            echo "❌ ❌ ❌ البناء فشل!"
-            echo "📋 آخر 20 سطر من السجلات:"
-            tail -20 logs/build.log
-            
-            # حفظ الأخطاء لتحليلها
-            grep -i "error\|warning\|failed" logs/build.log | head -30 > logs/errors.log
-            echo "🔍 الأخطاء محفوظة في logs/errors.log"
-            
-            exit 1
-        fi
 
-    # 1️⃣4️⃣ تحليل الرموز (KernelSU و susfs)
+        ccache -s
+
+    # 1️⃣3️⃣ Symbol analysis
     - name: Symbol analysis
       run: |
-        echo "🔍 جاري تحليل رموز النواة..."
-        
-        if [ -f "out/vmlinux" ]; then
-            echo "🔎 البحث عن KernelSU..."
-            if nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt 2>/dev/null; then
-                ksu_count=$(wc -l < nm-ksu.txt)
-                echo "✅ وجد $ksu_count رمز KernelSU"
-            else
-                echo "⚠️ لم يتم العثور على KernelSU"
-                touch nm-ksu.txt
-            fi
-            
-            echo "🔎 البحث عن susfs..."
-            if nm out/vmlinux | grep -i susfs > nm-susfs.txt 2>/dev/null; then
-                susfs_count=$(wc -l < nm-susfs.txt)
-                echo "✅ وجد $susfs_count رمز susfs"
-            else
-                echo "⚠️ لم يتم العثور على susfs"
-                touch nm-susfs.txt
-            fi
-            
-            echo "💾 حفظ كل الرموز..."
-            nm out/vmlinux > nm-full.txt 2>/dev/null || true
-            
-        else
-            echo "❌ out/vmlinux غير موجود!"
-            touch nm-ksu.txt nm-susfs.txt nm-full.txt
-        fi
+        nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || true
+        nm out/vmlinux | grep -i susfs > nm-susfs.txt || true
+        nm out/vmlinux > nm-full.txt
 
-    # 1️⃣5️⃣ تجهيز AnyKernel3
+    # 1️⃣4️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
-        echo "📦 جاري تجهيز AnyKernel3..."
-        
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
-        
-        # نسخ ملفات النواة
-        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            cp -f out/arch/arm64/boot/Image.gz AK3/
-            echo "✅ Image.gz منسوخ"
-        elif [ -f "out/arch/arm64/boot/Image" ]; then
-            # ضغط Image إذا لم يكن مضغوطاً
-            echo "🔧 ضغط Image إلى Image.gz..."
-            gzip -c out/arch/arm64/boot/Image > AK3/Image.gz
-            echo "✅ Image مضغوط إلى Image.gz"
-        else
-            echo "❌ لم يتم العثور على Image أو Image.gz!"
-            exit 1
-        fi
-        
-        if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
-            cp -f out/arch/arm64/boot/dtbo.img AK3/
-            echo "✅ dtbo.img منسوخ"
-        fi
-        
-        # إنشاء ملف ZIP
+        cp out/arch/arm64/boot/Image.gz AK3/
+        cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../Kernel-violet-neutron.zip ./*
-        
-        echo "✅ ملف ZIP مخلوق"
-        echo "📦 الحجم: $(ls -lh ../Kernel-violet-neutron.zip | awk '{print $5}')"
+        zip -r9 ../Kernel-violet-neutron.zip *
 
-    # 1️⃣6️⃣ توقيع ملف ZIP
+    # 1️⃣5️⃣ Sign ZIP
     - name: Sign zip
       run: |
-        echo "🔏 جاري توقيع ملف ZIP..."
-        
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        
-        if [ -f "Kernel-violet-neutron.zip" ]; then
-            java -jar zipsigner.jar \
-              Kernel-violet-neutron.zip \
-              Kernel-violet-neutron-signed.zip
-            
-            echo "✅ ملف موقّع: Kernel-violet-neutron-signed.zip"
-            echo "📦 الحجم النهائي: $(ls -lh Kernel-violet-neutron-signed.zip | awk '{print $5}')"
-        else
-            echo "❌ ملف ZIP غير موجود للتوقيع"
-            exit 1
-        fi
+        java -jar zipsigner.jar \
+          Kernel-violet-neutron.zip \
+          Kernel-violet-neutron-signed.zip
 
-    # 1️⃣7️⃣ رفع النتائج
+    # 1️⃣6️⃣ Upload artifacts
     - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-violet-neutron-build
+        name: Kernel-violet-neutron
         path: |
           Kernel-violet-neutron-signed.zip
-          logs/
+          logs/build.log
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
-        retention-days: 7
-
-    # 1️⃣8️⃣ إشعار بالنتيجة
-    - name: Build status report
-      if: always()
-      run: |
-        echo "========================================"
-        echo "           تقرير نتائج البناء           "
-        echo "========================================"
-        
-        if [ -f "Kernel-violet-neutron-signed.zip" ]; then
-            echo "🎉 🎉 🎉 البناء نجح بنجاح!"
-            echo ""
-            echo "📦 الملفات المنتجة:"
-            echo "   • Kernel-violet-neutron-signed.zip (مُوقّع)"
-            echo "   • Kernel-violet-neutron.zip (غير موقّع)"
-            echo ""
-            echo "📊 إحصائيات:"
-            if [ -f "nm-ksu.txt" ]; then
-                echo "   • رموز KernelSU: $(wc -l < nm-ksu.txt)"
-            fi
-            if [ -f "nm-susfs.txt" ]; then
-                echo "   • رموز susfs: $(wc -l < nm-susfs.txt)"
-            fi
-            echo ""
-            echo "⬇️  يمكنك تحميل النتائج من قسم Artifacts"
-        else
-            echo "💥 💥 💥 البناء فشل!"
-            echo ""
-            echo "📋 تحقق من:"
-            echo "   1. سجلات logs/build.log"
-            echo "   2. ملف logs/errors.log للأخطاء"
-            echo "   3. تأكد من توافق Neutron مع نظامك"
-        fi
-        echo "========================================"
