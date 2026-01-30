@@ -34,14 +34,21 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang - 
+    # 3️⃣ Neutron Clang - النسخة المصححة
     - name: Setup Neutron Clang
       run: |
+        echo "📥 تحميل Neutron Clang..."
         wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
+        
+        echo "📦 فك الضغط..."
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
         CLANG_PATH="$PWD/bin"
         
+        echo "🔍 محتويات مجلد bin/:"
+        ls -la $CLANG_PATH/
+        
+        # 💾 حفظ المتغيرات - أضف CLANG هنا
         echo "CC=$CLANG_PATH/clang-19" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -49,10 +56,11 @@ jobs:
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
+        # ⬅️ okeay bb 
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ Neutron Clang جاهز"
+        echo "✅ Neutron Clang جاهز!"
 
-    # 4️⃣ Export env
+    # 4️⃣ Export env 
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -61,13 +69,19 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        
+        # عرض المتغيرات - الآن CLANG معرف
+        echo "🎯 متغيرات البناء:"
+        echo "CC=${{ env.CC }}"
+        echo "AR=${{ env.AR }}"
+        echo "nm=${{ env.NM }}"
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel
+    # 6️⃣ Build kernel - 
     - name: Build kernel
       shell: bash
       env:
@@ -83,7 +97,16 @@ jobs:
         ccache -M 1G
         ccache -z
         
-        echo "🚀 بدء البناء..."
+        echo "🚀 بدء بناء النواة..."
+        echo "🔧 CC: $CC"
+        echo "🔧 AR: $AR"
+        echo "🔧 NM: $NM"
+        
+        # اختبار
+        echo "🧪 اختبار المترجم..."
+        $CC --version
+        
+        # its okeay new
         stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CC" \
           AR="$AR" \
@@ -114,7 +137,6 @@ jobs:
         else
             echo "❌ ملف vmlinux غير موجود"
         fi
-
     # 8️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
@@ -128,7 +150,6 @@ jobs:
         cd AK3
         zip -r9 ../Kernel-violet-neutron.zip *
         echo "✅ تم إنشاء Kernel-violet-neutron.zip"
-
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
@@ -138,7 +159,6 @@ jobs:
           Kernel-violet-neutron.zip \
           Kernel-violet-neutron-signed.zip
         echo "✅ تم التوقيع: Kernel-violet-neutron-signed.zip"
-
     # 🔟 رفع ملف ZIP لوحده
     - name: Upload Kernel ZIP
       if: always()
@@ -147,7 +167,6 @@ jobs:
         name: Kernel-ZIP
         path: |
           Kernel-violet-neutron-signed.zip
-
     # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض
     - name: Upload Logs and Analysis
       if: always()
