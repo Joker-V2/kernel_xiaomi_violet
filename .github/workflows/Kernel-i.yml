@@ -190,18 +190,7 @@ jobs:
         cd AK3
         BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
         cat > build-info.txt << EOF
-════════════════════════════════════════
-    Kernel Build Information
-════════════════════════════════════════
-Builder: GitHub Actions
-Date: ${BUILD_DATE}
-Compiler: Zycromerz Clang 23.0.0
-Device: Xiaomi Redmi Note 7 Pro (violet)
-Android: 10-13
-KernelSU: v3.0.0 (32942)
-════════════════════════════════════════
-EOF
-        
+
         # إنشاء ZIP
         zip -r9 ../Kernel-violet-zycromerz.zip * -x .git\* -x .github\*
         cd ..
@@ -230,42 +219,7 @@ EOF
       run: |
         BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
         
-        cat > build-report.txt << EOF
-════════════════════════════════════════════════════════
-            🎉 KERNEL BUILD REPORT 🎉
-════════════════════════════════════════════════════════
 
-📅 Build Information:
-────────────────────────────────────────────────────────
-Date: ${BUILD_DATE}
-Builder: GitHub Actions
-Workflow: ${{ github.workflow }}
-Run Number: ${{ github.run_number }}
-
-📱 Device Information:
-────────────────────────────────────────────────────────
-Device: Xiaomi Redmi Note 7 Pro (violet)
-Codename: violet
-SoC: Snapdragon 675 (SM6150)
-Android: 10-13
-
-🔧 Compiler Information:
-────────────────────────────────────────────────────────
-Compiler: Zycromerz Clang 23.0.0git-20260129
-LLVM: Enabled (LLVM=1, LLVM_IAS=1)
-ccache: Enabled
-
-🔐 Features:
-────────────────────────────────────────────────────────
-✅ KernelSU-Next v3.0.0 (32942)
-✅ WireGuard Support
-✅ Manual Hook Mode
-✅ SELinux Patched
-
-📦 Output Files:
-────────────────────────────────────────────────────────
-EOF
-        
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
             SIZE=$(stat -c%s "out/arch/arm64/boot/Image.gz")
             SIZE_MB=$((SIZE / 1024 / 1024))
