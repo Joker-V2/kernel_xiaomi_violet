@@ -34,19 +34,31 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ Neutron Clang
+    # 3️⃣ Neutron Clang - مع إصلاح clang
     - name: Setup Neutron Clang
       run: |
+        echo "📥 تحميل Neutron Clang..."
         wget -q https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst
+        
+        echo "📦 فك الضغط..."
         tar -I zstd -xf neutron-clang-10032024.tar.zst
         
         CLANG_PATH="$PWD/bin"
-        clang --version
         
-        # إصلاح رابط clang الفارغ
-        [ -L "$CLANG_PATH/clang" ] && rm "$CLANG_PATH/clang"
-        ln -s "clang-19" "$CLANG_PATH/clang"
+        # 🔧 إصلاح رابط clang الفارغ
+        echo "🔗 إصلاح رابط clang الفارغ..."
+        if [ -L "$CLANG_PATH/clang" ] && [ ! -e "$CLANG_PATH/clang" ]; then
+            echo "📍 clang رابط فارغ، إصلاحه..."
+            rm -f "$CLANG_PATH/clang"
+            ln -s "clang-19" "$CLANG_PATH/clang"
+            echo "✅ clang يشير الآن إلى clang-19"
+        fi
         
+        # تأكيد الإصلاح
+        echo "🎯 التأكد من الإصلاح:"
+        echo "clang → $(readlink -f "$CLANG_PATH/clang" 2>/dev/null || echo "غير معروف")"
+        
+        # حفظ المتغيرات
         echo "CLANG=$CLANG_PATH/clang" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -55,7 +67,8 @@ jobs:
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ Neutron جاهز"
+        
+        echo "✅ Neutron جاهز مع clang مصلح"
 
     # 🔟 Export env
     - name: Export env
@@ -67,12 +80,12 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 1️⃣1️⃣ Defconfig - ⚠️ بدون CC=clang (كما في الأصلي)
+    # 1️⃣1️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 1️⃣2️⃣ Build kernel - ⚠️ مع CC=clang (كما في الأصلي)
+    # 1️⃣2️⃣ Build kernel - مع clang المصحح
     - name: Build kernel
       shell: bash
       env:
@@ -87,6 +100,9 @@ jobs:
         mkdir -p logs
         ccache -M 1G
         ccache -z
+        
+        echo "🚀 بدء البناء مع clang المصحح..."
+        echo "🔧 المترجم: $CLANG"
         
         stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CLANG" \
