@@ -1,4 +1,4 @@
-name: Build Kernel (violet | zycromerz-clang) - Optimized
+name: Build Kernel (violet | zycromerz-clang)
 
 
 on:
@@ -44,7 +44,7 @@ jobs:
         
         CLANG_PATH="$PWD/bin"
         
-        # 💾 جميع الأدوات
+        # 💾 جميع الأدوات في 5 أسطر
         echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
         [ -s "$CLANG_PATH/llvm-ar" ] && echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         [ -s "$CLANG_PATH/llvm-nm" ] && echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -74,7 +74,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - مع حل Broken Pipe
+    # 6️⃣ Build kernel - مع جميع الأدوات
     - name: Build kernel
       shell: bash
       env:
@@ -93,9 +93,7 @@ jobs:
         ccache -M 1G
         ccache -z
         
-        # زيادة limits لتجنب pipe broken
         ulimit -n 4096
-        ulimit -u 4096
         
         echo "🚀 بدء بناء النواة..."
         echo "🔧 CC: $CC"
@@ -103,7 +101,7 @@ jobs:
         # اختبار المترجم
         $CC --version | head -1
         
-        # ⭐ البناء مع حل شامل لـ Broken Pipe
+        # ⭐ البناء مع جميع الأدوات
         stdbuf -oL -eL make -j$(nproc) \
           O=out \
           ARCH=arm64 \
@@ -118,28 +116,14 @@ jobs:
           CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
           LLVM=1 \
           LLVM_IAS=1 \
-          V=0 2>&1 | \
-          stdbuf -oL -eL tee logs/build.log || {
-            echo "❌ فشل البناء!"
-            echo "📄 آخر 50 سطر من اللوغ:"
-            tail -50 logs/build.log
-            exit 1
-          }
+          2>&1 | stdbuf -oL -eL tee logs/build.log
         
-        echo ""
-        echo "📊 إحصائيات ccache:"
         ccache -s
         
-        echo ""
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            SIZE=$(stat -c%s "out/arch/arm64/boot/Image.gz")
-            SIZE_MB=$((SIZE / 1024 / 1024))
             echo "✅ تم بناء النواة بنجاح!"
-            echo "📦 حجم Image.gz: ${SIZE_MB} MB"
         else
             echo "❌ فشل بناء النواة!"
-            echo "📄 التحقق من الملفات الموجودة:"
-            ls -lh out/arch/arm64/boot/ || echo "المجلد غير موجود"
             exit 1
         fi
 
@@ -148,21 +132,9 @@ jobs:
       run: |
         echo "🔍 تحليل الرموز..."
         if [ -f "out/vmlinux" ]; then
-            echo "📊 تحليل رموز KSU..."
             nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
-            KSU_COUNT=$(wc -l < nm-ksu.txt)
-            echo "   وُجد $KSU_COUNT رمز KSU"
-            
-            echo "📊 تحليل رموز susfs..."
             nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
-            SUSFS_COUNT=$(wc -l < nm-susfs.txt)
-            echo "   وُجد $SUSFS_COUNT رمز susfs"
-            
-            echo "📊 إنشاء قائمة الرموز الكاملة..."
             nm out/vmlinux > nm-full.txt
-            TOTAL_COUNT=$(wc -l < nm-full.txt)
-            echo "   إجمالي الرموز: $TOTAL_COUNT"
-            
             echo "✅ تم إنشاء ملفات التحليل"
         else
             echo "❌ ملف vmlinux غير موجود"
@@ -173,106 +145,31 @@ jobs:
       run: |
         echo "📦 تعبئة AnyKernel3..."
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
-        
-        # نسخ Image.gz
         cp out/arch/arm64/boot/Image.gz AK3/
-        echo "✅ تم نسخ Image.gz"
-        
-        # نسخ dtbo إن وُجد
-        if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
-            cp out/arch/arm64/boot/dtbo.img AK3/
-            echo "✅ تم نسخ dtbo.img"
-        else
-            echo "⚠️  dtbo.img غير موجود"
-        fi
-        
-        # إضافة معلومات البناء
+        [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
-        cat > build-info.txt << EOF
-
-        # إنشاء ZIP
-        zip -r9 ../Kernel-violet-zycromerz.zip * -x .git\* -x .github\*
-        cd ..
-        
-        ZIP_SIZE=$(stat -c%s "Kernel-violet-zycromerz.zip")
-        ZIP_SIZE_MB=$((ZIP_SIZE / 1024 / 1024))
-        echo "✅ تم إنشاء Kernel-violet-zycromerz.zip (${ZIP_SIZE_MB} MB)"
+        zip -r9 ../Kernel-violet-zycromerz.zip *
+        echo "✅ تم إنشاء Kernel-violet-zycromerz.zip"
 
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        
         java -jar zipsigner.jar \
           Kernel-violet-zycromerz.zip \
           Kernel-violet-zycromerz-signed.zip
-        
-        SIGNED_SIZE=$(stat -c%s "Kernel-violet-zycromerz-signed.zip")
-        SIGNED_SIZE_MB=$((SIGNED_SIZE / 1024 / 1024))
-        echo "✅ تم التوقيع: Kernel-violet-zycromerz-signed.zip (${SIGNED_SIZE_MB} MB)"
+        echo "✅ تم التوقيع: Kernel-violet-zycromerz-signed.zip"
 
-    # 🔟 Generate Build Report
-    - name: Generate Build Report
-      if: always()
-      run: |
-        BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
-        
-
-        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            SIZE=$(stat -c%s "out/arch/arm64/boot/Image.gz")
-            SIZE_MB=$((SIZE / 1024 / 1024))
-            echo "✅ Image.gz - ${SIZE_MB} MB" >> build-report.txt
-        fi
-        
-        if [ -f "Kernel-violet-zycromerz-signed.zip" ]; then
-            SIZE=$(stat -c%s "Kernel-violet-zycromerz-signed.zip")
-            SIZE_MB=$((SIZE / 1024 / 1024))
-            echo "✅ Kernel ZIP (Signed) - ${SIZE_MB} MB" >> build-report.txt
-        fi
-        
-        if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
-            SIZE=$(stat -c%s "out/arch/arm64/boot/dtbo.img")
-            SIZE_KB=$((SIZE / 1024))
-            echo "✅ dtbo.img - ${SIZE_KB} KB" >> build-report.txt
-        fi
-        
-        echo "" >> build-report.txt
-        echo "📊 Build Statistics:" >> build-report.txt
-        echo "────────────────────────────────────────────────────────" >> build-report.txt
-        
-        if [ -f "logs/build.log" ]; then
-            TOTAL_LINES=$(wc -l < logs/build.log)
-            WARNINGS=$(grep -i "warning" logs/build.log | wc -l || echo "0")
-            echo "Total Log Lines: $TOTAL_LINES" >> build-report.txt
-            echo "Warnings: $WARNINGS" >> build-report.txt
-        fi
-        
-        if [ -f "nm-ksu.txt" ]; then
-            KSU_SYMBOLS=$(wc -l < nm-ksu.txt)
-            echo "KSU Symbols: $KSU_SYMBOLS" >> build-report.txt
-        fi
-        
-        echo "" >> build-report.txt
-        echo "════════════════════════════════════════════════════════" >> build-report.txt
-        echo "            ✅ BUILD COMPLETED SUCCESSFULLY ✅" >> build-report.txt
-        echo "════════════════════════════════════════════════════════" >> build-report.txt
-        
-        cat build-report.txt
-        echo ""
-        echo "📄 التقرير محفوظ في build-report.txt"
-
-    # 1️⃣1️⃣ Upload Kernel ZIP
+    # 🔟 Upload Kernel ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Kernel-ZIP-zycromerz
         path: Kernel-violet-zycromerz-signed.zip
-        retention-days: 30
 
-    # 1️⃣2️⃣ Upload Logs and Analysis
+    # 1️⃣1️⃣ Upload Logs and Analysis
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
@@ -283,17 +180,3 @@ jobs:
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
-          build-report.txt
-          AK3/build-info.txt
-        retention-days: 30
-
-    # 1️⃣3️⃣ Upload Raw Kernel Image
-    - name: Upload Raw Kernel Image
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Kernel-Image-Raw
-        path: |
-          out/arch/arm64/boot/Image.gz
-          out/arch/arm64/boot/dtbo.img
-        retention-days: 30
