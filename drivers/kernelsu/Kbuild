@@ -73,9 +73,9 @@ $(info -- KernelSU: Hook mode: Manual)
 endif
 endif
 
-ifneq ($(HAVE_KSU_HOOK),0)
-$(error -- KernelSU: No hooks were defined, please integrate manual hooks in your kernel!)
-endif
+# ifneq ($(HAVE_KSU_HOOK),0)
+# $(error -- KernelSU: No hooks were defined, please integrate manual hooks in your kernel!)
+# endif
 
 # some backports
 ifneq ($(shell grep -Eq "^static int can_umount" $(srctree)/fs/namespace.c; echo $$?),0)
