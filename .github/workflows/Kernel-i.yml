@@ -61,8 +61,8 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig
-    - name: Load defconfig
+    # 5️⃣ Clang
+    - name: Load clang
       run: |
         echo "🔧 استخدام AOSP Clang (clang-18)..."
         
@@ -80,7 +80,11 @@ jobs:
           STRIP=llvm-strip \
           HOSTCC=clang-18 \
           HOSTCXX=clang++ \
-          vendor/violet-perf_defconfig
+
+    # 5️⃣ Defconfig
+    - name: Load defconfig
+      run: |
+        make O=out vendor/violet-perf_defconfig
 
     # 6️⃣ Build
     - name: Build kernel
@@ -114,7 +118,7 @@ jobs:
           LLVM=1 \
           LLVM_IAS=1 \
           -j$(nproc) \
-          Image.gz 2>&1 | tee build_final.log
+          2>&1 | tee logs/build.log
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ ✅ ✅ النواة مبنية!"
@@ -123,11 +127,56 @@ jobs:
             exit 1
         fi
 
-    # 7️⃣ Packaging
-    - name: Package Kernel
+    # 7️⃣ Symbol analysis
+    - name: Symbol analysis
       run: |
-        git clone --depth=1 https://github.com/Joker-V2/AnyKernel3.git AK3
+        echo "🔍 تحليل الرموز..."
+        if [ -f "out/vmlinux" ]; then
+            nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
+            nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            nm out/vmlinux > nm-full.txt
+            echo "✅ تم إنشاء ملفات التحليل"
+        else
+            echo "❌ ملف vmlinux غير موجود"
+        fi
+    # 8️⃣ AnyKernel3
+    - name: Package AnyKernel3
+      run: |
+        echo "📦 تعبئة AnyKernel3..."
+        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
+        
+        # إضافة dtbo.img إذا كان موجوداً
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
+        
         cd AK3
-        zip -r9 ../kernel-final.zip *
+        zip -r9 ../Kernel-violet-neutron.zip *
+        echo "✅ تم إنشاء Kernel-violet-neutron.zip"
+    # 9️⃣ Sign ZIP
+    - name: Sign zip
+      run: |
+        echo "🖊️ توقيع ملف ZIP..."
+        wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
+        java -jar zipsigner.jar \
+          Kernel-violet-neutron.zip \
+          Kernel-violet-neutron-signed.zip
+        echo "✅ تم التوقيع: Kernel-violet-neutron-signed.zip"
+    # 🔟 رفع ملف ZIP لوحده
+    - name: Upload Kernel ZIP
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-ZIP
+        path: |
+          Kernel-violet-neutron-signed.zip
+    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض
+    - name: Upload Logs and Analysis
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build-Logs-Analysis
+        path: |
+          logs/build.log
+          nm-ksu.txt
+          nm-susfs.txt
+          nm-full.txt
