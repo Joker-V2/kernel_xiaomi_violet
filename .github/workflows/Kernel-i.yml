@@ -38,14 +38,18 @@ jobs:
     # 3️⃣ Setup AOSP Clang
     - name: Setup AOSP Clang
       run: |
+        echo "📥 تحميل AOSP Clang..."
         wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
+        
+        echo "📦 فك الضغط..."
         mkdir -p aosp-clang
         tar -xf aosp-clang.tar.gz -C aosp-clang
         
+        # إضافة المسار
         echo "$PWD/aosp-clang/bin" >> $GITHUB_PATH
         
-        # التحقق
-        echo "✅ clang-18: $(ls -la $PWD/aosp-clang/bin/clang-*)"
+        echo "✅ AOSP Clang جاهز:"
+        echo "clang-18: $PWD/aosp-clang/bin/clang-18"
 
     # 4️⃣ Export environment
     - name: Export environment
@@ -55,28 +59,32 @@ jobs:
         echo "LLVM=1" >> $GITHUB_ENV
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 5️⃣ ✅ Defconfig - تصحيح: فقط تحميل config بدون أدوات
+    # 5️⃣ ✅ Defconfig - تصحيح: بدون أدوات
     - name: Load defconfig
       run: |
-        echo "🔧 تحميل defconfig فقط (بدون بناء)..."
+        echo "🔧 تحميل defconfig فقط..."
+        echo "⏱️  هذه المرحلة يجب أن تكون سريعة"
         
         # تنظيف فقط
         make O=out clean mrproper
         
-        # ⭐ تحميل config بدون CC أو أي أدوات
+        # ⭐ تحميل config فقط - بدون أي أدوات
         make O=out vendor/violet-perf_defconfig
         
-        echo "✅ تم تحميل .config بنجاح"
-        echo "📁 حجم .config: $(wc -l < out/.config) سطر"
+        echo "✅ تم تحميل .config"
+        echo "📊 حجم .config: $(wc -l < out/.config) سطر"
 
-    # 6️⃣ Build - هنا فقط نستخدم الأدوات
+    # 6️⃣ ✅ Build - مع stdbuf مثل Neutron
     - name: Build kernel
       shell: bash
       env:
         CC: clang-18
         AR: llvm-ar
         NM: llvm-nm
+        OBJCOPY: llvm-objcopy
+        OBJDUMP: llvm-objdump
         STRIP: llvm-strip
         HOSTCC: clang-18
         HOSTCXX: clang++
@@ -85,58 +93,126 @@ jobs:
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
       run: |
         echo "🚀 بدء البناء الفعلي..."
-        echo "أدوات البناء:"
-        echo "CC: $(which clang-18)"
-        echo "AR: $(which llvm-ar)"
+        echo "🔧 CC: $(which clang-18)"
+        echo "🔧 AR: $(which llvm-ar)"
+        echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
         
         # إنشاء مجلد اللوغات
         mkdir -p logs
         
-        # ⭐ هنا فقط نمرر الأدوات
-        make \
+        # تنظيف ccache
+        ccache -z
+        
+        echo "⏱️  بدء الترجمة... (KernelSU سيظهر هنا)"
+        
+        # ⭐ استخدم stdbuf -oL -eL مثل Neutron
+        stdbuf -oL -eL make \
           O=out \
-          CC="$CC" \
+          ARCH=arm64 \
+          LLVM=1 \
+          LLVM_IAS=1 \
+          CC="ccache $CC" \
           AR="$AR" \
           NM="$NM" \
+          OBJCOPY="$OBJCOPY" \
+          OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           HOSTCC="$HOSTCC" \
           HOSTCXX="$HOSTCXX" \
           CLANG_TRIPLE="$CLANG_TRIPLE" \
           CROSS_COMPILE="$CROSS_COMPILE" \
           CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-          LLVM=1 \
-          LLVM_IAS=1 \
+          KBUILD_BUILD_USER="GitHub-Actions" \
+          KBUILD_BUILD_HOST="github.com" \
           -j$(nproc) \
-          Image.gz 2>&1 | tee logs/build.log
+          Image.gz dtbo.img 2>&1 | tee logs/build.log
         
+        # إحصائيات ccache
+        ccache -s
+        
+        # التحقق من النتيجة
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ ✅ ✅ النواة مبنية!"
+            echo "✅ ✅ ✅ النواة مبنية بنجاح!"
+            echo "📦 حجم Image.gz: $(du -h out/arch/arm64/boot/Image.gz | cut -f1)"
+            
+            if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
+                echo "✅ dtbo.img موجود"
+            else
+                echo "⚠️  dtbo.img غير موجود"
+            fi
+            
+            # تحقق متى ظهر KernelSU
+            echo "🔍 تحليل ظهور KernelSU في السجلال:"
+            KSU_LINE=$(grep -n "KernelSU-Next" logs/build.log | head -1 | cut -d: -f1)
+            if [ -n "$KSU_LINE" ]; then
+                echo "KernelSU ظهر في السطر: $KSU_LINE"
+                if [ "$KSU_LINE" -lt 10 ]; then
+                    echo "⚠️  KernelSU ظهر مبكراً جداً (قد يكون في defconfig)"
+                else
+                    echo "✅ KernelSU ظهر أثناء البناء (صحيح)"
+                fi
+            fi
         else
-            echo "❌ فشل البناء"
+            echo "❌ فشل بناء النواة"
+            echo "📋 آخر 50 سطر من السجل:"
+            tail -50 logs/build.log
             exit 1
         fi
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
       run: |
-        echo "🔍 تحليل الرموز..."
+        echo "🔍 تحليل رموز KernelSU..."
         if [ -f "out/vmlinux" ]; then
-            nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
-            nm out/vmlinux | grep -i "susfs" > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            # KernelSU
+            if nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt; then
+                KSU_COUNT=$(wc -l < nm-ksu.txt)
+                echo "✅ تم العثور على $KSU_COUNT رمز KernelSU"
+            else
+                echo "⚠️  لم يتم العثور على رموز KernelSU" > nm-ksu.txt
+            fi
+            
+            # susfs
+            if nm out/vmlinux | grep -i "susfs" > nm-susfs.txt; then
+                SUSFS_COUNT=$(wc -l < nm-susfs.txt)
+                echo "✅ تم العثور على $SUSFS_COUNT رمز susfs"
+            else
+                echo "⚠️  لم يتم العثور على رموز susfs" > nm-susfs.txt
+            fi
+            
+            # جميع الرموز
             nm out/vmlinux > nm-full.txt
-            echo "✅ تم إنشاء ملفات التحليل"
+            echo "📊 جميع الرموز: $(wc -l < nm-full.txt)"
+        else
+            echo "❌ ملف vmlinux غير موجود"
         fi
 
     # 8️⃣ Packaging
     - name: Package Kernel
       run: |
-        echo "📦 تجهيز الحزمة..."
+        echo "📦 تجهيز حزمة AnyKernel3..."
         git clone --depth=1 https://github.com/Joker-V2/AnyKernel3.git AK3
+        
+        # نسخ ملفات النواة
         cp out/arch/arm64/boot/Image.gz AK3/
-        [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
+        
+        if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
+            cp out/arch/arm64/boot/dtbo.img AK3/
+            echo "✅ تم إضافة dtbo.img"
+        fi
+        
+        # معلومات البناء
+        echo "Kernel Build Info" > AK3/build-info.txt
+        echo "=================" >> AK3/build-info.txt
+        echo "Build Date: $(date)" >> AK3/build-info.txt
+        echo "Git SHA: ${{ github.sha }}" >> AK3/build-info.txt
+        echo "Compiler: AOSP Clang r522817" >> AK3/build-info.txt
+        echo "KernelSU: v3.0.0" >> AK3/build-info.txt
+        
         cd AK3
         zip -r9 ../kernel-violet-aosp.zip *
         echo "✅ تم إنشاء kernel-violet-aosp.zip"
+        ls -lh ../kernel-violet-aosp.zip
 
     # 9️⃣ Sign ZIP
     - name: Sign zip
@@ -148,7 +224,13 @@ jobs:
             java -jar zipsigner.jar \
               kernel-violet-aosp.zip \
               kernel-violet-aosp-signed.zip
-            echo "✅ تم التوقيع"
+            
+            echo "✅ تم توقيع الحزمة:"
+            echo "الأصل: $(stat -c%s kernel-violet-aosp.zip) بايت"
+            echo "الموقع: $(stat -c%s kernel-violet-aosp-signed.zip) بايت"
+        else
+            echo "❌ ملف ZIP غير موجود للتوقيع"
+            exit 1
         fi
 
     # 🔟 رفع ملف ZIP
@@ -156,7 +238,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-ZIP
+        name: Kernel-ZIP-violet
         path: kernel-violet-aosp-signed.zip
         retention-days: 7
 
