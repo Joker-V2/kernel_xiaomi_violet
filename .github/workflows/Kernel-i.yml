@@ -1,4 +1,4 @@
-name: Build Kernel (Final Modified)
+name: Build Kernel (clang-18 + clang++ Final)
 
 on:
   workflow_dispatch:
@@ -27,7 +27,6 @@ jobs:
           gcc-arm-linux-gnueabi \
           zip unzip curl wget git \
           python3 \
-          openjdk-17-jre-headless \
           ccache \
           zstd
         
@@ -37,14 +36,15 @@ jobs:
     # 3️⃣ Setup AOSP Clang
     - name: Setup AOSP Clang
       run: |
+        echo "📥 تحميل AOSP Clang..."
         wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
         tar -xf aosp-clang.tar.gz
         
-        # جمع أدوات LLVM
-        mkdir -p aosp-bin
-        find . -type f -executable -exec cp {} aosp-bin/ 2>/dev/null \;
-        cd aosp-bin
-        chmod +x *
+        # تأكد من bin/
+        cd bin
+        
+        echo "📏 ملفات AOSP في bin/:"
+        ls -lh clang* | head -10
         
         echo "$PWD" >> $GITHUB_PATH
 
@@ -52,19 +52,21 @@ jobs:
     - name: Export environment
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
-        echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "LLVM=1" >> $GITHUB_ENV
         echo "LLVM_IAS=1" >> $GITHUB_ENV
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig (المعدل كما طلبت)
+    # 5️⃣ Defconfig (النهاية)
     - name: Load defconfig
       run: |
+        echo "🔧 استخدام:"
+        echo "  CC=clang-18 (138MB)"
+        echo "  HOSTCXX=clang++ (3.32MB رابط)"
+        
         make \
           O=out \
           clean \
           mrproper \
-          CC=clang \
+          CC=clang-18 \
           AR=llvm-ar \
           NM=llvm-nm \
           OBJCOPY=llvm-objcopy \
@@ -72,15 +74,15 @@ jobs:
           READELF=llvm-readelf \
           OBJSIZE=llvm-size \
           STRIP=llvm-strip \
-          HOSTCC=clang \
+          HOSTCC=clang-18 \
           HOSTCXX=clang++ \
           vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel (معدل كما طلبت)
+    # 6️⃣ Build kernel
     - name: Build kernel
       shell: bash
       env:
-        CC: clang
+        CC: clang-18
         AR: llvm-ar
         NM: llvm-nm
         OBJCOPY: llvm-objcopy
@@ -88,17 +90,14 @@ jobs:
         READELF: llvm-readelf
         OBJSIZE: llvm-size
         STRIP: llvm-strip
-        HOSTCC: clang
+        HOSTCC: clang-18
         HOSTCXX: clang++
         CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
         CROSS_COMPILE_ARM32: ${{ env.CROSS_COMPILE_ARM32 }}
       run: |
         echo "🚀 بدء البناء..."
         
-        # حساب الأنوية الآمن
-        CORES=$(nproc --all)
-        [ $CORES -gt 4 ] && CORES=4
-        
+        # ⭐ بناء آمن
         make \
           O=out \
           CC="$CC" \
@@ -113,8 +112,10 @@ jobs:
           HOSTCXX="$HOSTCXX" \
           CROSS_COMPILE="$CROSS_COMPILE" \
           CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-          -j$CORES \
-          2>&1 | tee build.log
+          LLVM=1 \
+          LLVM_IAS=1 \
+          -j2 \
+          2>&1 | tee build_final.log
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ ✅ ✅ النواة مبنية!"
@@ -130,4 +131,4 @@ jobs:
         cp out/arch/arm64/boot/Image.gz AK3/
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         cd AK3
-        zip -r9 ../kernel-modified.zip *
+        zip -r9 ../kernel-final.zip *
