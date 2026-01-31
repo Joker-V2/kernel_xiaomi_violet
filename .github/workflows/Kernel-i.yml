@@ -30,7 +30,7 @@ jobs:
           python3 \
           ccache \
           zstd \
-          openjdk-17-jre-headless  # ✅ مطلوب لتوقيع ZIP
+          openjdk-17-jre-headless
         
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
@@ -42,12 +42,10 @@ jobs:
         mkdir -p aosp-clang
         tar -xf aosp-clang.tar.gz -C aosp-clang
         
-        # إضافة المسار إلى PATH
         echo "$PWD/aosp-clang/bin" >> $GITHUB_PATH
         
         # التحقق
-        echo "✅ الملفات في bin/:"
-        ls -la $PWD/aosp-clang/bin/ | grep clang | head -5
+        echo "✅ clang-18: $(ls -la $PWD/aosp-clang/bin/clang-*)"
 
     # 4️⃣ Export environment
     - name: Export environment
@@ -58,28 +56,21 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig
+    # 5️⃣ ✅ Defconfig - تصحيح: فقط تحميل config بدون أدوات
     - name: Load defconfig
       run: |
-        echo "🔧 استخدام AOSP Clang (clang-18)..."
+        echo "🔧 تحميل defconfig فقط (بدون بناء)..."
         
-        make \
-          O=out \
-          clean \
-          mrproper \
-          CC=clang-18 \
-          AR=llvm-ar \
-          NM=llvm-nm \
-          OBJCOPY=llvm-objcopy \
-          OBJDUMP=llvm-objdump \
-          READELF=llvm-readelf \
-          OBJSIZE=llvm-size \
-          STRIP=llvm-strip \
-          HOSTCC=clang-18 \
-          HOSTCXX=clang++ \
-          vendor/violet-perf_defconfig
+        # تنظيف فقط
+        make O=out clean mrproper
+        
+        # ⭐ تحميل config بدون CC أو أي أدوات
+        make O=out vendor/violet-perf_defconfig
+        
+        echo "✅ تم تحميل .config بنجاح"
+        echo "📁 حجم .config: $(wc -l < out/.config) سطر"
 
-    # 6️⃣ Build
+    # 6️⃣ Build - هنا فقط نستخدم الأدوات
     - name: Build kernel
       shell: bash
       env:
@@ -93,13 +84,15 @@ jobs:
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
       run: |
-        echo "🚀 البناء مع:"
+        echo "🚀 بدء البناء الفعلي..."
+        echo "أدوات البناء:"
         echo "CC: $(which clang-18)"
-        echo "CLANG_TRIPLE: $CLANG_TRIPLE"
+        echo "AR: $(which llvm-ar)"
         
         # إنشاء مجلد اللوغات
         mkdir -p logs
         
+        # ⭐ هنا فقط نمرر الأدوات
         make \
           O=out \
           CC="$CC" \
@@ -123,26 +116,15 @@ jobs:
             exit 1
         fi
 
-    # 7️⃣ Symbol analysis (مثل المثال) ✅
+    # 7️⃣ Symbol analysis
     - name: Symbol analysis
       run: |
         echo "🔍 تحليل الرموز..."
         if [ -f "out/vmlinux" ]; then
-            # البحث عن رموز KernelSU
             nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
-            
-            # البحث عن رموز أخرى مهمة
             nm out/vmlinux | grep -i "susfs" > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
-            
-            # ملف كامل بالرموز
             nm out/vmlinux > nm-full.txt
-            
-            echo "📊 نتيجة التحليل:"
-            echo "رموز KernelSU: $(wc -l < nm-ksu.txt)"
-            echo "رموز susfs: $(wc -l < nm-susfs.txt)"
             echo "✅ تم إنشاء ملفات التحليل"
-        else
-            echo "❌ ملف vmlinux غير موجود"
         fi
 
     # 8️⃣ Packaging
@@ -151,44 +133,34 @@ jobs:
         echo "📦 تجهيز الحزمة..."
         git clone --depth=1 https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
-        
-        # إضافة dtbo.img إذا كان موجوداً
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
-        
         cd AK3
         zip -r9 ../kernel-violet-aosp.zip *
         echo "✅ تم إنشاء kernel-violet-aosp.zip"
 
-    # 9️⃣ Sign ZIP (مثل المثال) ✅
+    # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
         
-        # التحقق من وجود الملف للتوقيع
         if [ -f "kernel-violet-aosp.zip" ]; then
             java -jar zipsigner.jar \
               kernel-violet-aosp.zip \
               kernel-violet-aosp-signed.zip
-            
-            echo "✅ تم التوقيع:"
-            ls -lh kernel-violet-aosp*.zip
-        else
-            echo "❌ ملف ZIP غير موجود للتوقيع"
-            exit 1
+            echo "✅ تم التوقيع"
         fi
 
-    # 🔟 رفع ملف ZIP لوحده (مثل المثال) ✅
+    # 🔟 رفع ملف ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Kernel-ZIP
-        path: |
-          kernel-violet-aosp-signed.zip
+        path: kernel-violet-aosp-signed.zip
         retention-days: 7
 
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض (مثل المثال) ✅
+    # 1️⃣1️⃣ رفع اللوغات والتحليلات
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
