@@ -149,8 +149,8 @@ jobs:
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-aosp.zip *  # ⭐ غير الاسم هنا
-        echo "✅ تم إنشاء Kernel-violet-aosp.zip"  # ⭐ وغير هنا
+        zip -r9 ../Kernel-violet-aosp.zip *  
+        echo "✅ تم إنشاء Kernel-violet-aosp.zip"  
     
     # 9️⃣ Sign ZIP - ⭐⭐ غير اسم الملف فقط ⭐⭐
     - name: Sign zip
@@ -158,9 +158,9 @@ jobs:
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
         java -jar zipsigner.jar \
-          Kernel-violet-aosp.zip \  # ⭐ غير هنا
-          Kernel-violet-aosp-signed.zip  # ⭐ وغير هنا
-        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"  # ⭐ وغير هنا
+          Kernel-violet-aosp.zip \  
+          Kernel-violet-aosp-signed.zip  
+        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"  
     
     # 🔟 رفع ملف ZIP لوحده - ⭐⭐ غير اسم الملف فقط ⭐⭐
     - name: Upload Kernel ZIP
@@ -169,7 +169,7 @@ jobs:
       with:
         name: Kernel-ZIP
         path: |
-          Kernel-violet-aosp-signed.zip  # ⭐ غير هنا
+          Kernel-violet-aosp-signed.zip  
     
     # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض - ⭐⭐ لا تغيير ⭐⭐
     - name: Upload Logs and Analysis
