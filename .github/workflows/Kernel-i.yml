@@ -15,7 +15,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
 
-    # 2️⃣ Install GCC tools
+    # 2️⃣ Install tools
     - name: Install GCC tools
       run: |
         sudo apt update
@@ -29,23 +29,20 @@ jobs:
           zip unzip curl wget git \
           python3 \
           ccache \
-          zstd
+          zstd \
+          openjdk-17-jre-headless  # ✅ مطلوب لتوقيع ZIP
         
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
 
-    # 3️⃣ ✅ Setup AOSP Clang - تصحيح المسار
+    # 3️⃣ Setup AOSP Clang
     - name: Setup AOSP Clang
       run: |
-        echo "📥 تحميل AOSP Clang..."
         wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
-        
-        echo "📦 فك الضغط في مجلد منفصل..."
         mkdir -p aosp-clang
         tar -xf aosp-clang.tar.gz -C aosp-clang
         
-        echo "📍 المسار: $PWD/aosp-clang/bin"
-        echo "🔧 إضافة إلى PATH..."
+        # إضافة المسار إلى PATH
         echo "$PWD/aosp-clang/bin" >> $GITHUB_PATH
         
         # التحقق
@@ -61,8 +58,8 @@ jobs:
         echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
-    # 5️⃣ Clang
-    - name: Load clang
+    # 5️⃣ Defconfig
+    - name: Load defconfig
       run: |
         echo "🔧 استخدام AOSP Clang (clang-18)..."
         
@@ -80,11 +77,7 @@ jobs:
           STRIP=llvm-strip \
           HOSTCC=clang-18 \
           HOSTCXX=clang++ \
-
-    # 5️⃣ Defconfig
-    - name: Load defconfig
-      run: |
-        make O=out vendor/violet-perf_defconfig
+          vendor/violet-perf_defconfig
 
     # 6️⃣ Build
     - name: Build kernel
@@ -104,6 +97,9 @@ jobs:
         echo "CC: $(which clang-18)"
         echo "CLANG_TRIPLE: $CLANG_TRIPLE"
         
+        # إنشاء مجلد اللوغات
+        mkdir -p logs
+        
         make \
           O=out \
           CC="$CC" \
@@ -118,7 +114,7 @@ jobs:
           LLVM=1 \
           LLVM_IAS=1 \
           -j$(nproc) \
-          2>&1 | tee logs/build.log
+          Image.gz 2>&1 | tee logs/build.log
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ ✅ ✅ النواة مبنية!"
@@ -127,49 +123,72 @@ jobs:
             exit 1
         fi
 
-    # 7️⃣ Symbol analysis
+    # 7️⃣ Symbol analysis (مثل المثال) ✅
     - name: Symbol analysis
       run: |
         echo "🔍 تحليل الرموز..."
         if [ -f "out/vmlinux" ]; then
+            # البحث عن رموز KernelSU
             nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
-            nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            
+            # البحث عن رموز أخرى مهمة
+            nm out/vmlinux | grep -i "susfs" > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            
+            # ملف كامل بالرموز
             nm out/vmlinux > nm-full.txt
+            
+            echo "📊 نتيجة التحليل:"
+            echo "رموز KernelSU: $(wc -l < nm-ksu.txt)"
+            echo "رموز susfs: $(wc -l < nm-susfs.txt)"
             echo "✅ تم إنشاء ملفات التحليل"
         else
             echo "❌ ملف vmlinux غير موجود"
         fi
-    # 8️⃣ AnyKernel3
-    - name: Package AnyKernel3
+
+    # 8️⃣ Packaging
+    - name: Package Kernel
       run: |
-        echo "📦 تعبئة AnyKernel3..."
-        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
+        echo "📦 تجهيز الحزمة..."
+        git clone --depth=1 https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         
         # إضافة dtbo.img إذا كان موجوداً
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-neutron.zip *
-        echo "✅ تم إنشاء Kernel-violet-neutron.zip"
-    # 9️⃣ Sign ZIP
+        zip -r9 ../kernel-violet-aosp.zip *
+        echo "✅ تم إنشاء kernel-violet-aosp.zip"
+
+    # 9️⃣ Sign ZIP (مثل المثال) ✅
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar \
-          Kernel-violet-neutron.zip \
-          Kernel-violet-neutron-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-neutron-signed.zip"
-    # 🔟 رفع ملف ZIP لوحده
+        
+        # التحقق من وجود الملف للتوقيع
+        if [ -f "kernel-violet-aosp.zip" ]; then
+            java -jar zipsigner.jar \
+              kernel-violet-aosp.zip \
+              kernel-violet-aosp-signed.zip
+            
+            echo "✅ تم التوقيع:"
+            ls -lh kernel-violet-aosp*.zip
+        else
+            echo "❌ ملف ZIP غير موجود للتوقيع"
+            exit 1
+        fi
+
+    # 🔟 رفع ملف ZIP لوحده (مثل المثال) ✅
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Kernel-ZIP
         path: |
-          Kernel-violet-neutron-signed.zip
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض
+          kernel-violet-aosp-signed.zip
+        retention-days: 7
+
+    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض (مثل المثال) ✅
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
@@ -180,3 +199,4 @@ jobs:
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
+        retention-days: 7
