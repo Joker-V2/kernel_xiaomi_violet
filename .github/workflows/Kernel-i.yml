@@ -56,7 +56,7 @@ jobs:
         mkdir -p zycromerz-clang
         tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
         
-        # حذف الملف المضغوط فوراً
+        # حذف الملف المضغوط
         rm -f zycromerz-clang.tar.gz
         
         CLANG_PATH="$PWD/zycromerz-clang/bin"
@@ -89,7 +89,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel (مع حفظ اللوغ الكامل ✅)
+    # 6️⃣ Build kernel (مع عرض اللوغ ✅)
     - name: Build kernel
       shell: bash
       env:
@@ -104,8 +104,7 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        # تقليل ccache
-        ccache -M 1G
+        ccache -M 500M
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
@@ -120,14 +119,14 @@ jobs:
         df -h
         free -h
         
-        # 🆕 تقليل عدد الـ cores لتجنب LLVM Broken Pipe
+        # تقليل عدد الـ cores
         CORES=$(($(nproc) / 2))
         [ $CORES -lt 2 ] && CORES=2
         
         echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
         
-        # 🆕 حفظ اللوغ الكامل مباشرة إلى ملف (بدون تحميله في الذاكرة)
-        make O=out -j$CORES \
+        # 🆕 البناء مع عرض اللوغ + حفظه في ملف
+        stdbuf -oL -eL make O=out -j$CORES \
           CC="ccache $CC" \
           AR="$AR" \
           NM="$NM" \
@@ -135,13 +134,9 @@ jobs:
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           CLANG_TRIPLE="$CLANG_TRIPLE" \
-          > logs/build.log 2>&1
+          2>&1 | tee logs/build.log
         
-        BUILD_STATUS=$?
-        
-        # عرض آخر 50 سطر على الشاشة
-        echo "📋 آخر 50 سطر من البناء:"
-        tail -n 50 logs/build.log
+        BUILD_STATUS=${PIPESTATUS[0]}
         
         ccache -s
         
@@ -149,7 +144,6 @@ jobs:
         df -h
         free -h
         
-        # فحص حجم اللوغ
         echo "📏 حجم build.log:"
         ls -lh logs/build.log
         
@@ -158,35 +152,29 @@ jobs:
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
-            echo "📋 آخر 200 سطر من اللوغ:"
-            tail -n 200 logs/build.log
             exit 1
         fi
 
-    # 🆕 ضغط اللوغ الكامل
+    # ضغط اللوغ
     - name: Compress build log
       if: always()
       run: |
-        echo "📦 ضغط اللوغ الكامل..."
+        echo "📦 ضغط اللوغ..."
         gzip -9 logs/build.log
         echo "📏 حجم build.log.gz:"
         ls -lh logs/build.log.gz
 
-    # 🆕 تنظيف الملفات الوسيطة
+    # تنظيف
     - name: Cleanup build files
       if: always()
       run: |
         echo "🧹 تنظيف الملفات الوسيطة..."
         
-        # حذف ملفات .o و .cmd
         find out/ -name "*.o" -delete 2>/dev/null || true
         find out/ -name "*.cmd" -delete 2>/dev/null || true
         find out/ -name "*.d" -delete 2>/dev/null || true
         
-        # حذف ccache
         rm -rf $HOME/.ccache
-        
-        # حذف clang
         rm -rf zycromerz-clang
         
         echo "📊 المساحة بعد التنظيف:"
@@ -246,7 +234,7 @@ jobs:
         path: Kernel-violet-zycromerz-clang-signed.zip
         compression-level: 0
     
-    # 1️⃣1️⃣ رفع اللوغ الكامل المضغوط ✅
+    # 1️⃣1️⃣ رفع اللوغ الكامل المضغوط
     - name: Upload Build Log (Full & Compressed)
       if: always()
       uses: actions/upload-artifact@v4
@@ -269,7 +257,7 @@ jobs:
         retention-days: 5
         compression-level: 9
 
-    # 🆕 ملخص البناء
+    # ملخص البناء
     - name: Build Summary
       if: always()
       run: |
