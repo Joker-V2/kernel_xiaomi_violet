@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - test7
+      - zycromerz 
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -14,7 +14,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
       with:
-        ref: test7
+        ref: zycromerz 
         fetch-depth: 1
 
     # 2️⃣ Dependencies
@@ -33,18 +33,18 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ AOSP Clang
-    - name: Setup AOSP Clang
+    # 3️⃣ ZyCromerZ Clang (تم التغيير هنا)
+    - name: Setup ZyCromerZ Clang
       run: |
-        echo "📥 تحميل AOSP Clang..."
-        wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
+        echo "📥 تحميل ZyCromerZ Clang..."
+        wget -q "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz" -O zycromerz-clang.tar.gz
         
-        mkdir -p aosp-clang
-        tar -xf aosp-clang.tar.gz -C aosp-clang
+        mkdir -p zycromerz-clang
+        tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
         
-        CLANG_PATH="$PWD/aosp-clang/bin"
+        CLANG_PATH="$PWD/zycromerz-clang/bin"
         
-        echo "CC=$CLANG_PATH/clang-18" >> $GITHUB_ENV
+        echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
@@ -52,7 +52,7 @@ jobs:
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ AOSP Clang جاهز!"
+        echo "✅ ZyCromerZ Clang جاهز!"
 
     # 4️⃣ Export env 
     - name: Export env
@@ -136,32 +136,32 @@ jobs:
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-aosp.zip *
-        echo "✅ تم إنشاء Kernel-violet-aosp.zip"
+        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
+        echo "✅ تم إنشاء Kernel-violet-zycromerz-clang.zip"
     
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar Kernel-violet-aosp.zip Kernel-violet-aosp-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"
+        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
+        echo "✅ تم التوقيع: Kernel-violet-zycromerz-clang-signed.zip"
     
     # 🔟 رفع ملف ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-ZIP
+        name: Kernel-ZyCromerZ-Clang-ZIP
         path: |
-          Kernel-violet-aosp-signed.zip
+          Kernel-violet-zycromerz-clang-signed.zip
     
     # 1️⃣1️⃣ رفع اللوغات والتحليلات
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Build-Logs-Analysis
+        name: Build-Logs-Analysis-ZyCromerZ
         path: |
           logs/build.log
           nm-ksu.txt
