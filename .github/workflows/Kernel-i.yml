@@ -187,7 +187,7 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -M 2G
+        ccache -M 500M
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
@@ -209,19 +209,12 @@ jobs:
         df -h
         free -h
         
-        # دائماً استخدام 3 أنوية
-        TOTAL_CORES=$(nproc)
-        CORES=3
-
-        # إذا كان النظام لديه أقل من 4 أنوية، استخدام كل الأنوية ما عدا 1
-        if [ $TOTAL_CORES -le 4 ]; then
-            CORES=$((TOTAL_CORES - 1))
-            if [ $CORES -lt 1 ]; then
-               CORES=1
-            fi
-        fi
+        # تقليل عدد الـ cores
+        CORES=$(($(nproc) / 2))
+        [ $CORES -lt 2 ] && CORES=2
         
-        echo "🔧 استخدام $CORES cores (من أصل $TOTAL_CORES)"
+        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
