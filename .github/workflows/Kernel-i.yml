@@ -33,34 +33,28 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ ⭐⭐ AOSP Clang مع lld ⭐⭐
+    # 3️⃣ AOSP Clang
     - name: Setup AOSP Clang
       run: |
-        echo "📥 تحميل AOSP Clang لنواة Android..."
+        echo "📥 تحميل AOSP Clang..."
         wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-platform-15.0.0_r13/clang-r522817.tar.gz" -O aosp-clang.tar.gz
         
-        echo "📦 فك الضغط..."
         mkdir -p aosp-clang
         tar -xf aosp-clang.tar.gz -C aosp-clang
         
         CLANG_PATH="$PWD/aosp-clang/bin"
         
-        echo "🔍 أدوات AOSP Clang المتوفرة:"
-        ls -la $CLANG_PATH/clang-18 $CLANG_PATH/lld $CLANG_PATH/llvm-ar
-        
-        # 💾 حفظ متغيرات AOSP Clang كاملة
         echo "CC=$CLANG_PATH/clang-18" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
-        echo "LD=$CLANG_PATH/lld" >> $GITHUB_ENV  # ⭐⭐ lld من AOSP ⭐⭐
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ AOSP Clang جاهز مع lld لنواة Android!"
+        echo "✅ AOSP Clang جاهز!"
 
-    # 4️⃣ Export env - مع إضافات Android
+    # 4️⃣ Export env 
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -69,91 +63,63 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "ANDROID_LLVM=1" >> $GITHUB_ENV  # ⭐ إشارة لبناء Android
-        
-        echo "🎯 متغيرات بناء نواة Android:"
-        echo "CC=${{ env.CC }}"
-        echo "AR=${{ env.AR }}"
-        echo "LD=${{ env.LD }} ⭐ (lld من AOSP)"
-        echo "NM=${{ env.NM }}"
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
-        echo "🔧 تحميل إعدادات نواة Android..."
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ ⭐⭐ Build kernel مع lld من AOSP ⭐⭐
+    # 6️⃣ Build kernel
     - name: Build kernel
       shell: bash
       env:
         CC: ${{ env.CC }}
         AR: ${{ env.AR }}
-        LD: ${{ env.LD }}  # ⭐⭐ lld من AOSP ⭐⭐
         NM: ${{ env.NM }}
         OBJCOPY: ${{ env.OBJCOPY }}
         OBJDUMP: ${{ env.OBJDUMP }}
         STRIP: ${{ env.STRIP }}
+        CLANG_TRIPLE: aarch64-linux-gnu-
       run: |
         set -o pipefail
         mkdir -p logs
         ccache -M 1G
         ccache -z
         
-        echo "🚀 بدء بناء نواة Android مع AOSP Clang + lld..."
+        echo "🚀 بدء بناء النواة..."
         echo "🔧 CC: $CC"
-        echo "🔧 LD: $LD ⭐ (AOSP lld)"
-        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
+        echo "🔧 AR: $AR"
+        echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
         
-        # اختبار أدوات AOSP
-        echo "🧪 اختبار toolchain Android:"
-        $CC --version | head -3
-        $LD --version 2>&1 | head -2
+        $CC --version | head -2
         
-        # ⭐⭐ بناء مع lld من AOSP ⭐⭐
         stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CC" \
           AR="$AR" \
-          LD="$LD" \        # ⭐⭐ استخدم lld هنا ⭐⭐
           NM="$NM" \
           OBJCOPY="$OBJCOPY" \
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           CLANG_TRIPLE="$CLANG_TRIPLE" \
-          CROSS_COMPILE="$CROSS_COMPILE" \
-          CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
           2>&1 | tee logs/build.log
         
         ccache -s
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ ✅ ✅ نواة Android مبنية بنجاح مع AOSP lld!"
-            
-            # تحقق من استخدام lld
-            echo "🔍 التحقق من استخدام lld في البناء:"
-            if grep -q "ld.lld\|lld" logs/build.log; then
-                echo "✅ تم استخدام lld للربط"
-            else
-                echo "⚠️  قد يكون تم استخدام ld.bfd"
-            fi
+            echo "✅ تم بناء النواة بنجاح!"
         else
-            echo "❌ فشل بناء نواة Android!"
+            echo "❌ فشل بناء النواة!"
             exit 1
         fi
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
       run: |
-        echo "🔍 تحليل رموز KernelSU لنواة Android..."
+        echo "🔍 تحليل الرموز..."
         if [ -f "out/vmlinux" ]; then
             nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
             nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
             nm out/vmlinux > nm-full.txt
-            
-            # عد الرموز
-            echo "📊 إحصاء الرموز:"
-            echo "KernelSU: $(grep -c '^' nm-ksu.txt 2>/dev/null || echo 0)"
-            echo "susfs: $(grep -c '^' nm-susfs.txt 2>/dev/null || echo 0)"
             echo "✅ تم إنشاء ملفات التحليل"
         else
             echo "❌ ملف vmlinux غير موجود"
@@ -162,45 +128,39 @@ jobs:
     # 8️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
-        echo "📦 تعبئة AnyKernel3 لنواة Android..."
+        echo "📦 تعبئة AnyKernel3..."
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-android-aosp.zip *
-        echo "✅ تم إنشاء Kernel-violet-android-aosp.zip"
+        zip -r9 ../Kernel-violet-aosp.zip *
+        echo "✅ تم إنشاء Kernel-violet-aosp.zip"
     
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
-        echo "🖊️ توقيع ملف ZIP لنواة Android..."
+        echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        
-        if [ ! -f "Kernel-violet-android-aosp.zip" ]; then
-            echo "❌ ملف ZIP غير موجود!"
-            exit 1
-        fi
-        
-        java -jar zipsigner.jar Kernel-violet-android-aosp.zip Kernel-violet-android-aosp-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-android-aosp-signed.zip"
+        java -jar zipsigner.jar Kernel-violet-aosp.zip Kernel-violet-aosp-signed.zip
+        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"
     
     # 🔟 رفع ملف ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-Android-AOSP
+        name: Kernel-ZIP
         path: |
-          Kernel-violet-android-aosp-signed.zip
+          Kernel-violet-aosp-signed.zip
     
     # 1️⃣1️⃣ رفع اللوغات والتحليلات
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Build-Logs-Analysis-Android
+        name: Build-Logs-Analysis
         path: |
           logs/build.log
           nm-ksu.txt
