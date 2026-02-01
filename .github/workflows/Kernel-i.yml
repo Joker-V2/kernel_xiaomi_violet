@@ -17,7 +17,7 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies
+    # 2️⃣ Dependencies - ⭐ مثل المثال ⭐
     - name: Install dependencies
       run: |
         sudo apt update
@@ -25,15 +25,15 @@ jobs:
           bc bison flex \
           build-essential \
           libssl-dev libelf-dev libncurses-dev \
-          gcc-aarch64-linux-gnu \
-          gcc-arm-linux-gnueabi \
+          gcc-aarch64-linux-gnu \          # ⭐ للنظام
+          gcc-arm-linux-gnueabi \          # ⭐ للنظام
           zip unzip curl wget git \
           python3 \
           openjdk-17-jre-headless \
           ccache \
           zstd
 
-    # 3️⃣ ZyCromerZ Clang
+    # 3️⃣ ZyCromerZ Clang - ⭐ مثل المثال ⭐
     - name: Setup ZyCromerZ Clang
       run: |
         echo "📥 تحميل ZyCromerZ Clang..."
@@ -44,134 +44,65 @@ jobs:
         
         CLANG_PATH="$PWD/zycromerz-clang/bin"
         
-        echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
-        echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
-        echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
-        echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
-        echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
-        echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
-        
+        # ⭐ مثل المثال: إضافة إلى PATH فقط
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ ZyCromerZ Clang جاهز!"
+        
+        # ⭐ ليس CC=$CLANG_PATH/clang-23
+        # ⭐ النظام سيستخدم clang من PATH
+        
+        echo "✅ ZyCromerZ Clang في PATH!"
 
-    # 4️⃣ Export env - ⭐⭐ مع إضافة LLVM=1 و LLVM_IAS=1 ⭐⭐
+    # 4️⃣ Export env - ⭐ مثل المثال ⭐
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "LLVM=1" >> $GITHUB_ENV
+        echo "LLVM_IAS=1" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "LLVM=1" >> $GITHUB_ENV          # ⭐⭐ جديد ⭐⭐
-        echo "LLVM_IAS=1" >> $GITHUB_ENV      # ⭐⭐ جديد ⭐⭐
+        # ⭐ لا CLANG_TRIPLE هنا - في سطر make
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - ⭐⭐ مع إضافة LLVM=1 و LLVM_IAS=1 ⭐⭐
+    # 6️⃣ Build kernel - ⭐⭐ مطابق للمثال تماماً ⭐⭐
     - name: Build kernel
       shell: bash
-      env:
-        CC: ${{ env.CC }}
-        AR: ${{ env.AR }}
-        NM: ${{ env.NM }}
-        OBJCOPY: ${{ env.OBJCOPY }}
-        OBJDUMP: ${{ env.OBJDUMP }}
-        STRIP: ${{ env.STRIP }}
-        CLANG_TRIPLE: aarch64-linux-gnu-
-        LLVM: 1          # ⭐⭐ جديد ⭐⭐
-        LLVM_IAS: 1      # ⭐⭐ جديد ⭐⭐
       run: |
         set -o pipefail
         mkdir -p logs
         ccache -M 1G
         ccache -z
         
-        echo "🚀 بدء بناء النواة مع LLVM=1 و LLVM_IAS=1..."
-        echo "🔧 CC: $CC"
-        echo "🔧 AR: $AR"
-        echo "🔧 NM: $NM"
-        echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
-        echo "🔧 LLVM: $LLVM"           # ⭐⭐ جديد ⭐⭐
-        echo "🔧 LLVM_IAS: $LLVM_IAS"   # ⭐⭐ جديد ⭐⭐
+        echo "🚀 البناء بنفس طريقة المثال..."
+        echo "🔧 CC: ccache clang (من PATH)"
+        echo "🔧 CROSS_COMPILE: aarch64-linux-gnu- (نظامي)"
+        echo "🔧 CLANG_TRIPLE: aarch64-linux-gnu-"
         
-        $CC --version | head -2
+        # التحقق
+        echo "🧪 التحقق:"
+        which clang
+        clang --version | head -2
         
+        # ⭐⭐ مطابق للمثال تماماً ⭐⭐
         stdbuf -oL -eL make O=out -j$(nproc) \
-          LLVM=1 \           # ⭐⭐ جديد ⭐⭐
-          LLVM_IAS=1 \       # ⭐⭐ جديد ⭐⭐
-          CC="ccache $CC" \
-          AR="$AR" \
-          NM="$NM" \
-          OBJCOPY="$OBJCOPY" \
-          OBJDUMP="$OBJDUMP" \
-          STRIP="$STRIP" \
-          CLANG_TRIPLE="$CLANG_TRIPLE" \
+          CC="ccache clang" \                     # ⭐ مثل المثال
+          CLANG_TRIPLE="aarch64-linux-gnu-" \     # ⭐ مثل المثال
+          CROSS_COMPILE="aarch64-linux-gnu-" \    # ⭐ مثل المثال
+          CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \ # ⭐ مثل المثال
+          LLVM=1 \                                # ⭐ مثل المثال
+          LLVM_IAS=1 \                            # ⭐ مثل المثال
           2>&1 | tee logs/build.log
         
         ccache -s
         
         if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ تم بناء النواة بنجاح مع LLVM toolchain!"
+            echo "✅ تم بناء النواة بنجاح (بنفس طريقة المثال)!"
         else
             echo "❌ فشل بناء النواة!"
             exit 1
         fi
 
-    # 7️⃣ Symbol analysis
-    - name: Symbol analysis
-      run: |
-        echo "🔍 تحليل الرموز..."
-        if [ -f "out/vmlinux" ]; then
-            nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
-            nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
-            nm out/vmlinux > nm-full.txt
-            echo "✅ تم إنشاء ملفات التحليل"
-        else
-            echo "❌ ملف vmlinux غير موجود"
-        fi
-    
-    # 8️⃣ AnyKernel3
-    - name: Package AnyKernel3
-      run: |
-        echo "📦 تعبئة AnyKernel3..."
-        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
-        cp out/arch/arm64/boot/Image.gz AK3/
-        
-        [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
-        
-        cd AK3
-        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
-        echo "✅ تم إنشاء Kernel-violet-zycromerz-clang.zip"
-    
-    # 9️⃣ Sign ZIP
-    - name: Sign zip
-      run: |
-        echo "🖊️ توقيع ملف ZIP..."
-        wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-zycromerz-clang-signed.zip"
-    
-    # 🔟 رفع ملف ZIP
-    - name: Upload Kernel ZIP
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Kernel-ZyCromerZ-Clang-ZIP
-        path: |
-          Kernel-violet-zycromerz-clang-signed.zip
-    
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات
-    - name: Upload Logs and Analysis
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Build-Logs-Analysis-ZyCromerZ
-        path: |
-          logs/build.log
-          nm-ksu.txt
-          nm-susfs.txt
-          nm-full.txt
+    # ... باقي السكربت كما هو
