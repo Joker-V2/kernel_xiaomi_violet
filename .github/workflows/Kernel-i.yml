@@ -7,7 +7,7 @@ on:
       - zycromerz 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     # 1️⃣ Checkout
@@ -17,7 +17,7 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies - ⭐ مثل المثال ⭐
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -25,84 +25,254 @@ jobs:
           bc bison flex \
           build-essential \
           libssl-dev libelf-dev libncurses-dev \
-          gcc-aarch64-linux-gnu \          # ⭐ للنظام
-          gcc-arm-linux-gnueabi \          # ⭐ للنظام
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
           zip unzip curl wget git \
           python3 \
           openjdk-17-jre-headless \
           ccache \
           zstd
 
-    # 3️⃣ ZyCromerZ Clang - ⭐ مثل المثال ⭐
+    # 🆕 تحرير مساحة القرص
+    - name: Free up disk space
+      run: |
+        echo "🧹 تحرير مساحة القرص..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        
+        echo "📊 المساحة المتاحة:"
+        df -h
+
+    # 3️⃣ ZyCromerZ Clang
     - name: Setup ZyCromerZ Clang
       run: |
         echo "📥 تحميل ZyCromerZ Clang..."
         wget -q "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz" -O zycromerz-clang.tar.gz
         
+        echo "📦 فك الضغط..."
         mkdir -p zycromerz-clang
         tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
         
+        # حذف الملف المضغوط
+        rm -f zycromerz-clang.tar.gz
+        
         CLANG_PATH="$PWD/zycromerz-clang/bin"
         
-        # ⭐ مثل المثال: إضافة إلى PATH فقط
+        echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
+        echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
+        echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
+        echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
+        echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
+        echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
+        
         echo "$CLANG_PATH" >> $GITHUB_PATH
+        echo "✅ ZyCromerZ Clang جاهز!"
         
-        # ⭐ ليس CC=$CLANG_PATH/clang-23
-        # ⭐ النظام سيستخدم clang من PATH
-        
-        echo "✅ ZyCromerZ Clang في PATH!"
+        echo "📊 المساحة بعد Clang:"
+        df -h
 
-    # 4️⃣ Export env - ⭐ مثل المثال ⭐
+    # 4️⃣ Export env 
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "LLVM=1" >> $GITHUB_ENV
-        echo "LLVM_IAS=1" >> $GITHUB_ENV
+        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        # ⭐ لا CLANG_TRIPLE هنا - في سطر make
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - ⭐⭐ مطابق للمثال تماماً ⭐⭐
+    # 6️⃣ Build kernel (مع عرض اللوغ ✅) ⭐⭐ تم التعديل هنا ⭐⭐
     - name: Build kernel
       shell: bash
+      env:
+        CC: ${{ env.CC }}
+        AR: ${{ env.AR }}
+        NM: ${{ env.NM }}
+        OBJCOPY: ${{ env.OBJCOPY }}
+        OBJDUMP: ${{ env.OBJDUMP }}
+        STRIP: ${{ env.STRIP }}
+        CLANG_TRIPLE: aarch64-linux-gnu-
+        CROSS_COMPILE: aarch64-linux-gnu-
+        CROSS_COMPILE_ARM32: arm-linux-gnueabi-
       run: |
         set -o pipefail
         mkdir -p logs
-        ccache -M 1G
+        
+        ccache -M 500M
         ccache -z
         
-        echo "🚀 البناء بنفس طريقة المثال..."
-        echo "🔧 CC: ccache clang (من PATH)"
-        echo "🔧 CROSS_COMPILE: aarch64-linux-gnu- (نظامي)"
-        echo "🔧 CLANG_TRIPLE: aarch64-linux-gnu-"
+        echo "🚀 بدء بناء النواة..."
+        echo "🔧 CC: $CC"
+        echo "🔧 AR: $AR"
+        echo "🔧 NM: $NM"
+        echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
+        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
+        echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
         
-        # التحقق
-        echo "🧪 التحقق:"
-        which clang
-        clang --version | head -2
+        $CC --version | head -2
         
-        # ⭐⭐ مطابق للمثال تماماً ⭐⭐
-        stdbuf -oL -eL make O=out -j$(nproc) \
-          CC="ccache clang" \                     # ⭐ مثل المثال
-          CLANG_TRIPLE="aarch64-linux-gnu-" \     # ⭐ مثل المثال
-          CROSS_COMPILE="aarch64-linux-gnu-" \    # ⭐ مثل المثال
-          CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \ # ⭐ مثل المثال
-          LLVM=1 \                                # ⭐ مثل المثال
-          LLVM_IAS=1 \                            # ⭐ مثل المثال
+        echo "📊 الموارد قبل البناء:"
+        df -h
+        free -h
+        
+        # تقليل عدد الـ cores
+        CORES=$(($(nproc) / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        
+        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        
+        # ⭐⭐ تم التعديل - إضافة المتغيرات المطلوبة ⭐⭐
+        stdbuf -oL -eL make O=out -j$CORES \
+          CC="ccache $CC" \
+          AR="$AR" \
+          NM="$NM" \
+          OBJCOPY="$OBJCOPY" \
+          OBJDUMP="$OBJDUMP" \
+          STRIP="$STRIP" \
+          CLANG_TRIPLE="$CLANG_TRIPLE" \
+          CROSS_COMPILE="$CROSS_COMPILE" \
+          CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
+          LLVM=1 \
+          LLVM_IAS=1 \
           2>&1 | tee logs/build.log
+        
+        BUILD_STATUS=${PIPESTATUS[0]}
         
         ccache -s
         
-        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ تم بناء النواة بنجاح (بنفس طريقة المثال)!"
+        echo "📊 الموارد بعد البناء:"
+        df -h
+        free -h
+        
+        echo "📏 حجم build.log:"
+        ls -lh logs/build.log
+        
+        if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
+            echo "✅ تم بناء النواة بنجاح!"
+            ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
             exit 1
         fi
 
-    # ... باقي السكربت كما هو
+    # ضغط اللوغ
+    - name: Compress build log
+      if: always()
+      run: |
+        echo "📦 ضغط اللوغ..."
+        gzip -9 logs/build.log
+        echo "📏 حجم build.log.gz:"
+        ls -lh logs/build.log.gz
+
+    # تنظيف
+    - name: Cleanup build files
+      if: always()
+      run: |
+        echo "🧹 تنظيف الملفات الوسيطة..."
+        
+        find out/ -name "*.o" -delete 2>/dev/null || true
+        find out/ -name "*.cmd" -delete 2>/dev/null || true
+        find out/ -name "*.d" -delete 2>/dev/null || true
+        
+        rm -rf $HOME/.ccache
+        rm -rf zycromerz-clang
+        
+        echo "📊 المساحة بعد التنظيف:"
+        df -h
+
+    # 7️⃣ Symbol analysis
+    - name: Symbol analysis
+      run: |
+        echo "🔍 تحليل الرموز..."
+        if [ -f "out/vmlinux" ]; then
+            nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
+            nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            nm out/vmlinux > nm-full.txt
+            
+            echo "📏 أحجام الملفات:"
+            ls -lh nm-*.txt
+            
+            echo "✅ تم إنشاء ملفات التحليل"
+        else
+            echo "❌ ملف vmlinux غير موجود"
+        fi
+    
+    # 8️⃣ AnyKernel3
+    - name: Package AnyKernel3
+      run: |
+        echo "📦 تعبئة AnyKernel3..."
+        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
+        cp out/arch/arm64/boot/Image.gz AK3/
+        
+        [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
+        
+        cd AK3
+        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
+        cd ..
+        
+        echo "📏 حجم ZIP:"
+        ls -lh Kernel-violet-zycromerz-clang.zip
+        echo "✅ تم إنشاء ZIP"
+    
+    # 9️⃣ Sign ZIP
+    - name: Sign zip
+      run: |
+        echo "🖊️ توقيع ZIP..."
+        wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
+        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
+        
+        echo "📏 حجم ZIP الموقّع:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip
+        echo "✅ تم التوقيع"
+    
+    # 🔟 رفع ZIP
+    - name: Upload Kernel ZIP
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-ZyCromerZ-Clang-ZIP
+        path: Kernel-violet-zycromerz-clang-signed.zip
+        compression-level: 0
+    
+    # 1️⃣1️⃣ رفع اللوغ الكامل المضغوط
+    - name: Upload Build Log (Full & Compressed)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build-Log-Full
+        path: logs/build.log.gz
+        retention-days: 7
+        compression-level: 0
+    
+    # 1️⃣2️⃣ رفع التحليلات
+    - name: Upload Analysis
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Symbol-Analysis
+        path: |
+          nm-ksu.txt
+          nm-susfs.txt
+          nm-full.txt
+        retention-days: 5
+        compression-level: 9
+
+    # ملخص البناء
+    - name: Build Summary
+      if: always()
+      run: |
+        echo "📊 ملخص البناء:"
+        echo "================================"
+        echo "✅ ملفات تم إنشاؤها:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
+        ls -lh logs/build.log.gz 2>/dev/null || echo "❌ اللوغ غير موجود"
+        ls -lh nm-*.txt 2>/dev/null || echo "❌ ملفات التحليل غير موجودة"
+        echo "================================"
