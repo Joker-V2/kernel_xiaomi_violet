@@ -33,18 +33,18 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ ZyCromerZ Clang (تم التغيير هنا)
-    - name: Setup ZyCromerZ Clang
+    # 3️⃣ WeebX Clang 19.1.5
+    - name: Setup WeebX Clang 19.1.5
       run: |
-        echo "📥 تحميل ZyCromerZ Clang..."
-        wget -q "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz" -O zycromerz-clang.tar.gz
+        echo "📥 تحميل WeebX Clang 19.1.5..."
+        wget -q "https://github.com/XSans0/WeebX-Clang/releases/download/WeebX-Clang-19.1.5-release/WeebX-Clang-19.1.5.tar.gz" -O weebx-clang.tar.gz
         
-        mkdir -p zycromerz-clang
-        tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
+        mkdir -p weebx-clang
+        tar -xzf weebx-clang.tar.gz -C weebx-clang --strip-components=1
         
-        CLANG_PATH="$PWD/zycromerz-clang/bin"
+        CLANG_PATH="$PWD/weebx-clang/bin"
         
-        echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
+        echo "CC=$CLANG_PATH/clang-19" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
@@ -52,7 +52,7 @@ jobs:
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ ZyCromerZ Clang جاهز!"
+        echo "✅ WeebX Clang 19.1.5 جاهز!"
 
     # 4️⃣ Export env 
     - name: Export env
@@ -136,32 +136,32 @@ jobs:
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
-        echo "✅ تم إنشاء Kernel-violet-zycromerz-clang.zip"
+        zip -r9 ../Kernel-violet-weebx-clang.zip *
+        echo "✅ تم إنشاء Kernel-violet-weebx-clang.zip"
     
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-zycromerz-clang-signed.zip"
+        java -jar zipsigner.jar Kernel-violet-weebx-clang.zip Kernel-violet-weebx-clang-signed.zip
+        echo "✅ تم التوقيع: Kernel-violet-weebx-clang-signed.zip"
     
     # 🔟 رفع ملف ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-ZyCromerZ-Clang-ZIP
+        name: Kernel-WeebX-Clang-ZIP
         path: |
-          Kernel-violet-zycromerz-clang-signed.zip
+          Kernel-violet-weebx-clang-signed.zip
     
     # 1️⃣1️⃣ رفع اللوغات والتحليلات
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Build-Logs-Analysis-ZyCromerZ
+        name: Build-Logs-Analysis-WeebX
         path: |
           logs/build.log
           nm-ksu.txt
