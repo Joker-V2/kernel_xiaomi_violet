@@ -33,18 +33,35 @@ jobs:
           ccache \
           zstd
 
-    # 3️⃣ WeebX Clang 19.1.5
-    - name: Setup WeebX Clang 19.1.5
+    # 🆕 تحرير مساحة القرص
+    - name: Free up disk space
       run: |
-        echo "📥 تحميل WeebX Clang 19.1.5..."
-        wget -q "https://github.com/XSans0/WeebX-Clang/releases/download/WeebX-Clang-19.1.5-release/WeebX-Clang-19.1.5.tar.gz" -O weebx-clang.tar.gz
+        echo "🧹 تحرير مساحة القرص..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
         
-        mkdir -p weebx-clang
-        tar -xzf weebx-clang.tar.gz -C weebx-clang --strip-components=1
+        echo "📊 المساحة المتاحة:"
+        df -h
+
+    # 3️⃣ ZyCromerZ Clang
+    - name: Setup ZyCromerZ Clang
+      run: |
+        echo "📥 تحميل ZyCromerZ Clang..."
+        wget -q "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz" -O zycromerz-clang.tar.gz
         
-        CLANG_PATH="$PWD/weebx-clang/bin"
+        echo "📦 فك الضغط..."
+        mkdir -p zycromerz-clang
+        tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
         
-        echo "CC=$CLANG_PATH/clang-19" >> $GITHUB_ENV
+        # حذف الملف المضغوط فوراً
+        rm -f zycromerz-clang.tar.gz
+        
+        CLANG_PATH="$PWD/zycromerz-clang/bin"
+        
+        echo "CC=$CLANG_PATH/clang-23" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
         echo "OBJCOPY=$CLANG_PATH/llvm-objcopy" >> $GITHUB_ENV
@@ -52,7 +69,10 @@ jobs:
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
         echo "$CLANG_PATH" >> $GITHUB_PATH
-        echo "✅ WeebX Clang 19.1.5 جاهز!"
+        echo "✅ ZyCromerZ Clang جاهز!"
+        
+        echo "📊 المساحة بعد Clang:"
+        df -h
 
     # 4️⃣ Export env 
     - name: Export env
@@ -69,7 +89,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel
+    # 6️⃣ Build kernel (مع حفظ اللوغ الكامل ✅)
     - name: Build kernel
       shell: bash
       env:
@@ -83,6 +103,8 @@ jobs:
       run: |
         set -o pipefail
         mkdir -p logs
+        
+        # تقليل ccache
         ccache -M 1G
         ccache -z
         
@@ -94,7 +116,18 @@ jobs:
         
         $CC --version | head -2
         
-        stdbuf -oL -eL make O=out -j$(nproc) \
+        echo "📊 الموارد قبل البناء:"
+        df -h
+        free -h
+        
+        # 🆕 تقليل عدد الـ cores لتجنب LLVM Broken Pipe
+        CORES=$(($(nproc) / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        
+        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        
+        # 🆕 حفظ اللوغ الكامل مباشرة إلى ملف (بدون تحميله في الذاكرة)
+        make O=out -j$CORES \
           CC="ccache $CC" \
           AR="$AR" \
           NM="$NM" \
@@ -102,16 +135,62 @@ jobs:
           OBJDUMP="$OBJDUMP" \
           STRIP="$STRIP" \
           CLANG_TRIPLE="$CLANG_TRIPLE" \
-          2>&1 | tee logs/build.log
+          > logs/build.log 2>&1
+        
+        BUILD_STATUS=$?
+        
+        # عرض آخر 50 سطر على الشاشة
+        echo "📋 آخر 50 سطر من البناء:"
+        tail -n 50 logs/build.log
         
         ccache -s
         
-        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
+        echo "📊 الموارد بعد البناء:"
+        df -h
+        free -h
+        
+        # فحص حجم اللوغ
+        echo "📏 حجم build.log:"
+        ls -lh logs/build.log
+        
+        if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ تم بناء النواة بنجاح!"
+            ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
+            echo "📋 آخر 200 سطر من اللوغ:"
+            tail -n 200 logs/build.log
             exit 1
         fi
+
+    # 🆕 ضغط اللوغ الكامل
+    - name: Compress build log
+      if: always()
+      run: |
+        echo "📦 ضغط اللوغ الكامل..."
+        gzip -9 logs/build.log
+        echo "📏 حجم build.log.gz:"
+        ls -lh logs/build.log.gz
+
+    # 🆕 تنظيف الملفات الوسيطة
+    - name: Cleanup build files
+      if: always()
+      run: |
+        echo "🧹 تنظيف الملفات الوسيطة..."
+        
+        # حذف ملفات .o و .cmd
+        find out/ -name "*.o" -delete 2>/dev/null || true
+        find out/ -name "*.cmd" -delete 2>/dev/null || true
+        find out/ -name "*.d" -delete 2>/dev/null || true
+        
+        # حذف ccache
+        rm -rf $HOME/.ccache
+        
+        # حذف clang
+        rm -rf zycromerz-clang
+        
+        echo "📊 المساحة بعد التنظيف:"
+        df -h
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
@@ -121,6 +200,10 @@ jobs:
             nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
             nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
             nm out/vmlinux > nm-full.txt
+            
+            echo "📏 أحجام الملفات:"
+            ls -lh nm-*.txt
+            
             echo "✅ تم إنشاء ملفات التحليل"
         else
             echo "❌ ملف vmlinux غير موجود"
@@ -136,34 +219,64 @@ jobs:
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-weebx-clang.zip *
-        echo "✅ تم إنشاء Kernel-violet-weebx-clang.zip"
+        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
+        cd ..
+        
+        echo "📏 حجم ZIP:"
+        ls -lh Kernel-violet-zycromerz-clang.zip
+        echo "✅ تم إنشاء ZIP"
     
     # 9️⃣ Sign ZIP
     - name: Sign zip
       run: |
-        echo "🖊️ توقيع ملف ZIP..."
+        echo "🖊️ توقيع ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar Kernel-violet-weebx-clang.zip Kernel-violet-weebx-clang-signed.zip
-        echo "✅ تم التوقيع: Kernel-violet-weebx-clang-signed.zip"
+        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
+        
+        echo "📏 حجم ZIP الموقّع:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip
+        echo "✅ تم التوقيع"
     
-    # 🔟 رفع ملف ZIP
+    # 🔟 رفع ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Kernel-WeebX-Clang-ZIP
-        path: |
-          Kernel-violet-weebx-clang-signed.zip
+        name: Kernel-ZyCromerZ-Clang-ZIP
+        path: Kernel-violet-zycromerz-clang-signed.zip
+        compression-level: 0
     
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات
-    - name: Upload Logs and Analysis
+    # 1️⃣1️⃣ رفع اللوغ الكامل المضغوط ✅
+    - name: Upload Build Log (Full & Compressed)
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Build-Logs-Analysis-WeebX
+        name: Build-Log-Full
+        path: logs/build.log.gz
+        retention-days: 7
+        compression-level: 0
+    
+    # 1️⃣2️⃣ رفع التحليلات
+    - name: Upload Analysis
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Symbol-Analysis
         path: |
-          logs/build.log
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
+        retention-days: 5
+        compression-level: 9
+
+    # 🆕 ملخص البناء
+    - name: Build Summary
+      if: always()
+      run: |
+        echo "📊 ملخص البناء:"
+        echo "================================"
+        echo "✅ ملفات تم إنشاؤها:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
+        ls -lh logs/build.log.gz 2>/dev/null || echo "❌ اللوغ غير موجود"
+        ls -lh nm-*.txt 2>/dev/null || echo "❌ ملفات التحليل غير موجودة"
+        echo "================================"
