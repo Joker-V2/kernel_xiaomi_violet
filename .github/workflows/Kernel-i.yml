@@ -209,9 +209,19 @@ jobs:
         df -h
         free -h
         
-        # استخدام جميع الأنوية المتاحة
-        CORES=$(nproc)
-        echo "🔧 استخدام جميع الأنوية المتاحة: $CORES cores"
+        # دائماً استخدام 3 أنوية
+        TOTAL_CORES=$(nproc)
+        CORES=3
+
+        # إذا كان النظام لديه أقل من 4 أنوية، استخدام كل الأنوية ما عدا 1
+        if [ $TOTAL_CORES -le 4 ]; then
+            CORES=$((TOTAL_CORES - 1))
+            if [ $CORES -lt 1 ]; then
+               CORES=1
+            fi
+        fi
+        
+        echo "🔧 استخدام $CORES cores (من أصل $TOTAL_CORES)"
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
