@@ -215,15 +215,15 @@ jobs:
         
         echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
         
-        # البناء باستخدام clang المكتشف تلقائياً
+        # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
-          CC="ccache clang" \
-          CLANG_TRIPLE="$CLANG_TRIPLE" \
-          CROSS_COMPILE="$CROSS_COMPILE" \
-          CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-          LLVM=1 \
-          LLVM_IAS=1 \
-          2>&1 | tee logs/build.log
+        CC="ccache clang" \
+        CLANG_TRIPLE="$CLANG_TRIPLE" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
+        LLVM=1 \
+        LLVM_IAS=1 \
+        2>&1 | tee logs/build.log
         
         BUILD_STATUS=${PIPESTATUS[0]}
         
