@@ -46,7 +46,7 @@ jobs:
         echo "📊 المساحة المتاحة:"
         df -h
 
-    # 3️⃣ ZyCromerZ Clang ⭐⭐ تم التعديل هنا ⭐⭐
+    # 3️⃣ ZyCromerZ Clang
     - name: Setup ZyCromerZ Clang
       run: |
         echo "📥 تحميل ZyCromerZ Clang..."
@@ -69,7 +69,56 @@ jobs:
         echo "📊 المساحة بعد Clang:"
         df -h
 
-    # 4️⃣ Export env ⭐⭐ تم التعديل هنا ⭐⭐
+    # 🆕 خطوة التحقق من Clang (مضافة)
+    - name: Verify Clang Installation
+      run: |
+        echo "🔍 التحقق من إعداد Clang..."
+        
+        echo "📋 المسار الحالي (الأجزاء المتعلقة بـ Clang):"
+        echo "$PATH" | tr ':' '\n' | grep -i clang || echo "⚠️  لا توجد مسارات Clang في PATH"
+        
+        echo "🔎 البحث عن clang:"
+        which clang || { echo "❌ clang غير موجود في PATH!"; exit 1; }
+        
+        CLANG_BIN=$(which clang)
+        echo "✅ clang موجود في: $CLANG_BIN"
+        
+        echo "📊 معلومات Clang المفصلة:"
+        echo "================================"
+        clang --version
+        echo "================================"
+        
+        # التحقق من أن clang من ZyCromerZ
+        if clang --version 2>/dev/null | grep -qi "ZyCromerZ\|23.0.0git"; then
+          echo "✅ Clang من ZyCromerZ الإصدار 23"
+        else
+          echo "⚠️  Clang قد لا يكون من ZyCromerZ!"
+          echo "🔍 جاري التحقق من الملف..."
+          
+          # التحقق من الرابط الرمزي
+          if [ -L "$CLANG_BIN" ]; then
+            echo "🔗 clang هو رابط رمزي إلى:"
+            ls -la "$CLANG_BIN"
+            REAL_PATH=$(readlink -f "$CLANG_BIN")
+            echo "📂 المسار الحقيقي: $REAL_PATH"
+            
+            if echo "$REAL_PATH" | grep -qi "zycromerz"; then
+              echo "✅ clang يشير إلى ZyCromerZ Clang"
+            else
+              echo "❌ clang لا يشير إلى ZyCromerZ Clang!"
+            fi
+          else
+            echo "📄 clang هو ملف عادي (ليس رابط رمزي)"
+          fi
+        fi
+        
+        # التحقق من الأدوات الأخرى
+        echo "🛠️  التحقق من أدوات LLVM المساعدة:"
+        which llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip 2>/dev/null || echo "⚠️  بعض أدوات LLVM غير موجودة"
+        
+        echo "✅ التحقق من Clang اكتمل"
+
+    # 4️⃣ Export env
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -78,18 +127,16 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        # ⭐⭐ لا نحدد CC هنا - سنجده من PATH ⭐⭐
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel (مع عرض اللوغ ✅) ⭐⭐ تم التعديل هنا ⭐⭐
+    # 6️⃣ Build kernel (مع عرض اللوغ ✅)
     - name: Build kernel
       shell: bash
       env:
-        # ⭐⭐ لا نمرر CC من البيئة - سنجده من PATH ⭐⭐
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
@@ -102,12 +149,14 @@ jobs:
         
         echo "🚀 بدء بناء النواة..."
         
-        # ⭐⭐ البحث عن clang في PATH ⭐⭐
-        which clang
-        clang --version | head -2
+        # ⭐⭐ التحقق النهائي قبل البناء ⭐⭐
+        echo "🔍 التحقق النهائي قبل البناء:"
+        echo "🔧 Clang المستخدم: $(which clang)"
+        echo "🔧 الإصدار:"
+        clang --version | head -3
         
-        echo "🔧 PATH الحالي:"
-        echo $PATH | tr ':' '\n'
+        echo "🔧 المسار الكامل لـ clang:"
+        readlink -f $(which clang) || which clang
         
         echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
         echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
