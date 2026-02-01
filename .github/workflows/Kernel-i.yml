@@ -48,7 +48,6 @@ jobs:
         echo "🔍 محتويات مجلد bin/:"
         ls -la $CLANG_PATH/ | head -10
         
-        # 💾 حفظ المتغيرات - ⭐ استخدم clang-18 بدلاً من clang-19 ⭐
         echo "CC=$CLANG_PATH/clang-18" >> $GITHUB_ENV
         echo "AR=$CLANG_PATH/llvm-ar" >> $GITHUB_ENV
         echo "NM=$CLANG_PATH/llvm-nm" >> $GITHUB_ENV
@@ -56,7 +55,6 @@ jobs:
         echo "OBJDUMP=$CLANG_PATH/llvm-objdump" >> $GITHUB_ENV
         echo "STRIP=$CLANG_PATH/llvm-strip" >> $GITHUB_ENV
         
-        # ⬅️ نفس الشيء
         echo "$CLANG_PATH" >> $GITHUB_PATH
         echo "✅ AOSP Clang جاهز!"
 
@@ -70,7 +68,6 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         
-        # عرض المتغيرات - الآن CLANG معرف
         echo "🎯 متغيرات البناء:"
         echo "CC=${{ env.CC }}"
         echo "AR=${{ env.AR }}"
@@ -81,7 +78,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - ⭐⭐ لا تغيير هنا ⭐⭐
+    # 6️⃣ Build kernel
     - name: Build kernel
       shell: bash
       env:
@@ -102,11 +99,9 @@ jobs:
         echo "🔧 AR: $AR"
         echo "🔧 NM: $NM"
         
-        # اختبار
         echo "🧪 اختبار المترجم..."
         $CC --version
         
-        # نفس الشيء تماماً
         stdbuf -oL -eL make O=out -j$(nproc) \
           CC="ccache $CC" \
           AR="$AR" \
@@ -138,40 +133,37 @@ jobs:
             echo "❌ ملف vmlinux غير موجود"
         fi
     
-    # 8️⃣ AnyKernel3 - ⭐⭐ غير اسم الملف فقط ⭐⭐
+    # 8️⃣ AnyKernel3
     - name: Package AnyKernel3
       run: |
         echo "📦 تعبئة AnyKernel3..."
         git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
         cp out/arch/arm64/boot/Image.gz AK3/
         
-        # إضافة dtbo.img إذا كان موجوداً
         [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
         
         cd AK3
-        zip -r9 ../Kernel-violet-aosp.zip *  
-        echo "✅ تم إنشاء Kernel-violet-aosp.zip"  
+        zip -r9 ../Kernel-violet-aosp.zip *
+        echo "✅ تم إنشاء Kernel-violet-aosp.zip"
     
-    # 9️⃣ Sign ZIP - ⭐⭐ غير اسم الملف فقط ⭐⭐
+    # 9️⃣ Sign ZIP - ⭐⭐ مصحح ⭐⭐
     - name: Sign zip
       run: |
         echo "🖊️ توقيع ملف ZIP..."
         wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
-        java -jar zipsigner.jar \
-          Kernel-violet-aosp.zip \  
-          Kernel-violet-aosp-signed.zip  
-        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"  
+        java -jar zipsigner.jar Kernel-violet-aosp.zip Kernel-violet-aosp-signed.zip
+        echo "✅ تم التوقيع: Kernel-violet-aosp-signed.zip"
     
-    # 🔟 رفع ملف ZIP لوحده - ⭐⭐ غير اسم الملف فقط ⭐⭐
+    # 🔟 رفع ملف ZIP
     - name: Upload Kernel ZIP
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Kernel-ZIP
         path: |
-          Kernel-violet-aosp-signed.zip  
+          Kernel-violet-aosp-signed.zip
     
-    # 1️⃣1️⃣ رفع اللوغات والتحليلات مع بعض - ⭐⭐ لا تغيير ⭐⭐
+    # 1️⃣1️⃣ رفع اللوغات والتحليلات
     - name: Upload Logs and Analysis
       if: always()
       uses: actions/upload-artifact@v4
