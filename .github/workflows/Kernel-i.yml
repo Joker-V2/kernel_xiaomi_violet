@@ -176,7 +176,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel مع التحقق التلقائي
+    # 6️⃣ Build kernel مع التحقق التلقائي (معدل ✅)
     - name: Build kernel
       shell: bash
       env:
@@ -187,7 +187,8 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -M 500M
+        # 🆕 تقليل ccache لتوفير الذاكرة
+        ccache -M 300M
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
@@ -209,11 +210,11 @@ jobs:
         df -h
         free -h
         
-        # تقليل عدد الـ cores
-        CORES=$(($(nproc) / 2))
-        [ $CORES -lt 2 ] && CORES=2
+        # 🆕🆕 استخدام core واحد فقط لتجنب LLVM Broken Pipe
+        CORES=1
         
-        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        echo "🔧 استخدام $CORES core فقط (لتجنب LLVM Broken Pipe)"
+        echo "⏱️ الوقت المتوقع: 50-70 دقيقة"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
