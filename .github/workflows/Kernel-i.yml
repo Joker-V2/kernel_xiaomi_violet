@@ -89,6 +89,7 @@ jobs:
         echo "🚀 بدء بناء النواة..."
         echo "🔧 CC: $CC"
         echo "🔧 AR: $AR"
+        echo "🔧 NM: $NM"
         echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
         
         $CC --version | head -2
