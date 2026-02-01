@@ -187,7 +187,7 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -M 250M
+        ccache -M 500M
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
@@ -330,6 +330,7 @@ jobs:
       with:
         name: Build-Log-Full
         path: logs/build.log.gz
+        retention-days: 7
         compression-level: 0
     
     # 1️⃣2️⃣ رفع التحليلات
@@ -342,6 +343,7 @@ jobs:
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
+        retention-days: 5
         compression-level: 9
 
     # ملخص البناء مع ذكر Clang المستخدم
