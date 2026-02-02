@@ -56,7 +56,7 @@ jobs:
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
-        sudo sysctl vm.swappiness=60
+        sudo sysctl vm.swappiness=40
         echo "✅ Swap configured:"
         free -h
         swapon --show
