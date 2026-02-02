@@ -171,6 +171,46 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
+    # 🔍 خطوة جديدة: تحقق من الموارد
+    - name: Check System Resources
+      run: |
+        echo "========================================"
+        echo "🖥️  فحص تفصيلي لموارد النظام"
+        echo "========================================"
+        
+        echo "🔧 معلومات المعالج (CPU):"
+        echo "------------------------"
+        TOTAL_CORES=$(nproc)
+        echo "الأنوية الكلية: $TOTAL_CORES"
+        echo "نموذج المعالج: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
+        
+        echo ""
+        echo "💾 معلومات الذاكرة (RAM):"
+        echo "------------------------"
+        TOTAL_RAM=$(free -h | awk '/^Mem:/{print $2}')
+        FREE_RAM=$(free -h | awk '/^Mem:/{print $4}')
+        AVAILABLE_RAM=$(free -m | awk '/^Mem:/{print $7}')
+        echo "الذاكرة الكلية: $TOTAL_RAM"
+        echo "الذاكرة الحرة: $FREE_RAM"
+        echo "الذاكرة المتاحة: $AVAILABLE_RAM MB"
+        
+        echo ""
+        echo "💿 معلومات التخزين (Disk):"
+        echo "-------------------------"
+        df -h /
+        
+        echo ""
+        echo "📊 معلومات GitHub Actions:"
+        echo "-------------------------"
+        echo "نظام التشغيل: ubuntu-24.04"
+        echo "الأنوية المتوقعة في الخطة المجانية: 2 vCPUs"
+        echo "الذاكرة المتوقعة في الخطة المجانية: 7GB RAM"
+        echo "========================================"
+        
+        # حفظ المعلومات للمراحل التالية
+        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
+        echo "AVAILABLE_RAM_MB=$AVAILABLE_RAM" >> $GITHUB_ENV
+
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
@@ -354,6 +394,10 @@ jobs:
         echo "================================"
         echo "🔧 Clang المستخدم: $CLANG_BIN_NAME"
         echo "📁 مسار Clang: $CLANG_PATH"
+        echo ""
+        echo "🖥️  موارد النظام:"
+        echo "  الأنوية: $TOTAL_CORES"
+        echo "  الذاكرة المتاحة: $AVAILABLE_RAM_MB MB"
         echo ""
         echo "✅ ملفات تم إنشاؤها:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
