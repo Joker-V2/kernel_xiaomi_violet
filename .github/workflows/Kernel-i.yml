@@ -225,7 +225,7 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env
+    # 4️⃣ Export env مع LDFLAGS
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -234,6 +234,7 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV  # ⭐ إضافة LDFLAGS هنا
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -268,6 +269,7 @@ jobs:
         echo "---------------------"
         echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
         echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
+        echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
 
     # 5️⃣ Defconfig
@@ -275,13 +277,14 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel مع التحقق التلقائي
+    # 6️⃣ Build kernel مع LDFLAGS
     - name: Build kernel
       shell: bash
       env:
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
+        LDFLAGS: "-Wl,--threads=1"  # ⭐ إضافة LDFLAGS هنا
       run: |
         set -o pipefail
         mkdir -p logs
@@ -303,6 +306,7 @@ jobs:
         echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
         echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
         echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
+        echo "🛡️  LDFLAGS: $LDFLAGS"  # ⭐ إظهار LDFLAGS
         
         echo "📊 الموارد قبل البناء:"
         df -h
@@ -313,9 +317,10 @@ jobs:
         CORES=2  # 2 أنوية فقط
         
         echo "🎯 إستراتيجية البناء:"
-        echo "🔧 Clang 22 + Swap 16GB + 2 أنوية + CCache 5GB"
+        echo "🔧 Clang 22 + Swap 16GB + 2 أنوية + CCache 5GB + LDFLAGS"
         echo "⚡ استخدام $CORES أنوية فقط (من أصل $TOTAL_CORES)"
         echo "💾 CCache محدود بـ 5GB"
+        echo "🛡️  LDFLAGS: -Wl,--threads=1 (حماية من pipe broken)"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
@@ -342,7 +347,10 @@ jobs:
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅✅✅ تم بناء النواة بنجاح باستخدام $CLANG_BIN_NAME!"
-            echo "🎯 تم استخدام $CORES أنوية مع CCache 5GB و Swap 16GB"
+            echo "🎯 تم استخدام $CORES أنوية مع:"
+            echo "   - CCache 5GB"
+            echo "   - Swap 16GB"  
+            echo "   - LDFLAGS: -Wl,--threads=1"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -464,6 +472,7 @@ jobs:
         echo "  - الأنوية: 2 من أصل $TOTAL_CORES"
         echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
+        echo "  - LDFLAGS: -Wl,--threads=1"
         echo ""
         echo "✅ ملفات تم إنشاؤها:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
