@@ -48,11 +48,11 @@ jobs:
         df -h
 
     # 💾 إعداد Swap
-    - name: 💾 Setup 10GB Swap
+    - name: 💾 Setup 16GB Swap
       run: |
         echo "💾 Creating swap space..."
         sudo swapoff -a
-        sudo dd if=/dev/zero of=/swapfile bs=1G count=10 status=progress
+        sudo dd if=/dev/zero of=/swapfile bs=1G count=16 status=progress
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
@@ -68,7 +68,7 @@ jobs:
         echo "📥 تحميل ZyCromerZ Clang..."
         
         # ⭐⭐ يمكن تغيير الرابط هنا فقط ⭐⭐
-        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
+        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250928-release/Clang-22.0.0git-20250928.tar.gz"
         
         wget -q "$CLANG_URL" -O zycromerz-clang.tar.gz
         
