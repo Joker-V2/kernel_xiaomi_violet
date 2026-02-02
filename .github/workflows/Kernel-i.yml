@@ -46,60 +46,70 @@ jobs:
         
         echo "📊 المساحة المتاحة:"
         df -h
-        
-  # 💾 إعداد Swap محسّن لبناء الكيرنل
-  - name: Setup 16GB Swap (Optimized for Kernel Build)
-    run: |
-     echo "🚀 إعداد Swap مثالي لبناء الكيرنل..."
-     echo "📊 المساحة المتاحة: 90GB ← كافية لـ 16GB swap"    
-     # 1. تنظيف أي swap سابق
-     echo "🧹 تنظيف swap سابق..."
-     sudo swapoff -a 2>/dev/null || true
-     sudo rm -f /swapfile 2>/dev/null || true
-     # 2. إنشاء swap file 16GB (أفضل حجم لـ 15GB RAM)
-     echo "📦 إنشاء swap file 16GB..."
-     # استخدام الطريقة الأسرع أولاً
-     if command -v fallocate >/dev/null 2>&1; then
+
+    # 💾 إعداد Swap محسّن لبناء الكيرنل
+- name: Setup 16GB Swap (Optimized for Kernel Build)
+  run: |
+    echo "🚀 إعداد Swap مثالي لبناء الكيرنل..."
+    echo "📊 المساحة المتاحة: 90GB ← كافية لـ 16GB swap"
+    
+    # 1. تنظيف أي swap سابق
+    echo "🧹 تنظيف swap سابق..."
+    sudo swapoff -a 2>/dev/null || true
+    sudo rm -f /swapfile 2>/dev/null || true
+    
+    # 2. إنشاء swap file 16GB (أفضل حجم لـ 15GB RAM)
+    echo "📦 إنشاء swap file 16GB..."
+    
+    # استخدام الطريقة الأسرع أولاً
+    if command -v fallocate >/dev/null 2>&1; then
         sudo fallocate -l 16G /swapfile && echo "✅ تم باستخدام fallocate (فوري)"
-     else
-      # fallocate غير متوفر، استخدم dd مع progress
+    else
+        # fallocate غير متوفر، استخدم dd مع progress
         echo "⏳ يستخدم dd (قد يأخذ 30-60 ثانية)..."
         sudo dd if=/dev/zero of=/swapfile bs=1M count=16384 status=progress
         echo "✅ تم إنشاء swap file"
-     fi    
-     # 3. ضبط الصلاحيات والتهيئة
-     sudo chmod 600 /swapfile
-     sudo mkswap /swapfile
-     sudo swapon /swapfile   
-     # 4. إعدادات Kernel محسنة للبناء
-     echo "⚙️ ضبط إعدادات Kernel الأمثل للبناء..."    
-     # swappiness متوسط (توازن بين RAM وswap)
-     sudo sysctl vm.swappiness=40
-     echo "✅ vm.swappiness=40 (توازن جيد)"
-     # vfs_cache_pressure لصالح cache الملفات
-     sudo sysctl vm.vfs_cache_pressure=50
-     echo "✅ vm.vfs_cache_pressure=50 (احتفظ بcache أكثر)"  
-     # كتابة مبكرة للقرص لتجنب I/O spikes
-     sudo sysctl vm.dirty_ratio=10
-     sudo sysctl vm.dirty_background_ratio=5
-     echo "✅ كتابة مبكرة (dirty_ratio=10, background=5)"    
-     # إضافة مهمة: زيادة max_map_count لـ Clang
-     sudo sysctl vm.max_map_count=262144 2>/dev/null || true
-     echo "✅ vm.max_map_count=262144 (مهم لـ Clang)"    
-     # 5. التحقق والنتائج
-     echo ""
-     echo "🎯 إعدادات Swap مكتملة!"
-     echo "================================"
-     echo "💾 استخدام الذاكرة الحالي:"
-     free -h
-     echo ""
-     echo "📊 Swap المفعل:"
-     swapon --show
-     echo ""
-     echo "📈 المساحة المتاحة بعد Swap:"
-     df -h / | awk 'NR==2{print "💿 " $4 " حرة من " $2}'
-     echo "================================"
-     echo "✅ جاهز لبناء الكيرنل مع Clang 22/23!"
+    fi
+    
+    # 3. ضبط الصلاحيات والتهيئة
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    
+    # 4. إعدادات Kernel محسنة للبناء
+    echo "⚙️ ضبط إعدادات Kernel الأمثل للبناء..."
+    
+    # swappiness متوسط (توازن بين RAM وswap)
+    sudo sysctl vm.swappiness=40
+    echo "✅ vm.swappiness=40 (توازن جيد)"
+    
+    # vfs_cache_pressure لصالح cache الملفات
+    sudo sysctl vm.vfs_cache_pressure=50
+    echo "✅ vm.vfs_cache_pressure=50 (احتفظ بcache أكثر)"
+    
+    # كتابة مبكرة للقرص لتجنب I/O spikes
+    sudo sysctl vm.dirty_ratio=10
+    sudo sysctl vm.dirty_background_ratio=5
+    echo "✅ كتابة مبكرة (dirty_ratio=10, background=5)"
+    
+    # إضافة مهمة: زيادة max_map_count لـ Clang
+    sudo sysctl vm.max_map_count=262144 2>/dev/null || true
+    echo "✅ vm.max_map_count=262144 (مهم لـ Clang)"
+    
+    # 5. التحقق والنتائج
+    echo ""
+    echo "🎯 إعدادات Swap مكتملة!"
+    echo "================================"
+    echo "💾 استخدام الذاكرة الحالي:"
+    free -h
+    echo ""
+    echo "📊 Swap المفعل:"
+    swapon --show
+    echo ""
+    echo "📈 المساحة المتاحة بعد Swap:"
+    df -h / | awk 'NR==2{print "💿 " $4 " حرة من " $2}'
+    echo "================================"
+    echo "✅ جاهز لبناء الكيرنل مع Clang 22/23!"
 
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
