@@ -243,6 +243,10 @@ jobs:
         echo "📊 الموارد قبل البناء:"
         df -h
         free -h
+
+        # ⭐⭐ تحديد عدد الأنوية لاستخدام جميع الموارد ⭐⭐
+        CORES=$(nproc)
+        echo "⚡ استخدام كامل الموارد: $CORES cores"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
