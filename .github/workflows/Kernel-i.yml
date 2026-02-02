@@ -188,7 +188,7 @@ jobs:
         mkdir -p logs
         
         # 🆕 تقليل ccache لتوفير الذاكرة
-        ccache -M 300M
+        ccache -M 5G
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
