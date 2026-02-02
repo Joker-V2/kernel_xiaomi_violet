@@ -234,7 +234,7 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV  # ⭐ إضافة LDFLAGS هنا
+        echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -271,20 +271,23 @@ jobs:
         echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
         echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
+        
+        # حفظ عدد الأنوية للمراحل التالية
+        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel مع LDFLAGS
+    # 6️⃣ Build kernel مع LDFLAGS - التعديل هنا لاستخدام جميع الأنوية فقط
     - name: Build kernel
       shell: bash
       env:
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
-        LDFLAGS: "-Wl,--threads=1"  # ⭐ إضافة LDFLAGS هنا
+        LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
         mkdir -p logs
@@ -306,19 +309,19 @@ jobs:
         echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
         echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
         echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
-        echo "🛡️  LDFLAGS: $LDFLAGS"  # ⭐ إظهار LDFLAGS
+        echo "🛡️  LDFLAGS: $LDFLAGS"
         
         echo "📊 الموارد قبل البناء:"
         df -h
         free -h
 
-        # ⭐⭐ استخدام 2 أنوية فقط مع Clang 22 ⭐⭐
+        # ⭐⭐ استخدام جميع الأنوية المتاحة فقط ⭐⭐
         TOTAL_CORES=$(nproc)
-        CORES=2  # 2 أنوية فقط
+        CORES=$TOTAL_CORES  # استخدام جميع الأنوية فقط
         
         echo "🎯 إستراتيجية البناء:"
-        echo "🔧 Clang 22 + Swap 16GB + 2 أنوية + CCache 5GB + LDFLAGS"
-        echo "⚡ استخدام $CORES أنوية فقط (من أصل $TOTAL_CORES)"
+        echo "🔧 Clang + Swap 16GB + جميع الأنوية + CCache 5GB + LDFLAGS"
+        echo "⚡ استخدام $CORES أنوية (جميع الأنوية المتاحة)"
         echo "💾 CCache محدود بـ 5GB"
         echo "🛡️  LDFLAGS: -Wl,--threads=1 (حماية من pipe broken)"
         
@@ -469,7 +472,7 @@ jobs:
         echo "📁 مسار Clang: $CLANG_PATH"
         echo ""
         echo "⚡ إعدادات النظام المستخدمة:"
-        echo "  - الأنوية: 2 من أصل $TOTAL_CORES"
+        echo "  - الأنوية: $TOTAL_CORES أنوية (جميع الأنوية)"
         echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
         echo "  - LDFLAGS: -Wl,--threads=1"
