@@ -243,12 +243,6 @@ jobs:
         df -h
         free -h
         
-        # تقليل عدد الـ cores
-        CORES=$(($(nproc) / 2))
-        [ $CORES -lt 2 ] && CORES=2
-        
-        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
-        
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
