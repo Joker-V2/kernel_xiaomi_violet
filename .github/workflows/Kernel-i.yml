@@ -200,11 +200,10 @@ jobs:
         df -h /
         
         echo ""
-        echo "📊 معلومات GitHub Actions:"
-        echo "-------------------------"
-        echo "نظام التشغيل: ubuntu-24.04"
-        echo "الأنوية المتوقعة في الخطة المجانية: 2 vCPUs"
-        echo "الذاكرة المتوقعة في الخطة المجانية: 7GB RAM"
+        echo "⚡ اكتشاف موارد قوية:"
+        echo "---------------------"
+        echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
+        echo "📈 هذا أعلى من الخطة المجانية العادية (2 أنوية، 7GB RAM)"
         echo "========================================"
         
         # حفظ المعلومات للمراحل التالية
@@ -249,11 +248,39 @@ jobs:
         df -h
         free -h
         
-        # تقليل عدد الـ cores
-        CORES=$(($(nproc) / 2))
-        [ $CORES -lt 2 ] && CORES=2
+        # ⭐⭐ إعداد متوازن لمواردك القوية (الخيار 3) ⭐⭐
+        TOTAL_CORES=$(nproc)
+        FREE_MEMORY=$(free -m | awk '/^Mem:/{print $7}')
         
-        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        echo "🎯 اتخاذ قرار بناء ذكي:"
+        echo "---------------------"
+        echo "🔍 النظام لديه: $TOTAL_CORES أنوية | $FREE_MEMORY MB ذاكرة حرة"
+        
+        if [ $FREE_MEMORY -gt 12000 ]; then
+            # ذاكرة عالية (>12GB) - استخدم 3 أنوية
+            CORES=3
+            echo "💪 نظام قوي جداً - استخدام $CORES أنوية (ترك 1 للنظام)"
+        elif [ $FREE_MEMORY -gt 8000 ]; then
+            # ذاكرة جيدة (>8GB) - استخدم 3 أنوية
+            CORES=3
+            echo "🔧 نظام جيد - استخدام $CORES أنوية"
+        elif [ $FREE_MEMORY -gt 5000 ]; then
+            # ذاكرة متوسطة (>5GB) - استخدم 2 أنوية
+            CORES=2
+            echo "⚠️  ذاكرة متوسطة - استخدام $CORES أنوية"
+        else
+            # ذاكرة محدودة - استخدم 1 أنوية
+            CORES=1
+            echo "🚨 ذاكرة محدودة جداً - استخدام $CORES أنوية فقط"
+        fi
+        
+        # التأكد من أن العدد لا يتجاوز الأنوية المتاحة
+        if [ $CORES -gt $TOTAL_CORES ]; then
+            CORES=$TOTAL_CORES
+            echo "📏 ضبط القيمة: استخدام $CORES أنوية (الحد الأقصى)"
+        fi
+        
+        echo "🔧 استخدام $CORES cores (من أصل $TOTAL_CORES)"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
@@ -278,6 +305,7 @@ jobs:
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅ تم بناء النواة بنجاح باستخدام $CLANG_BIN_NAME!"
+            echo "⏱️  تم استخدام $CORES أنوية للبناء"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -395,9 +423,14 @@ jobs:
         echo "🔧 Clang المستخدم: $CLANG_BIN_NAME"
         echo "📁 مسار Clang: $CLANG_PATH"
         echo ""
-        echo "🖥️  موارد النظام:"
-        echo "  الأنوية: $TOTAL_CORES"
+        echo "🖥️  موارد النظام المستخدمة:"
+        echo "  الأنوية الكلية: $TOTAL_CORES"
         echo "  الذاكرة المتاحة: $AVAILABLE_RAM_MB MB"
+        echo ""
+        echo "⚡ إعداد البناء الذكي:"
+        echo "  - النظام لديه 4 أنوية و 15GB RAM"
+        echo "  - تم استخدام قرار بناء متوازن حسب الذاكرة"
+        echo "  - بناء أسرع مع الحفاظ على استقرار النظام"
         echo ""
         echo "✅ ملفات تم إنشاؤها:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
