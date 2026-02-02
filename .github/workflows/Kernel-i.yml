@@ -47,6 +47,20 @@ jobs:
         echo "📊 المساحة المتاحة:"
         df -h
 
+    # 💾 إعداد Swap
+    - name: 💾 Setup 10GB Swap
+      run: |
+        echo "💾 Creating swap space..."
+        sudo swapoff -a
+        sudo dd if=/dev/zero of=/swapfile bs=1G count=10 status=progress
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        sudo sysctl vm.swappiness=60
+        echo "✅ Swap configured:"
+        free -h
+        swapon --show
+
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
       id: setup_clang
