@@ -54,7 +54,7 @@ jobs:
         echo "📥 تحميل ZyCromerZ Clang..."
         
         # ⭐⭐ يمكن تغيير الرابط هنا فقط ⭐⭐
-        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/17.0.0-20230619-release/Clang-17.0.0-20230619.tar.gz"
+        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20241231-release/Clang-20.0.0git-20241231.tar.gz"
         
         wget -q "$CLANG_URL" -O zycromerz-clang.tar.gz
         
