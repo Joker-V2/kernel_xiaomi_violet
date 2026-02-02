@@ -215,7 +215,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel مع التحقق التلقائي
+    # 6️⃣ Build kernel مع استخدام كامل الموارد ⚡
     - name: Build kernel
       shell: bash
       env:
@@ -248,39 +248,11 @@ jobs:
         df -h
         free -h
         
-        # ⭐⭐ إعداد متوازن لمواردك القوية (الخيار 3) ⭐⭐
+        # ⭐⭐ استخدام كامل الموارد ⭐⭐
         TOTAL_CORES=$(nproc)
-        FREE_MEMORY=$(free -m | awk '/^Mem:/{print $7}')
+        CORES=$TOTAL_CORES  # استخدام جميع الأنوية
         
-        echo "🎯 اتخاذ قرار بناء ذكي:"
-        echo "---------------------"
-        echo "🔍 النظام لديه: $TOTAL_CORES أنوية | $FREE_MEMORY MB ذاكرة حرة"
-        
-        if [ $FREE_MEMORY -gt 12000 ]; then
-            # ذاكرة عالية (>12GB) - استخدم 3 أنوية
-            CORES=3
-            echo "💪 نظام قوي جداً - استخدام $CORES أنوية (ترك 1 للنظام)"
-        elif [ $FREE_MEMORY -gt 8000 ]; then
-            # ذاكرة جيدة (>8GB) - استخدم 3 أنوية
-            CORES=3
-            echo "🔧 نظام جيد - استخدام $CORES أنوية"
-        elif [ $FREE_MEMORY -gt 5000 ]; then
-            # ذاكرة متوسطة (>5GB) - استخدم 2 أنوية
-            CORES=2
-            echo "⚠️  ذاكرة متوسطة - استخدام $CORES أنوية"
-        else
-            # ذاكرة محدودة - استخدم 1 أنوية
-            CORES=1
-            echo "🚨 ذاكرة محدودة جداً - استخدام $CORES أنوية فقط"
-        fi
-        
-        # التأكد من أن العدد لا يتجاوز الأنوية المتاحة
-        if [ $CORES -gt $TOTAL_CORES ]; then
-            CORES=$TOTAL_CORES
-            echo "📏 ضبط القيمة: استخدام $CORES أنوية (الحد الأقصى)"
-        fi
-        
-        echo "🔧 استخدام $CORES cores (من أصل $TOTAL_CORES)"
+        echo "⚡ استخدام كامل الموارد: $CORES cores (من أصل $TOTAL_CORES)"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
@@ -304,8 +276,8 @@ jobs:
         ls -lh logs/build.log
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅ تم بناء النواة بنجاح باستخدام $CLANG_BIN_NAME!"
-            echo "⏱️  تم استخدام $CORES أنوية للبناء"
+            echo "✅✅✅ تم بناء النواة بنجاح باستخدام كامل الموارد!"
+            echo "⚡ تم استخدام جميع $CORES أنوية المتاحة"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -427,10 +399,9 @@ jobs:
         echo "  الأنوية الكلية: $TOTAL_CORES"
         echo "  الذاكرة المتاحة: $AVAILABLE_RAM_MB MB"
         echo ""
-        echo "⚡ إعداد البناء الذكي:"
-        echo "  - النظام لديه 4 أنوية و 15GB RAM"
-        echo "  - تم استخدام قرار بناء متوازن حسب الذاكرة"
-        echo "  - بناء أسرع مع الحفاظ على استقرار النظام"
+        echo "⚡ إعداد البناء:"
+        echo "  - تم استخدام جميع $TOTAL_CORES أنوية المتاحة"
+        echo "  - بناء أسرع مع الاستفادة الكاملة من الموارد"
         echo ""
         echo "✅ ملفات تم إنشاؤها:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
