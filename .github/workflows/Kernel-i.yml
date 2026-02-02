@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - zycromerz 
+      
 jobs:
   build:
     runs-on: ubuntu-24.04
