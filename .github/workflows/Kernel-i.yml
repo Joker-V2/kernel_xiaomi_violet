@@ -187,7 +187,7 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -M 5G
+        ccache -M 10G
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
