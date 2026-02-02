@@ -171,51 +171,12 @@ jobs:
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-    # 🔍 خطوة جديدة: تحقق من الموارد
-    - name: Check System Resources
-      run: |
-        echo "========================================"
-        echo "🖥️  فحص تفصيلي لموارد النظام"
-        echo "========================================"
-        
-        echo "🔧 معلومات المعالج (CPU):"
-        echo "------------------------"
-        TOTAL_CORES=$(nproc)
-        echo "الأنوية الكلية: $TOTAL_CORES"
-        echo "نموذج المعالج: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
-        
-        echo ""
-        echo "💾 معلومات الذاكرة (RAM):"
-        echo "------------------------"
-        TOTAL_RAM=$(free -h | awk '/^Mem:/{print $2}')
-        FREE_RAM=$(free -h | awk '/^Mem:/{print $4}')
-        AVAILABLE_RAM=$(free -m | awk '/^Mem:/{print $7}')
-        echo "الذاكرة الكلية: $TOTAL_RAM"
-        echo "الذاكرة الحرة: $FREE_RAM"
-        echo "الذاكرة المتاحة: $AVAILABLE_RAM MB"
-        
-        echo ""
-        echo "💿 معلومات التخزين (Disk):"
-        echo "-------------------------"
-        df -h /
-        
-        echo ""
-        echo "⚡ اكتشاف موارد قوية:"
-        echo "---------------------"
-        echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
-        echo "📈 هذا أعلى من الخطة المجانية العادية (2 أنوية، 7GB RAM)"
-        echo "========================================"
-        
-        # حفظ المعلومات للمراحل التالية
-        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-        echo "AVAILABLE_RAM_MB=$AVAILABLE_RAM" >> $GITHUB_ENV
-
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel مع استخدام كامل الموارد ⚡
+    # 6️⃣ Build kernel مع التحقق التلقائي
     - name: Build kernel
       shell: bash
       env:
@@ -248,11 +209,11 @@ jobs:
         df -h
         free -h
         
-        # ⭐⭐ استخدام كامل الموارد ⭐⭐
-        TOTAL_CORES=$(nproc)
-        CORES=$TOTAL_CORES  # استخدام جميع الأنوية
+        # تقليل عدد الـ cores
+        CORES=$(($(nproc) / 2))
+        [ $CORES -lt 2 ] && CORES=2
         
-        echo "⚡ استخدام كامل الموارد: $CORES cores (من أصل $TOTAL_CORES)"
+        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
@@ -276,8 +237,7 @@ jobs:
         ls -lh logs/build.log
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅✅✅ تم بناء النواة بنجاح باستخدام كامل الموارد!"
-            echo "⚡ تم استخدام جميع $CORES أنوية المتاحة"
+            echo "✅ تم بناء النواة بنجاح باستخدام $CLANG_BIN_NAME!"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -394,14 +354,6 @@ jobs:
         echo "================================"
         echo "🔧 Clang المستخدم: $CLANG_BIN_NAME"
         echo "📁 مسار Clang: $CLANG_PATH"
-        echo ""
-        echo "🖥️  موارد النظام المستخدمة:"
-        echo "  الأنوية الكلية: $TOTAL_CORES"
-        echo "  الذاكرة المتاحة: $AVAILABLE_RAM_MB MB"
-        echo ""
-        echo "⚡ إعداد البناء:"
-        echo "  - تم استخدام جميع $TOTAL_CORES أنوية المتاحة"
-        echo "  - بناء أسرع مع الاستفادة الكاملة من الموارد"
         echo ""
         echo "✅ ملفات تم إنشاؤها:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
