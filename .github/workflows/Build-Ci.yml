@@ -18,66 +18,25 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies المحسنة
-    - name: 📦 Install all dependencies
+    # 2️⃣ Dependencies (مع جميع الأدوات الناقصة)
+    - name: Install dependencies
       run: |
-        echo "📦 تثبيت جميع الأدوات المطلوبة..."
         sudo apt update
-        
-        # تثبيت الأدوات الأساسية للبناء
         sudo apt install -y \
-          # أدوات البناء الأساسية
-          build-essential bc bison flex make cmake ninja-build \
-          
-          # مكتبات Kernel
+          bc bison flex gperf \
+          build-essential gcc g++ \
           libssl-dev libelf-dev libncurses-dev libc6-dev \
-          
-          # Cross-compilation
+          libx11-dev libreadline-dev libgl1 libgl1-mesa-dev \
           gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-          binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi \
-          
-          # Python
-          python3 python3-pip python-is-python3 \
-          
-          # Java للتوقيع
-          openjdk-17-jdk openjdk-17-jre-headless \
-          
-          # أدوات الضغط والأرشفة
-          zip unzip zstd lz4 xz-utils zlib1g-dev p7zip-full \
-          
-          # أدوات الشبكة والتحميل
-          curl wget git rsync \
-          
-          # أدوات Android/Kernel إضافية
-          device-tree-compiler \
-          android-sdk-libsparse-utils \
-          erofs-utils \
-          kmod cpio pahole \
-          
-          # CCache لتسريع البناء
-          ccache \
-          
-          # أدوات النظام
-          gnupg gperf \
-          libxml2-utils xsltproc \
-          libreadline-dev \
-          libarchive-tools \
-          openssl \
-          
-          # إصلاح الاعتمادات
-          libtinfo6 libx11-dev \
-          libgl1-mesa-dev libgl1 \
-          
-          --fix-missing
-        
-        echo "✅ تم تثبيت جميع الأدوات بنجاح"
-        
-        # التحقق من الأدوات المهمة
-        echo "🔍 التحقق من الأدوات المثبتة:"
-        which ccache && ccache --version | head -1
-        which aarch64-linux-gnu-gcc && aarch64-linux-gnu-gcc --version | head -1
-        which python3 && python3 --version
-        which java && java --version | head -1
+          zip unzip curl wget git gnupg \
+          python3 python-is-python3 python3-markdown \
+          openjdk-17-jdk openjdk-17-jre-headless default-jdk \
+          ccache zstd lz4 xz-utils zlib1g-dev p7zip-full \
+          android-sdk-libsparse-utils erofs-utils \
+          device-tree-compiler kmod cpio pahole \
+          repo openssl libarchive-tools rsync \
+          libxml2-utils xsltproc libtinfo6 \
+          grep tofrodos make sudo bc
 
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
@@ -225,19 +184,12 @@ jobs:
         echo ""
         echo "💾 معلومات الذاكرة (RAM):"
         echo "------------------------"
-        TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-        TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
-        TOTAL_RAM_MB=$((TOTAL_RAM_KB / 1024))
-        
-        FREE_RAM_KB=$(grep MemFree /proc/meminfo | awk '{print $2}')
-        FREE_RAM_GB=$((FREE_RAM_KB / 1024 / 1024))
-        FREE_RAM_MB=$((FREE_RAM_KB / 1024))
-        
-        AVAILABLE_RAM_MB=$(free -m | awk '/^Mem:/{print $7}')
-        
-        echo "الذاكرة الكلية: ${TOTAL_RAM_GB} GB (${TOTAL_RAM_MB} MB)"
-        echo "الذاكرة الحرة: ${FREE_RAM_GB} GB (${FREE_RAM_MB} MB)"
-        echo "الذاكرة المتاحة: ${AVAILABLE_RAM_MB} MB"
+        TOTAL_RAM=$(free -h | awk '/^Mem:/{print $2}')
+        FREE_RAM=$(free -h | awk '/^Mem:/{print $4}')
+        AVAILABLE_RAM=$(free -m | awk '/^Mem:/{print $7}')
+        echo "الذاكرة الكلية: $TOTAL_RAM"
+        echo "الذاكرة الحرة: $FREE_RAM"
+        echo "الذاكرة المتاحة: $AVAILABLE_RAM MB"
         
         echo ""
         echo "💿 معلومات التخزين (Disk):"
@@ -247,129 +199,67 @@ jobs:
         echo ""
         echo "⚡ اكتشاف موارد قوية:"
         echo "---------------------"
-        echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM_MB MB ذاكرة حرة"
+        echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
         echo "========================================"
         
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-        echo "TOTAL_RAM_MB=$TOTAL_RAM_MB" >> $GITHUB_ENV
-        echo "AVAILABLE_RAM_MB=$AVAILABLE_RAM_MB" >> $GITHUB_ENV
 
-    # 💾 Hybrid Swap System (ZRAM + Disk Swap)
-    - name: Setup Hybrid Swap (ZRAM 4GB + Disk Swap 2GB)
+    # 💾 Swap ZRAM Hybrid System
+    - name: Setup Swap ZRAM Hybrid
       run: |
-        echo "💾 إعداد نظام Swap هجين (ZRAM + Disk)..."
+        echo "💾 إعداد نظام Swap ZRAM Hybrid..."
         
         # تنظيف أي swap سابق
-        echo "🧹 تنظيف swap سابق..."
         sudo swapoff -a 2>/dev/null || true
         sudo rm -f /swapfile 2>/dev/null || true
         
-        # ============= الجزء 1: ZRAM (الأولوية العالية) =============
-        echo ""
-        echo "⚡ الجزء 1: ZRAM المضغوط (للسرعة)"
-        
-        # تحميل وحدة zram
-        sudo modprobe zram 2>/dev/null || { echo "❌ لا يمكن تحميل وحدة ZRAM"; }
-        
-        # حجم ZRAM: 4GB مضغوط (يعادل ~8GB فعال)
-        ZRAM_SIZE_MB=4096  # 4GB
+        # ============= ZRAM =============
+        echo "⚡ إنشاء ZRAM 4GB..."
+        sudo modprobe zram 2>/dev/null || echo "⚠️  ZRAM غير متوفر"
         
         if [ -d /sys/block/zram0 ]; then
-            echo "📏 إنشاء ZRAM بحجم: $((ZRAM_SIZE_MB / 1024)) GB"
+            # حجم ZRAM: 4GB
+            echo 4G > /sys/block/zram0/disksize
             
-            # تخصيص حجم ZRAM
-            echo $ZRAM_SIZE_MB > /sys/block/zram0/disksize
-            
-            # استخدام خوارزمية ضغط lz4 (الأسرع)
+            # اختيار خوارزمية ضغط
             if [ -f /sys/block/zram0/comp_algorithm ]; then
-                echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || \
-                echo lzo-rle > /sys/block/zram0/comp_algorithm
-                echo "🔧 خوارزمية الضغط: lz4"
+                if grep -q "lz4" /sys/block/zram0/comp_algorithm; then
+                    echo lz4 > /sys/block/zram0/comp_algorithm
+                    echo "✅ خوارزمية الضغط: lz4"
+                elif grep -q "lzo" /sys/block/zram0/comp_algorithm; then
+                    echo lzo > /sys/block/zram0/comp_algorithm
+                    echo "✅ خوارزمية الضغط: lzo"
+                fi
             fi
             
-            # إنشاء swap على ZRAM
             sudo mkswap /dev/zram0
-            sudo swapon /dev/zram0 -p 100  # أولوية عالية (100)
-            
-            echo "✅ ZRAM مفعّل بنجاح (4GB مضغوط)"
-        else
-            echo "⚠️  ZRAM غير متوفر، تخطي..."
+            sudo swapon /dev/zram0 -p 100
+            echo "✅ ZRAM مفعّل (4GB مضغوط)"
         fi
         
-        # ============= الجزء 2: Swap على القرص (للطوارئ) =============
-        echo ""
-        echo "💿 الجزء 2: Swap على القرص (للطوارئ)"
-        
-        # حجم صغير للطوارئ فقط
-        SWAP_SIZE_MB=2048  # 2GB
-        
-        echo "📏 إنشاء swap على القرص بحجم: $((SWAP_SIZE_MB / 1024)) GB"
-        
-        # استخدام fallocate إذا متوفر (أسرع)
+        # ============= Disk Swap =============
+        echo "💿 إنشاء Disk Swap 2GB..."
         if command -v fallocate >/dev/null 2>&1; then
-            sudo fallocate -l ${SWAP_SIZE_MB}M /swapfile && echo "⚡ تم باستخدام fallocate"
+            sudo fallocate -l 2G /swapfile
         else
-            # استخدام dd مع حجم كتل صغير لتجنب المشاكل
-            echo "🐢 يستخدم dd (قد يأخذ بضع ثوان)..."
-            sudo dd if=/dev/zero of=/swapfile bs=4M count=$((SWAP_SIZE_MB / 4)) status=none
+            sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
         fi
         
-        # إعداد swap file
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
-        sudo swapon /swapfile -p 50  # أولوية أقل من ZRAM (50)
+        sudo swapon /swapfile -p 50
+        echo "✅ Disk Swap مفعّل (2GB)"
         
-        # ============= الجزء 3: تحسين إعدادات النظام =============
-        echo ""
-        echo "⚙️  الجزء 3: تحسين إعدادات النظام"
-        
-        # swappiness متوسط (80 يفضل swap، 20 يفضل RAM)
+        # ============= تحسين الإعدادات =============
         sudo sysctl vm.swappiness=60
-        echo "✅ vm.swappiness=60 (توازن بين RAM وswap)"
+        sudo sysctl vm.vfs_cache_pressure=50
         
-        # vfs_cache_pressure أقل للاحتفاظ بcache الملفات
-        sudo sysctl vm.vfs_cache_pressure=40
-        echo "✅ vm.vfs_cache_pressure=40 (يحفظ cache الملفات)"
-        
-        # إعدادات الكتابة المبكرة للقرص
-        sudo sysctl vm.dirty_ratio=10
-        sudo sysctl vm.dirty_background_ratio=5
-        echo "✅ كتابة مبكرة (dirty_ratio=10, background=5)"
-        
-        # زيادة max_map_count مهم لـ Clang/LLVM
-        sudo sysctl vm.max_map_count=524288 2>/dev/null || true
-        echo "✅ vm.max_map_count=524288 (مهم لـ Clang)"
-        
-        # ============= الجزء 4: عرض النتائج =============
-        echo ""
-        echo "📊 نتائج نظام Swap الهجين:"
-        echo "================================"
-        
-        echo "💾 حالة الذاكرة:"
+        echo "📊 حالة الذاكرة بعد Swap:"
         free -h
-        
         echo ""
         echo "🔄 Swap المفعل:"
         swapon --show
-        
-        if [ -d /sys/block/zram0 ]; then
-            echo ""
-            echo "⚡ معلومات ZRAM:"
-            if command -v zramctl >/dev/null 2>&1; then
-                sudo zramctl
-            else
-                echo "الجهاز: /dev/zram0"
-                echo "الحجم: 4GB (مضغوط)"
-                echo "الخوارزمية: lz4"
-            fi
-        fi
-        
-        echo ""
-        echo "🎯 نظام Swap الهجين جاهز!"
-        echo "   • ZRAM: 4GB مضغوط (للسرعة)"
-        echo "   • Disk Swap: 2GB (للطوارئ)"
-        echo "================================"
 
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
@@ -382,15 +272,8 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        # ⭐⭐ حجم CCache قبل البناء ⭐⭐
-        echo "📊 حجم CCache قبل البناء:"
-        ccache -s | grep -E "cache hit rate|cache size|max cache size" || echo "ℹ️  لا توجد إحصائيات سابقة"
-        echo ""
-        
-        # تنظيف إحصائيات CCache للبدء من جديد
+        ccache -M 5G
         ccache -z
-        echo "✅ تم بدء إحصائيات CCache جديدة"
-        echo ""
         
         echo "🚀 بدء بناء النواة..."
         echo "🔧 Clang الإصدار: $CLANG_BIN_NAME"
@@ -434,13 +317,13 @@ jobs:
         fi
         
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 23، الخيار 2 أكثر استقراراً"
+        echo "💡 نصيحة: مع Clang 20، الخيار 2 أكثر استقراراً"
         
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
-        echo "  • CCache: حجم افتراضي"
+        echo "  • CCache: 5GB"
         echo "  • Swap: ZRAM 4GB + Disk 2GB"
         
         # البناء
@@ -456,12 +339,9 @@ jobs:
         
         BUILD_STATUS=${PIPESTATUS[0]}
         
-        # ⭐⭐ إحصائيات CCache بعد البناء ⭐⭐
-        echo ""
-        echo "📈 إحصائيات CCache بعد البناء:"
-        echo "────────────────────────────────"
-        ccache -s | grep -E "cache hit rate|cache size|max cache size"
-        echo "────────────────────────────────"
+        # إحصائيات
+        echo "📈 إحصائيات CCache:"
+        ccache -s
         
         echo "📊 استخدام الموارد بعد البناء:"
         free -h
@@ -471,8 +351,8 @@ jobs:
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - Clang: $CLANG_BIN_NAME"
             echo "   - الأنوية: $CORES"
-            echo "   - CCache: حجم افتراضي"
-            echo "   - Swap: نظام هجين"
+            echo "   - CCache: 5GB"
+            echo "   - Swap: ZRAM 4GB + Disk 2GB"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -480,19 +360,14 @@ jobs:
             exit 1
         fi
 
-    # ضغط اللوغ - ⭐⭐ مصحح ⭐⭐
+    # ضغط اللوغ
     - name: Compress build log
       if: always()
       run: |
-        echo "📦 محاولة ضغط اللوغ..."
-        if [ -f "logs/build.log" ]; then
-            gzip -9 logs/build.log
-            echo "✅ تم ضغط اللوغ بنجاح"
-            echo "📏 حجم build.log.gz:"
-            ls -lh logs/build.log.gz
-        else
-            echo "⚠️  ملف build.log غير موجود (قد يكون البناء فشل مبكراً)"
-        fi
+        echo "📦 ضغط اللوغ..."
+        gzip -9 logs/build.log
+        echo "📏 حجم build.log.gz:"
+        ls -lh logs/build.log.gz
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
@@ -582,8 +457,8 @@ jobs:
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
-        echo "  - CCache: حجم افتراضي"
-        echo "  - نظام Swap: ZRAM 4GB + Disk 2GB"
+        echo "  - CCache: 5GB"
+        echo "  - Swap: ZRAM 4GB + Disk 2GB"
         echo ""
         echo "📦 الملفات المنتجة:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "⚠️  ZIP غير موجود"
