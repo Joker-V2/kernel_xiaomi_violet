@@ -512,6 +512,8 @@ jobs:
         # البناء
         echo "🏗️  بدء عملية البناء..."
         stdbuf -oL -eL make O=out -j$CORES \
+        ARCH="arm64" \
+        SUBARCH="arm64" \
         CC="ccache $CC" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
