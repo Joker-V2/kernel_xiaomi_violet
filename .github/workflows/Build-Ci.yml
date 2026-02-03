@@ -260,7 +260,8 @@ jobs:
         TOTAL_CORES=$(nproc)
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
         
-        CORES=$(($TOTAL_CORES / 2))
+        # ⬇️⬇️⬇️ تغيير هنا: جميع الأنوية ⬇️⬇️⬇️
+        CORES=$TOTAL_CORES  # ⬅️ بدل $TOTAL_CORES / 2
         [ $CORES -lt 2 ] && CORES=2
         echo "CORES=$CORES" >> $GITHUB_ENV
         
@@ -329,7 +330,7 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
+    # 6️⃣ Build kernel - جميع الأنوية مفعلة ✅
     - name: Build kernel
       shell: bash
       env:
@@ -344,33 +345,33 @@ jobs:
         ccache -M 5G
         ccache -z
         
-        echo "🚀 بدء بناء النواة..."
+        echo "🚀 بدء بناء النواة مع جميع الأنوية..."
         echo "🔧 Clang الإصدار: $CLANG_BIN_NAME"
         
         # ============================================
-        # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
+        # ⭐⭐ جميع الأنوية مفعلة (الخيار 1) ⭐⭐
         # ============================================
         
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
+        # 🟢 الخيار 1: جميع الأنوية (مفعّل الآن ✅)
         #   - أسرع بناء
         #   - مناسب للأنظمة القوية
         #   - قد يستهلك ذاكرة أكثر
-        # CORES=$TOTAL_CORES
+        CORES=$TOTAL_CORES
         
-        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
+        # 🔵 الخيار 2: نصف الأنوية (معطل الآن ❌)
         #   - أكثر استقراراً
         #   - أفضل مع Clang 20/21
         #   - مناسب للذاكرة المحدودة
-        CORES=$(($TOTAL_CORES / 2))
-        [ $CORES -lt 2 ] && CORES=2
+        # CORES=$(($TOTAL_CORES / 2))
+        # [ $CORES -lt 2 ] && CORES=2
         
         # ============================================
         # ⚠️  تعليمات التبديل:
         # 1. أضف # قبل السطر الذي تريد تعطيله
         # 2. احذف # من السطر الذي تريد تفعيله
-        # 3. مثال: لتفعيل الخيار 2:
+        # 3. مثال: للعودة لنصف الأنوية:
         #    - # CORES=$TOTAL_CORES ← مضاف #
         #    - CORES=$(($TOTAL_CORES / 2)) ← محذوف #
         # ============================================
@@ -379,13 +380,14 @@ jobs:
         if [ $CORES -eq $TOTAL_CORES ]; then
             echo "✅ الخيار المفعّل: جميع الأنوية"
             echo "⚡ السرعة: عالية | الاستقرار: متوسط"
+            echo "⚠️  تحذير: قد يظهر pipe broken مع Clang 23"
         else
             echo "✅ الخيار المفعّل: نصف الأنوية"  
             echo "⚡ السرعة: متوسطة | الاستقرار: عالي"
         fi
         
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
+        echo "💡 تجربة: نختبر جميع الأنوية مع LDFLAGS=-Wl,--threads=1"
         
         # تحسينات إضافية لثبات العمليات قبل البدء
         export MAKEFLAGS="-j$CORES"
@@ -394,13 +396,14 @@ jobs:
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
-        echo "  • الأنوية: $CORES/$TOTAL_CORES"
+        echo "  • الأنوية: $CORES/$TOTAL_CORES (جميعها!)"
         echo "  • Swap: 16GB"
         echo "  • CCache: 5GB"
         echo "  • LDFLAGS: -Wl,--threads=1"
+        echo "  • MAKEFLAGS: -j$CORES --jobserver-auth=3,4"
         
         # البناء
-        echo "🏗️  بدء عملية البناء..."
+        echo "🏗️  بدء عملية البناء بسرعة عالية..."
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
@@ -420,16 +423,26 @@ jobs:
         free -h
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅✅✅ تم بناء النواة بنجاح!"
+            echo "✅✅✅ تم بناء النواة بنجاح مع جميع الأنوية!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - Clang: $CLANG_BIN_NAME"
-            echo "   - الأنوية: $CORES"
+            echo "   - الأنوية: $CORES (جميعها!)"
             echo "   - CCache: 5GB"
             echo "   - Swap: 16GB"
+            echo "   - LDFLAGS: -Wl,--threads=1 (منع pipe broken)"
             ls -lh out/arch/arm64/boot/Image.gz
+            
+            # تحقق من pipe broken في اللوغ
+            if grep -q "Broken pipe" logs/build.log; then
+                echo "⚠️  ظهر pipe broken ولكن البناء نجح!"
+                echo "💡 الحل: العودة لنصف الأنوية"
+            else
+                echo "✅ لا يوجد pipe broken - ممتاز!"
+            fi
         else
-            echo "❌ فشل بناء النواة!"
-            echo "💡 جرب تغيير عدد الأنوية إذا استمر الفشل"
+            echo "❌ فشل بناء النواة مع جميع الأنوية!"
+            echo "💡 الحل: العودة لنصف الأنوية (الخيار 2)"
+            echo "💡 السبب المحتمل: pipe broken أو OOM"
             exit 1
         fi
 
@@ -543,7 +556,7 @@ jobs:
         echo "📁 مسار Clang: $CLANG_PATH"
         echo ""
         echo "⚡ إعدادات البناء:"
-        echo "  - الأنوية: $TOTAL_CORES أنوية"
+        echo "  - الأنوية: $TOTAL_CORES أنوية (جميعها!)"
         echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
         echo "  - LDFLAGS: -Wl,--threads=1"
