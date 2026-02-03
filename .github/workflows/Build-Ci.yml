@@ -52,7 +52,7 @@ jobs:
           libtinfo6 \
           cpio kmod openssl pahole \
           libarchive-tools rsync \
-          util-linux
+          util-linux 
 
     # 🆕 تحرير مساحة القرص
     - name: Free up disk space
@@ -207,6 +207,60 @@ jobs:
         
         echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
 
+    # 🆕 ARM GNU Toolchain (مثل سكريبت Bash بالضبط)
+    - name: Setup ARM GNU Toolchain
+      id: setup_arm_toolchain
+      run: |
+        echo "🔧 إعداد ARM GNU Toolchain (مثل سكريبت Bash بالضبط)..."
+        
+        ARM_GNU_DIR="$HOME/toolchains/gcc"
+        
+        # إنشاء المجلد إذا لم يكن موجوداً
+        mkdir -p "$ARM_GNU_DIR"
+        cd "$ARM_GNU_DIR"
+        
+        # تحميل ARM GNU Toolchain (نفس رابط سكريبت Bash)
+        ARM_TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+        
+        echo "📥 تحميل ARM GNU Toolchain..."
+        wget -q "$ARM_TOOLCHAIN_URL" -O arm-gnu-toolchain.tar.xz
+        
+        echo "📦 فك الضغط..."
+        tar -xf arm-gnu-toolchain.tar.xz
+        
+        # ⭐⭐ التصحيح: نفس سكريبت Bash بالضبط مع - في النهاية ⭐⭐
+        # تعريف BUILD_CROSS_COMPILE (نفس سكريبت Bash بالضبط)
+        BUILD_CROSS_COMPILE_PATH="$ARM_GNU_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
+        
+        # حفظ في GITHUB_ENV
+        echo "BUILD_CROSS_COMPILE=$BUILD_CROSS_COMPILE_PATH" >> $GITHUB_ENV
+        
+        echo "✅ ARM GNU Toolchain مثبت"
+        echo "📍 BUILD_CROSS_COMPILE: $BUILD_CROSS_COMPILE_PATH"
+        
+        # التحقق من الملف مع -gcc
+        if [ -f "${BUILD_CROSS_COMPILE_PATH}gcc" ]; then
+          echo "✅ التحقق: ${BUILD_CROSS_COMPILE_PATH}gcc موجود"
+          ${BUILD_CROSS_COMPILE_PATH}gcc --version | head -1
+        else
+          echo "❌ خطأ: ${BUILD_CROSS_COMPILE_PATH}gcc غير موجود!"
+          echo "🔍 محتويات المجلد:"
+          ls -la "$(dirname "$BUILD_CROSS_COMPILE_PATH")" || true
+          exit 1
+        fi
+        
+        cd "$GITHUB_WORKSPACE"
+
+    # 🆕 تحقق سريع من التكوين
+    - name: Quick Setup Check
+      run: |
+        echo "🔍 تحقق سريع من التكوين:"
+        echo "-------------------------"
+        echo "ZyCromerZ Clang: $CLANG_BIN_NAME"
+        echo "BUILD_CROSS_COMPILE: ${{ env.BUILD_CROSS_COMPILE || 'غير محدد' }}"
+        echo "-------------------------"
+        echo "✅ التكوين جاهز!"
+
     # 🆕 التحقق التلقائي من Clang
     - name: Verify Clang Auto-Detection
       run: |
@@ -251,36 +305,34 @@ jobs:
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        
+        # ⭐⭐ التغيير: استخدام BUILD_CROSS_COMPILE بدلاً من aarch64-linux-gnu-
+        if [ -n "${BUILD_CROSS_COMPILE}" ]; then
+          echo "CROSS_COMPILE=${BUILD_CROSS_COMPILE}" >> $GITHUB_ENV
+          echo "✅ تم تعيين CROSS_COMPILE لـ ARM GNU Toolchain"
+        else
+          # استخدام gcc-aarch64-linux-gnu كبديل (للتوافق)
+          echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          echo "⚠️  استخدام gcc-aarch64-linux-gnu (افتراضي)"
+        fi
+        
+        # باقي المتغيرات كما هي
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         
-        # حساب CORES هنا مرة واحدة
+        # إعداد MAKEFLAGS مع jobserver-auth (بعد حساب CORES)
         TOTAL_CORES=$(nproc)
-        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-        
-        # ⬇️⬇️⬇️ تغيير هنا: جميع الأنوية ⬇️⬇️⬇️
-        CORES=$TOTAL_CORES  # ⬅️ بدل $TOTAL_CORES / 2
+        CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
-        echo "CORES=$CORES" >> $GITHUB_ENV
         
-        # التحقق الدقيق من إصدار make
-        echo "🔍 التحقق من إصدار make..."
-        MAKE_VERSION=$(make --version 2>&1 | head -1)
-        echo "make version: $MAKE_VERSION"
-        
-        # تحسين التحقق
-        if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
-            echo "✅ GNU Make 4.x - يدعم jobserver-auth"
+        # التحقق إذا make يدعم jobserver-auth
+        if make --help 2>&1 | grep -q "jobserver-auth"; then
+            echo "✅ make يدعم jobserver-auth"
             echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
             echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
-        elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
-            echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
-            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
         else
-            echo "❌ make غير GNU (قد يكون bmake أو busybox)"
+            echo "⚠️ make لا يدعم jobserver-auth"
             echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
             echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
         fi
@@ -299,6 +351,7 @@ jobs:
         
         echo "🔧 معلومات المعالج (CPU):"
         echo "------------------------"
+        TOTAL_CORES=$(nproc)
         echo "الأنوية الكلية: $TOTAL_CORES"
         echo "نموذج المعالج: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
         
@@ -324,17 +377,21 @@ jobs:
         echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
         echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
+        
+        # حفظ عدد الأنوية للمراحل التالية
+        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
     # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - جميع الأنوية مفعلة ✅
+    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
       shell: bash
       env:
-        CROSS_COMPILE: aarch64-linux-gnu-
+        # ⭐⭐ التصحيح: استخدام BUILD_CROSS_COMPILE إذا موجود مع - في النهاية
+        CROSS_COMPILE: ${{ env.BUILD_CROSS_COMPILE || 'aarch64-linux-gnu-' }}
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
         LDFLAGS: "-Wl,--threads=1"
@@ -345,33 +402,54 @@ jobs:
         ccache -M 5G
         ccache -z
         
-        echo "🚀 بدء بناء النواة مع جميع الأنوية..."
+        echo "🚀 بدء بناء النواة..."
         echo "🔧 Clang الإصدار: $CLANG_BIN_NAME"
+        echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
+        
+        # ⭐⭐ التحقق الصحيح مع -gcc
+        if [ -f "${CROSS_COMPILE}gcc" ]; then
+          echo "✅ CROSS_COMPILE موجود: ${CROSS_COMPILE}gcc"
+          ${CROSS_COMPILE}gcc --version | head -1
+        elif command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+          echo "✅ CROSS_COMPILE موجود في PATH"
+          ${CROSS_COMPILE}gcc --version | head -1
+        else
+          echo "⚠️  تحذير: ${CROSS_COMPILE}gcc غير موجود مباشرة!"
+          # محاولة بديلة للعثور على gcc
+          POSSIBLE_GCC="$(dirname "$CROSS_COMPILE")/aarch64-none-linux-gnu-gcc"
+          if [ -f "$POSSIBLE_GCC" ]; then
+            echo "✅ وجدت بديل: $POSSIBLE_GCC"
+          else
+            echo "❌ لا يمكن العثور على gcc للبناء المتقاطع"
+            exit 1
+          fi
+        fi
         
         # ============================================
-        # ⭐⭐ جميع الأنوية مفعلة (الخيار 1) ⭐⭐
+        # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
         # ============================================
         
+        TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # 🟢 الخيار 1: جميع الأنوية (مفعّل الآن ✅)
+        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
         #   - أسرع بناء
         #   - مناسب للأنظمة القوية
         #   - قد يستهلك ذاكرة أكثر
-        CORES=$TOTAL_CORES
+        # CORES=$TOTAL_CORES
         
-        # 🔵 الخيار 2: نصف الأنوية (معطل الآن ❌)
+        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
         #   - أكثر استقراراً
         #   - أفضل مع Clang 20/21
         #   - مناسب للذاكرة المحدودة
-        # CORES=$(($TOTAL_CORES / 2))
-        # [ $CORES -lt 2 ] && CORES=2
+        CORES=$(($TOTAL_CORES / 2))
+        [ $CORES -lt 2 ] && CORES=2
         
         # ============================================
         # ⚠️  تعليمات التبديل:
         # 1. أضف # قبل السطر الذي تريد تعطيله
         # 2. احذف # من السطر الذي تريد تفعيله
-        # 3. مثال: للعودة لنصف الأنوية:
+        # 3. مثال: لتفعيل الخيار 2:
         #    - # CORES=$TOTAL_CORES ← مضاف #
         #    - CORES=$(($TOTAL_CORES / 2)) ← محذوف #
         # ============================================
@@ -380,14 +458,13 @@ jobs:
         if [ $CORES -eq $TOTAL_CORES ]; then
             echo "✅ الخيار المفعّل: جميع الأنوية"
             echo "⚡ السرعة: عالية | الاستقرار: متوسط"
-            echo "⚠️  تحذير: قد يظهر pipe broken مع Clang 23"
         else
             echo "✅ الخيار المفعّل: نصف الأنوية"  
             echo "⚡ السرعة: متوسطة | الاستقرار: عالي"
         fi
         
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 تجربة: نختبر جميع الأنوية مع LDFLAGS=-Wl,--threads=1"
+        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
         # تحسينات إضافية لثبات العمليات قبل البدء
         export MAKEFLAGS="-j$CORES"
@@ -396,14 +473,14 @@ jobs:
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
-        echo "  • الأنوية: $CORES/$TOTAL_CORES (جميعها!)"
+        echo "  • CROSS_COMPILE: $(basename $(dirname $CROSS_COMPILE) 2>/dev/null || echo $CROSS_COMPILE)"
+        echo "  • الأنوية: $CORES/$TOTAL_CORES"
         echo "  • Swap: 16GB"
         echo "  • CCache: 5GB"
         echo "  • LDFLAGS: -Wl,--threads=1"
-        echo "  • MAKEFLAGS: -j$CORES --jobserver-auth=3,4"
         
         # البناء
-        echo "🏗️  بدء عملية البناء بسرعة عالية..."
+        echo "🏗️  بدء عملية البناء..."
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
@@ -423,26 +500,17 @@ jobs:
         free -h
         
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
-            echo "✅✅✅ تم بناء النواة بنجاح مع جميع الأنوية!"
+            echo "✅✅✅ تم بناء النواة بنجاح!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - Clang: $CLANG_BIN_NAME"
-            echo "   - الأنوية: $CORES (جميعها!)"
+            echo "   - CROSS_COMPILE: $(basename $(dirname $CROSS_COMPILE) 2>/dev/null || echo $CROSS_COMPILE)"
+            echo "   - الأنوية: $CORES"
             echo "   - CCache: 5GB"
             echo "   - Swap: 16GB"
-            echo "   - LDFLAGS: -Wl,--threads=1 (منع pipe broken)"
             ls -lh out/arch/arm64/boot/Image.gz
-            
-            # تحقق من pipe broken في اللوغ
-            if grep -q "Broken pipe" logs/build.log; then
-                echo "⚠️  ظهر pipe broken ولكن البناء نجح!"
-                echo "💡 الحل: العودة لنصف الأنوية"
-            else
-                echo "✅ لا يوجد pipe broken - ممتاز!"
-            fi
         else
-            echo "❌ فشل بناء النواة مع جميع الأنوية!"
-            echo "💡 الحل: العودة لنصف الأنوية (الخيار 2)"
-            echo "💡 السبب المحتمل: pipe broken أو OOM"
+            echo "❌ فشل بناء النواة!"
+            echo "💡 جرب تغيير عدد الأنوية إذا استمر الفشل"
             exit 1
         fi
 
@@ -554,9 +622,11 @@ jobs:
         echo "================================="
         echo "🔧 Clang المستخدم: $CLANG_BIN_NAME"
         echo "📁 مسار Clang: $CLANG_PATH"
+        echo "🔧 CROSS_COMPILE المستخدم: ${{ env.CROSS_COMPILE || 'غير محدد' }}"
+        echo "🔧 BUILD_CROSS_COMPILE: ${{ env.BUILD_CROSS_COMPILE || 'غير محدد' }}"
         echo ""
         echo "⚡ إعدادات البناء:"
-        echo "  - الأنوية: $TOTAL_CORES أنوية (جميعها!)"
+        echo "  - الأنوية: $TOTAL_CORES أنوية"
         echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
         echo "  - LDFLAGS: -Wl,--threads=1"
