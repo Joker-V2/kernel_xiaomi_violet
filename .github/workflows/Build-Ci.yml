@@ -302,90 +302,40 @@ jobs:
         echo "🚀 بدء بناء النواة..."
         echo "🔧 Clang الإصدار: $CLANG_BIN_NAME"
         
-        # ============================================
-        # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
-        # ============================================
-        
         TOTAL_CORES=$(nproc)
-        echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
-        
-        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
-        #   - أسرع بناء
-        #   - مناسب للأنظمة القوية
-        #   - قد يستهلك ذاكرة أكثر
-        # CORES=$TOTAL_CORES
-        
-        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
-        #   - أكثر استقراراً
-        #   - أفضل مع Clang 20/21
-        #   - مناسب للذاكرة المحدودة
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
         
-        # ============================================
-        # ⚠️  تعليمات التبديل:
-        # 1. أضف # قبل السطر الذي تريد تعطيله
-        # 2. احذف # من السطر الذي تريد تفعيله
-        # 3. مثال: لتفعيل الخيار 2:
-        #    - # CORES=$TOTAL_CORES ← مضاف #
-        #    - CORES=$(($TOTAL_CORES / 2)) ← محذوف #
-        # ============================================
-        
-        # ✅ عرض الخيار المفعّل
-        if [ $CORES -eq $TOTAL_CORES ]; then
-            echo "✅ الخيار المفعّل: جميع الأنوية"
-            echo "⚡ السرعة: عالية | الاستقرار: متوسط"
-        else
-            echo "✅ الخيار المفعّل: نصف الأنوية"  
-            echo "⚡ السرعة: متوسطة | الاستقرار: عالي"
-        fi
-        
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
-        # تحسينات إضافية لثبات العمليات قبل البدء
         export MAKEFLAGS="-j$CORES"
         ulimit -s unlimited
 
-        # التحقق من الإعدادات
-        echo "📋 الإعدادات النهائية:"
-        echo "  • Clang: $CLANG_BIN_NAME"
-        echo "  • الأنوية: $CORES/$TOTAL_CORES"
-        echo "  • Swap: 16GB"
-        echo "  • CCache: 5GB"
-        echo "  • LDFLAGS: -Wl,--threads=1"
-        
-        # البناء
-        echo "🏗️  بدء عملية البناء..."
-        stdbuf -oL -eL make O=out -j$CORES \
+        # البناء مع عرض اللوغ المباشر ومنع Broken Pipe (الحل الجذري)
+        make O=out -j$CORES \
         CC="ccache clang" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
         LLVM=1 \
-        LLVM_IAS=1 \
-        2>&1 | tee logs/build.log
+        LLVM_IAS=1 > logs/build.log 2>&1 &
         
-        BUILD_STATUS=${PIPESTATUS[0]}
+        BUILD_PID=$!
+        tail -f logs/build.log &
+        TAIL_PID=$!
+        
+        wait $BUILD_PID
+        BUILD_STATUS=$?
+        kill $TAIL_PID 2>/dev/null || true
         
         # إحصائيات
         echo "📈 إحصائيات CCache:"
         ccache -s
         
-        echo "📊 استخدام الموارد بعد البناء:"
-        free -h
-        
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅✅✅ تم بناء النواة بنجاح!"
-            echo "🎯 الإعدادات المستخدمة:"
-            echo "   - Clang: $CLANG_BIN_NAME"
-            echo "   - الأنوية: $CORES"
-            echo "   - CCache: 5GB"
-            echo "   - Swap: 16GB"
-            ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
-            echo "💡 جرب تغيير عدد الأنوية إذا استمر الفشل"
             exit 1
         fi
 
