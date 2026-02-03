@@ -18,26 +18,98 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies (مع zram-tools)
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y \
-          bc bison flex gperf \
-          build-essential gcc g++ \
-          libssl-dev libelf-dev libncurses-dev libc6-dev \
-          libx11-dev libreadline-dev libgl1 libgl1-mesa-dev \
-          gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-          zip unzip curl wget git gnupg \
-          python3 python-is-python3 python3-markdown \
-          openjdk-17-jdk openjdk-17-jre-headless default-jdk \
-          ccache zstd lz4 xz-utils zlib1g-dev p7zip-full \
-          android-sdk-libsparse-utils erofs-utils \
-          device-tree-compiler kmod cpio pahole \
-          repo openssl libarchive-tools rsync \
-          libxml2-utils xsltproc libtinfo6 \
-          grep tofrodos make sudo bc \
-          zram-tools 
+          bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd
+
+    # 🆕 تحرير مساحة القرص
+    - name: Free up disk space
+      run: |
+        echo "🧹 تحرير مساحة القرص..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        
+        echo "📊 المساحة المتاحة:"
+        df -h
+
+    # 💾 إعداد Swap محسّن لبناء الكيرنل
+    - name: Setup 16GB Swap (Optimized for Kernel Build)
+      run: |
+        echo "🚀 إعداد Swap مثالي لبناء الكيرنل..."
+        echo "📊 المساحة المتاحة: 90GB ← كافية لـ 16GB swap"
+        
+        # 1. تنظيف أي swap سابق
+        echo "🧹 تنظيف swap سابق..."
+        sudo swapoff -a 2>/dev/null || true
+        sudo rm -f /swapfile 2>/dev/null || true
+        
+        # 2. إنشاء swap file 16GB (أفضل حجم لـ 15GB RAM)
+        echo "📦 إنشاء swap file 16GB..."
+        
+        # استخدام الطريقة الأسرع أولاً
+        if command -v fallocate >/dev/null 2>&1; then
+            sudo fallocate -l 16G /swapfile && echo "✅ تم باستخدام fallocate (فوري)"
+        else
+            # fallocate غير متوفر، استخدم dd مع progress
+            echo "⏳ يستخدم dd (قد يأخذ 30-60 ثانية)..."
+            sudo dd if=/dev/zero of=/swapfile bs=1M count=16384 status=progress
+            echo "✅ تم إنشاء swap file"
+        fi
+        
+        # 3. ضبط الصلاحيات والتهيئة
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        
+        # 4. إعدادات Kernel محسنة للبناء
+        echo "⚙️ ضبط إعدادات Kernel الأمثل للبناء..."
+        
+        # swappiness متوسط (توازن بين RAM وswap)
+        sudo sysctl vm.swappiness=40
+        echo "✅ vm.swappiness=40 (توازن جيد)"
+        
+        # vfs_cache_pressure لصالح cache الملفات
+        sudo sysctl vm.vfs_cache_pressure=50
+        echo "✅ vm.vfs_cache_pressure=50 (احتفظ بcache أكثر)"
+        
+        # كتابة مبكرة للقرص لتجنب I/O spikes
+        sudo sysctl vm.dirty_ratio=10
+        sudo sysctl vm.dirty_background_ratio=5
+        echo "✅ كتابة مبكرة (dirty_ratio=10, background=5)"
+        
+        # إضافة مهمة: زيادة max_map_count لـ Clang
+        sudo sysctl vm.max_map_count=262144 2>/dev/null || true
+        echo "✅ vm.max_map_count=262144 (مهم لـ Clang)"
+        
+        # 5. التحقق والنتائج
+        echo ""
+        echo "🎯 إعدادات Swap مكتملة!"
+        echo "================================"
+        echo "💾 استخدام الذاكرة الحالي:"
+        free -h
+        echo ""
+        echo "📊 Swap المفعل:"
+        swapon --show
+        echo ""
+        echo "📈 المساحة المتاحة بعد Swap:"
+        df -h / | awk 'NR==2{print "💿 " $4 " حرة من " $2}'
+        echo "================================"
+        echo "✅ جاهز لبناء الكيرنل مع Clang!"
 
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
@@ -154,7 +226,7 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env
+    # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -163,11 +235,10 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-
-    # 5️⃣ Defconfig
-    - name: Load defconfig
-      run: |
-        make O=out vendor/violet-perf_defconfig
+        # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
+        echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
+        # رفع حد الـ Stack للعمليات لتفادي انقطاع الأنابيب
+        ulimit -s unlimited
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -176,7 +247,7 @@ jobs:
         echo "🖥️  فحص تفصيلي لموارد النظام"
         echo "========================================"
         
-        echo "🔧 معلومات المعجر (CPU):"
+        echo "🔧 معلومات المعالج (CPU):"
         echo "------------------------"
         TOTAL_CORES=$(nproc)
         echo "الأنوية الكلية: $TOTAL_CORES"
@@ -201,70 +272,17 @@ jobs:
         echo "⚡ اكتشاف موارد قوية:"
         echo "---------------------"
         echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
+        echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
+        echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
         
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
-    # 💾 ZRAM System (مضبوط بشكل صحيح)
-    - name: Setup ZRAM System
+    # 5️⃣ Defconfig
+    - name: Load defconfig
       run: |
-        echo "💾 إعداد نظام ZRAM..."
-        
-        # تنظيف أي swap سابق
-        sudo swapoff -a 2>/dev/null || true
-        sudo rm -f /swapfile 2>/dev/null || true
-        
-        # تحميل وحدة zram
-        sudo modprobe zram
-        
-        # حساب حجم ZRAM (4GB أو نصف الذاكرة - أيهما أقل)
-        MEM_TOTAL_KB=$(grep -Po 'MemTotal:\s*\K\d+' /proc/meminfo)
-        ZRAM_SIZE_KB=$((MEM_TOTAL_KB / 2))  # نصف الذاكرة
-        ZRAM_SIZE_GB=$((ZRAM_SIZE_KB / 1024 / 1024))
-        
-        # الحد الأقصى 4GB
-        if [ $ZRAM_SIZE_GB -gt 4 ]; then
-            ZRAM_SIZE_GB=4
-            ZRAM_SIZE_KB=$((ZRAM_SIZE_GB * 1024 * 1024))
-        fi
-        
-        echo "📏 حجم ZRAM: ${ZRAM_SIZE_GB}GB"
-        
-        # إنشاء جهاز ZRAM
-        sudo zramctl --find --algorithm zstd --size ${ZRAM_SIZE_KB}KiB
-        
-        # تهيئة ZRAM كـ swap
-        sudo mkswap /dev/zram0
-        
-        # تفعيل ZRAM كـ swap مع أولوية عالية
-        sudo swapon --priority 100 /dev/zram0
-        
-        # إنشاء swap إضافي على القرص للطوارئ (2GB)
-        echo "💿 إضافة Disk Swap للطوارئ (2GB)..."
-        if command -v fallocate >/dev/null 2>&1; then
-            sudo fallocate -l 2G /swapfile
-        else
-            sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
-        fi
-        sudo chmod 600 /swapfile
-        sudo mkswap /swapfile
-        sudo swapon /swapfile --priority 50
-        
-        # إعدادات النظام المحسنة
-        sudo sysctl vm.swappiness=40
-        sudo sysctl vm.vfs_cache_pressure=50
-        
-        echo "✅ ZRAM System جاهز"
-        echo ""
-        echo "📊 معلومات ZRAM:"
-        sudo zramctl
-        echo ""
-        echo "🔄 Swap المفعل:"
-        swapon --show
-        echo ""
-        echo "💾 حالة الذاكرة:"
-        free -h
+        make O=out vendor/violet-perf_defconfig
 
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
@@ -273,6 +291,7 @@ jobs:
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
+        LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
         mkdir -p logs
@@ -290,15 +309,15 @@ jobs:
         TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # 🟢 الخيار 1: جميع الأنوية (مفعّل حالياً) 🟢
+        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
         #   - أسرع بناء
         #   - مناسب للأنظمة القوية
         #   - قد يستهلك ذاكرة أكثر
         # CORES=$TOTAL_CORES
         
-        # 🔵 الخيار 2: نصف الأنوية 🔵
+        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
         #   - أكثر استقراراً
-        #   - أفضل مع Clang 20
+        #   - أفضل مع Clang 20/21
         #   - مناسب للذاكرة المحدودة
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
@@ -322,14 +341,19 @@ jobs:
         fi
         
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 20، الخيار 2 أكثر استقراراً"
+        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
+        # تحسينات إضافية لثبات العمليات قبل البدء
+        export MAKEFLAGS="-j$CORES"
+        ulimit -s unlimited
+
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
+        echo "  • Swap: 16GB"
         echo "  • CCache: 5GB"
-        echo "  • Swap: ZRAM + Disk"
+        echo "  • LDFLAGS: -Wl,--threads=1"
         
         # البناء
         echo "🏗️  بدء عملية البناء..."
@@ -357,7 +381,7 @@ jobs:
             echo "   - Clang: $CLANG_BIN_NAME"
             echo "   - الأنوية: $CORES"
             echo "   - CCache: 5GB"
-            echo "   - Swap: ZRAM + Disk"
+            echo "   - Swap: 16GB"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -373,6 +397,22 @@ jobs:
         gzip -9 logs/build.log
         echo "📏 حجم build.log.gz:"
         ls -lh logs/build.log.gz
+
+    # تنظيف
+    - name: Cleanup build files
+      if: always()
+      run: |
+        echo "🧹 تنظيف الملفات الوسيطة..."
+        
+        find out/ -name "*.o" -delete 2>/dev/null || true
+        find out/ -name "*.cmd" -delete 2>/dev/null || true
+        find out/ -name "*.d" -delete 2>/dev/null || true
+        
+        rm -rf $HOME/.ccache
+        rm -rf zycromerz-clang
+        
+        echo "📊 المساحة بعد التنظيف:"
+        df -h
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
@@ -435,7 +475,6 @@ jobs:
       with:
         name: Build-Log-Full
         path: logs/build.log.gz
-        retention-days: 7
         compression-level: 0
     
     # 1️⃣2️⃣ رفع التحليلات
@@ -448,7 +487,6 @@ jobs:
           nm-ksu.txt
           nm-susfs.txt
           nm-full.txt
-        retention-days: 5
         compression-level: 9
 
     # ملخص البناء
@@ -462,8 +500,9 @@ jobs:
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
+        echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
-        echo "  - Swap: ZRAM + Disk"
+        echo "  - LDFLAGS: -Wl,--threads=1"
         echo ""
         echo "📦 الملفات المنتجة:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "⚠️  ZIP غير موجود"
