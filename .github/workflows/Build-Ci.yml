@@ -1,6 +1,5 @@
 name: Build Kernel (violet | KernelSu-Next-legacy | susfs-V2.0.0)
 
-
 on:
   workflow_dispatch:
   push:
