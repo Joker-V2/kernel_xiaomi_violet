@@ -356,7 +356,7 @@ jobs:
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
         LLVM=1 \
-        LLVM_IAS=1 > logs/build.log 2>&1 &
+        LLVM_IAS=0 > logs/build.log 2>&1 &
         
         BUILD_PID=$!
         
