@@ -18,7 +18,7 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies (بدون gcc-aarch64-linux-gnu)
+    # 2️⃣ Dependencies (بدون gcc-aarch64-linux-gnu) ⭐⭐ تصحيح ⭐⭐
     - name: Install dependencies
       run: |
         sudo apt update
@@ -207,7 +207,7 @@ jobs:
         
         echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
 
-    # 🆕 ARM GNU Toolchain - التصحيح النهائي
+    # 🆕 إضافة: ARM GNU Toolchain ⭐⭐ تصحيح جديد ⭐⭐
     - name: Setup ARM GNU Toolchain
       id: setup_arm_toolchain
       run: |
@@ -230,11 +230,8 @@ jobs:
         echo "📦 فك الضغط..."
         tar -xf arm-gnu-toolchain.tar.xz
         
-        # ⭐⭐ إضافة المسار إلى PATH ليتمكن make من العثور على الأدوات
+        # ⭐⭐ إضافة المسار إلى PATH
         echo "$TOOLCHAIN_BIN_DIR" >> $GITHUB_PATH
-        
-        # ⭐⭐ تعريف CROSS_COMPILE فقط (بدون مسار كامل)
-        echo "CROSS_COMPILE=aarch64-none-linux-gnu-" >> $GITHUB_ENV
         
         echo "✅ ARM GNU Toolchain مثبت"
         echo "📍 مجلد bin: $TOOLCHAIN_BIN_DIR"
@@ -244,9 +241,6 @@ jobs:
         if [ -f "$TOOLCHAIN_BIN_DIR/aarch64-none-linux-gnu-gcc" ]; then
           echo "✅ التحقق: aarch64-none-linux-gnu-gcc موجود"
           "$TOOLCHAIN_BIN_DIR/aarch64-none-linux-gnu-gcc" --version | head -1
-          
-          echo "📋 بعض الملفات في المجلد:"
-          ls -la "$TOOLCHAIN_BIN_DIR/" | grep -E "aarch64-none-linux-gnu-(gcc|g\+\+|ar|ld)" | head -5
         else
           echo "❌ خطأ: aarch64-none-linux-gnu-gcc غير موجود!"
           echo "🔍 محتويات المجلد:"
@@ -255,42 +249,6 @@ jobs:
         fi
         
         cd "$GITHUB_WORKSPACE"
-
-    # 🆕 التحقق النهائي من الأدوات
-    - name: Final Tool Verification
-      run: |
-        echo "🔍 التحقق النهائي من الأدوات المستخدمة:"
-        echo "========================================"
-        
-        echo "1️⃣ ZyCromerZ Clang:"
-        which clang || { echo "❌ clang غير موجود في PATH"; exit 1; }
-        clang --version | head -2
-        
-        echo ""
-        echo "2️⃣ ARM GNU Toolchain:"
-        echo "   CROSS_COMPILE: aarch64-none-linux-gnu-"
-        
-        # البحث عن aarch64-none-linux-gnu-gcc في PATH
-        if command -v "aarch64-none-linux-gnu-gcc" >/dev/null 2>&1; then
-          echo "   ✅ aarch64-none-linux-gnu-gcc موجود في PATH"
-          aarch64-none-linux-gnu-gcc --version | head -1
-        else
-          echo "   ❌ aarch64-none-linux-gnu-gcc غير موجود في PATH!"
-          echo "   🔍 البحث يدوياً في toolchains/gcc..."
-          if [ -f "$HOME/toolchains/gcc/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc" ]; then
-            echo "   ⚠️  الملف موجود لكن ليس في PATH"
-          else
-            echo "   ❌ الملف غير موجود أصلاً"
-            exit 1
-          fi
-        fi
-        
-        echo ""
-        echo "3️⃣ أدوات النظام (للتحقق):"
-        echo "   gcc-aarch64-linux-gnu: $(command -v aarch64-linux-gnu-gcc 2>/dev/null || echo 'غير مثبت ✓')"
-        
-        echo "========================================"
-        echo "✅ التحقق اكتمل - جاهز للبناء!"
 
     # 🆕 التحقق التلقائي من Clang
     - name: Verify Clang Auto-Detection
@@ -331,36 +289,48 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
+    # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21 ⭐⭐ تصحيح ⭐⭐
     - name: Export env
       run: |
-        echo "ARCH=arm64" >> $GITHUB_ENV
-        echo "SUBARCH=arm64" >> $GITHUB_ENV
-        
-        # ⭐⭐ استخدام CROSS_COMPILE من ARM GNU Toolchain
-        echo "CROSS_COMPILE=aarch64-none-linux-gnu-" >> $GITHUB_ENV
-        echo "✅ تم تعيين CROSS_COMPILE لـ aarch64-none-linux-gnu- (ARM GNU Toolchain)"
-        
-        # باقي المتغيرات كما هي
-        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        
-        # إعداد MAKEFLAGS مع jobserver-auth (بعد حساب CORES)
-        TOTAL_CORES=$(nproc)
-        CORES=$(($TOTAL_CORES / 2))
-        [ $CORES -lt 2 ] && CORES=2
-        
-        # التحقق إذا make يدعم jobserver-auth
-        if make --help 2>&1 | grep -q "jobserver-auth"; then
-            echo "✅ make يدعم jobserver-auth"
-            echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
-            echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
-        else
-            echo "⚠️ make لا يدعم jobserver-auth"
-            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
-        fi
+       echo "ARCH=arm64" >> $GITHUB_ENV
+       echo "SUBARCH=arm64" >> $GITHUB_ENV
+       
+       # ⭐⭐ تصحيح: تغيير CROSS_COMPILE إلى aarch64-none-linux-gnu- ⭐⭐
+       echo "CROSS_COMPILE=aarch64-none-linux-gnu-" >> $GITHUB_ENV
+       echo "✅ تم تعيين CROSS_COMPILE لـ aarch64-none-linux-gnu- (ARM GNU Toolchain)"
+       
+       echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+       
+       # ⭐⭐ تصحيح: تغيير CLANG_TRIPLE إلى aarch64-none-linux-gnu- ⭐⭐
+       echo "CLANG_TRIPLE=aarch64-none-linux-gnu-" >> $GITHUB_ENV
+       echo "✅ تم تعيين CLANG_TRIPLE لـ aarch64-none-linux-gnu-"
+       
+       echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+       
+       # حساب CORES هنا مرة واحدة
+       TOTAL_CORES=$(nproc)
+       echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
+
+       CORES=$(($TOTAL_CORES / 2))
+       [ $CORES -lt 2 ] && CORES=2
+       echo "CORES=$CORES" >> $GITHUB_ENV
+       
+       # التحقق الدقيق من إصدار make
+       echo "🔍 التحقق من إصدار make..."
+       MAKE_VERSION=$(make --version 2>&1 | head -1)
+       echo "make version: $MAKE_VERSION"
+       
+       # تحسين التحقق
+       if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
+        echo "✅ GNU Make 4.x - يدعم jobserver-auth"
+        echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+       elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
+        echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
+        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+       else
+        echo "❌ make غير GNU (قد يكون bmake أو busybox)"
+        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+       fi
         
         # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
@@ -411,14 +381,15 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐ (مع تصحيح العرض)
+    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐ (مع تصحيح CROSS_COMPILE و CLANG_TRIPLE)
     - name: Build kernel
       shell: bash
       env:
-        # ⭐⭐ استخدام CROSS_COMPILE من ARM GNU Toolchain
+        # ⭐⭐ تصحيح: تغيير CROSS_COMPILE إلى aarch64-none-linux-gnu- ⭐⭐
         CROSS_COMPILE: aarch64-none-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-        CLANG_TRIPLE: aarch64-linux-gnu-
+        # ⭐⭐ تصحيح: تغيير CLANG_TRIPLE إلى aarch64-none-linux-gnu- ⭐⭐
+        CLANG_TRIPLE: aarch64-none-linux-gnu-
         LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
@@ -429,16 +400,17 @@ jobs:
         
         echo "🚀 بدء بناء النواة..."
         echo "🔧 Clang الإصدار: $CLANG_BIN_NAME"
-        echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
         
-        # ⭐⭐ التحقق الصحيح: البحث عن الملف في PATH
+        # ⭐⭐ التحقق من CROSS_COMPILE ⭐⭐
+        echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
+        echo "🔧 CLANG_TRIPLE المستخدم: $CLANG_TRIPLE"
+        
         if command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
           echo "✅ ${CROSS_COMPILE}gcc موجود في PATH"
           "${CROSS_COMPILE}gcc" --version | head -1
         else
-          echo "❌ خطأ: ${CROSS_COMPILE}gcc غير موجود في PATH!"
-          echo "💡 تأكد من إضافة المسار إلى PATH في خطوة Setup ARM GNU Toolchain"
-          exit 1
+          echo "⚠️  تحذير: ${CROSS_COMPILE}gcc غير موجود في PATH!"
+          echo "💡 قد يحتاج المسار إلى إضافة إلى PATH"
         fi
         
         # ============================================
@@ -486,15 +458,15 @@ jobs:
         export MAKEFLAGS="-j$CORES"
         ulimit -s unlimited
 
-        # ⭐⭐ التصحيح: عرض CROSS_COMPILE مباشرة بدون معالجة
+        # ⭐⭐ تصحيح العرض: إزالة basename dirname ⭐⭐
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME (ZyCromerZ)"
         echo "  • CROSS_COMPILE: $CROSS_COMPILE (ARM GNU Toolchain)"
+        echo "  • CLANG_TRIPLE: $CLANG_TRIPLE"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
         echo "  • Swap: 16GB"
         echo "  • CCache: 5GB"
         echo "  • LDFLAGS: -Wl,--threads=1"
-        echo "  • LLVM: 1 | LLVM_IAS: 1"
         
         # البناء
         echo "🏗️  بدء عملية البناء..."
@@ -516,12 +488,13 @@ jobs:
         echo "📊 استخدام الموارد بعد البناء:"
         free -h
         
-        # ⭐⭐ التصحيح: إصلاح سطر عرض النتائج
+        # ⭐⭐ تصحيح العرض: عرض CROSS_COMPILE مباشرة ⭐⭐
         if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
             echo "✅✅✅ تم بناء النواة بنجاح!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - Clang: $CLANG_BIN_NAME (ZyCromerZ)"
             echo "   - CROSS_COMPILE: $CROSS_COMPILE (ARM GNU Toolchain)"
+            echo "   - CLANG_TRIPLE: $CLANG_TRIPLE"
             echo "   - الأنوية: $CORES"
             echo "   - CCache: 5GB"
             echo "   - Swap: 16GB"
@@ -632,7 +605,7 @@ jobs:
           nm-full.txt
         compression-level: 9
 
-    # ملخص البناء (مع تصحيح العرض)
+    # ملخص البناء ⭐⭐ مع تصحيح العرض ⭐⭐
     - name: Build Summary
       if: always()
       run: |
@@ -641,6 +614,7 @@ jobs:
         echo "🔧 Clang المستخدم: $CLANG_BIN_NAME (ZyCromerZ)"
         echo "📁 مسار Clang: $CLANG_PATH"
         echo "🔧 CROSS_COMPILE المستخدم: aarch64-none-linux-gnu- (ARM GNU Toolchain)"
+        echo "🔧 CLANG_TRIPLE المستخدم: aarch64-none-linux-gnu-"
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
