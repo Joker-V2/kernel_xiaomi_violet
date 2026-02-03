@@ -26,7 +26,6 @@ jobs:
           bc bison flex \
           build-essential \
           libssl-dev libelf-dev libncurses-dev \
-          # ❌ إزالة gcc-aarch64-linux-gnu ❌
           gcc-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi \
           zip unzip curl wget git \
@@ -34,7 +33,6 @@ jobs:
           openjdk-17-jre-headless \
           ccache \
           zstd \
-          # ❌ إزالة binutils-aarch64-linux-gnu ❌
           binutils-aarch64-linux-gnu \
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
@@ -54,7 +52,7 @@ jobs:
           libtinfo6 \
           cpio kmod openssl pahole \
           libarchive-tools rsync \
-          util-linux
+          util-linux 
 
     # 🆕 تحرير مساحة القرص
     - name: Free up disk space
