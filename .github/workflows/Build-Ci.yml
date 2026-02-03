@@ -33,7 +33,6 @@ jobs:
           openjdk-17-jre-headless \
           ccache \
           zstd \
-          # ⬇️⬇️⬇️ الأدوات الناقصة التي طلبتها ⬇️⬇️⬇️
           binutils-aarch64-linux-gnu \
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
@@ -53,8 +52,7 @@ jobs:
           libtinfo6 \
           cpio kmod openssl pahole \
           libarchive-tools rsync \
-          util-linux  # لـ fallocate
-          # ⬆️⬆️⬆️ نهاية الأدوات الناقصة ⬆️⬆️⬆️
+          util-linux 
 
     # 🆕 تحرير مساحة القرص
     - name: Free up disk space
