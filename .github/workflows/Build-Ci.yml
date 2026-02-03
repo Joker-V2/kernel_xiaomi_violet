@@ -212,11 +212,14 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -z
+        # ⭐⭐ التعديل المهم: عرض حجم CCache قبل تنظيف الإحصائيات ⭐⭐
+        echo "📊 حجم CCache قبل تنظيف الإحصائيات:"
+        ccache -s | grep -E "cache size|max cache size" || true
+        echo ""
         
-        # ⭐⭐ حجم CCache قبل البناء ⭐⭐
-        echo "📊 حجم CCache قبل البناء:"
-        ccache -s | grep -E "cache size|max cache size"
+        # تنظيف إحصائيات CCache
+        ccache -z
+        echo "✅ تم تنظيف إحصائيات CCache"
         echo ""
         
         echo "🚀 بدء بناء النواة..."
@@ -305,14 +308,19 @@ jobs:
             exit 1
         fi
 
-    # ضغط اللوغ
+    # ضغط اللوغ - ⭐⭐ مصحح ⭐⭐
     - name: Compress build log
       if: always()
       run: |
-        echo "📦 ضغط اللوغ..."
-        gzip -9 logs/build.log
-        echo "📏 حجم build.log.gz:"
-        ls -lh logs/build.log.gz
+        echo "📦 محاولة ضغط اللوغ..."
+        if [ -f "logs/build.log" ]; then
+            gzip -9 logs/build.log
+            echo "✅ تم ضغط اللوغ بنجاح"
+            echo "📏 حجم build.log.gz:"
+            ls -lh logs/build.log.gz
+        else
+            echo "⚠️  ملف build.log غير موجود (قد يكون البناء فشل مبكراً)"
+        fi
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
