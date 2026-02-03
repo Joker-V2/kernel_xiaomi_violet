@@ -18,7 +18,7 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies (مع جميع الأدوات الناقصة)
+    # 2️⃣ Dependencies (مع zram-tools)
     - name: Install dependencies
       run: |
         sudo apt update
@@ -36,7 +36,8 @@ jobs:
           device-tree-compiler kmod cpio pahole \
           repo openssl libarchive-tools rsync \
           libxml2-utils xsltproc libtinfo6 \
-          grep tofrodos make sudo bc
+          grep tofrodos make sudo bc \
+          zram-tools 
 
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
@@ -175,7 +176,7 @@ jobs:
         echo "🖥️  فحص تفصيلي لموارد النظام"
         echo "========================================"
         
-        echo "🔧 معلومات المعالج (CPU):"
+        echo "🔧 معلومات المعجر (CPU):"
         echo "------------------------"
         TOTAL_CORES=$(nproc)
         echo "الأنوية الكلية: $TOTAL_CORES"
@@ -205,61 +206,65 @@ jobs:
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
-    # 💾 Swap ZRAM Hybrid System
-    - name: Setup Swap ZRAM Hybrid
+    # 💾 ZRAM System (مضبوط بشكل صحيح)
+    - name: Setup ZRAM System
       run: |
-        echo "💾 إعداد نظام Swap ZRAM Hybrid..."
+        echo "💾 إعداد نظام ZRAM..."
         
         # تنظيف أي swap سابق
         sudo swapoff -a 2>/dev/null || true
         sudo rm -f /swapfile 2>/dev/null || true
         
-        # ============= ZRAM =============
-        echo "⚡ إنشاء ZRAM 4GB..."
-        sudo modprobe zram 2>/dev/null || echo "⚠️  ZRAM غير متوفر"
+        # تحميل وحدة zram
+        sudo modprobe zram
         
-        if [ -d /sys/block/zram0 ]; then
-            # حجم ZRAM: 4GB
-            echo 4G > /sys/block/zram0/disksize
-            
-            # اختيار خوارزمية ضغط
-            if [ -f /sys/block/zram0/comp_algorithm ]; then
-                if grep -q "lz4" /sys/block/zram0/comp_algorithm; then
-                    echo lz4 > /sys/block/zram0/comp_algorithm
-                    echo "✅ خوارزمية الضغط: lz4"
-                elif grep -q "lzo" /sys/block/zram0/comp_algorithm; then
-                    echo lzo > /sys/block/zram0/comp_algorithm
-                    echo "✅ خوارزمية الضغط: lzo"
-                fi
-            fi
-            
-            sudo mkswap /dev/zram0
-            sudo swapon /dev/zram0 -p 100
-            echo "✅ ZRAM مفعّل (4GB مضغوط)"
+        # حساب حجم ZRAM (4GB أو نصف الذاكرة - أيهما أقل)
+        MEM_TOTAL_KB=$(grep -Po 'MemTotal:\s*\K\d+' /proc/meminfo)
+        ZRAM_SIZE_KB=$((MEM_TOTAL_KB / 2))  # نصف الذاكرة
+        ZRAM_SIZE_GB=$((ZRAM_SIZE_KB / 1024 / 1024))
+        
+        # الحد الأقصى 4GB
+        if [ $ZRAM_SIZE_GB -gt 4 ]; then
+            ZRAM_SIZE_GB=4
+            ZRAM_SIZE_KB=$((ZRAM_SIZE_GB * 1024 * 1024))
         fi
         
-        # ============= Disk Swap =============
-        echo "💿 إنشاء Disk Swap 2GB..."
+        echo "📏 حجم ZRAM: ${ZRAM_SIZE_GB}GB"
+        
+        # إنشاء جهاز ZRAM
+        sudo zramctl --find --algorithm zstd --size ${ZRAM_SIZE_KB}KiB
+        
+        # تهيئة ZRAM كـ swap
+        sudo mkswap /dev/zram0
+        
+        # تفعيل ZRAM كـ swap مع أولوية عالية
+        sudo swapon --priority 100 /dev/zram0
+        
+        # إنشاء swap إضافي على القرص للطوارئ (2GB)
+        echo "💿 إضافة Disk Swap للطوارئ (2GB)..."
         if command -v fallocate >/dev/null 2>&1; then
             sudo fallocate -l 2G /swapfile
         else
             sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
         fi
-        
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
-        sudo swapon /swapfile -p 50
-        echo "✅ Disk Swap مفعّل (2GB)"
+        sudo swapon /swapfile --priority 50
         
-        # ============= تحسين الإعدادات =============
-        sudo sysctl vm.swappiness=40
+        # إعدادات النظام المحسنة
+        sudo sysctl vm.swappiness=60
         sudo sysctl vm.vfs_cache_pressure=50
         
-        echo "📊 حالة الذاكرة بعد Swap:"
-        free -h
+        echo "✅ ZRAM System جاهز"
+        echo ""
+        echo "📊 معلومات ZRAM:"
+        sudo zramctl
         echo ""
         echo "🔄 Swap المفعل:"
         swapon --show
+        echo ""
+        echo "💾 حالة الذاكرة:"
+        free -h
 
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
@@ -289,14 +294,14 @@ jobs:
         #   - أسرع بناء
         #   - مناسب للأنظمة القوية
         #   - قد يستهلك ذاكرة أكثر
-        CORES=$TOTAL_CORES
+        # CORES=$TOTAL_CORES
         
         # 🔵 الخيار 2: نصف الأنوية 🔵
         #   - أكثر استقراراً
         #   - أفضل مع Clang 20
         #   - مناسب للذاكرة المحدودة
-        # CORES=$(($TOTAL_CORES / 2))
-        # [ $CORES -lt 2 ] && CORES=2
+        CORES=$(($TOTAL_CORES / 2))
+        [ $CORES -lt 2 ] && CORES=2
         
         # ============================================
         # ⚠️  تعليمات التبديل:
@@ -324,7 +329,7 @@ jobs:
         echo "  • Clang: $CLANG_BIN_NAME"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
         echo "  • CCache: 5GB"
-        echo "  • Swap: ZRAM 4GB + Disk 2GB"
+        echo "  • Swap: ZRAM + Disk"
         
         # البناء
         echo "🏗️  بدء عملية البناء..."
@@ -352,7 +357,7 @@ jobs:
             echo "   - Clang: $CLANG_BIN_NAME"
             echo "   - الأنوية: $CORES"
             echo "   - CCache: 5GB"
-            echo "   - Swap: ZRAM 4GB + Disk 2GB"
+            echo "   - Swap: ZRAM + Disk"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -458,7 +463,7 @@ jobs:
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
         echo "  - CCache: 5GB"
-        echo "  - Swap: ZRAM 4GB + Disk 2GB"
+        echo "  - Swap: ZRAM + Disk"
         echo ""
         echo "📦 الملفات المنتجة:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "⚠️  ZIP غير موجود"
