@@ -19,7 +19,9 @@
 
 
 &qupv3_se1_i2c {
-	//status = "okay";
+	status = "okay";
+	qcom,clk-freq-out = <100000>;
+	clock-frequency = <100000>;
 	/* Novatek device tree node */
 	novatek@62 {
 		status = "okay";
@@ -27,7 +29,7 @@
 		reg = <0x62>;
 		interrupt-parent = <&tlmm>;
 		interrupts = <89 0x2008>;
-		//vcc_i2c-supply=<&pm6150_l13>;
+		vcc_i2c-supply=<&pm6150_l13>;
 
 		novatek,reset-gpio = <&tlmm 88 0x00>;
 		novatek,irq-gpio = <&tlmm 89 0x2001>;
