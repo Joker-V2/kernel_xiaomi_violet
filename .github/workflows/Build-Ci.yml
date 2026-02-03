@@ -255,6 +255,23 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        
+        # إعداد MAKEFLAGS مع jobserver-auth (بعد حساب CORES)
+        TOTAL_CORES=$(nproc)
+        CORES=$(($TOTAL_CORES / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        
+        # التحقق إذا make يدعم jobserver-auth
+        if make --help 2>&1 | grep -q "jobserver-auth"; then
+            echo "✅ make يدعم jobserver-auth"
+            echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+            echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
+        else
+            echo "⚠️ make لا يدعم jobserver-auth"
+            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
+        fi
+        
         # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
         # رفع حد الـ Stack للعمليات لتفادي انقطاع الأنابيب
