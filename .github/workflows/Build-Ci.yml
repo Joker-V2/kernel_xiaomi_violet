@@ -27,7 +27,7 @@ jobs:
           build-essential \
           libssl-dev libelf-dev libncurses-dev \
           # ❌ إزالة gcc-aarch64-linux-gnu ❌
-          # gcc-aarch64-linux-gnu \
+          gcc-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi \
           zip unzip curl wget git \
           python3 \
@@ -35,7 +35,7 @@ jobs:
           ccache \
           zstd \
           # ❌ إزالة binutils-aarch64-linux-gnu ❌
-          # binutils-aarch64-linux-gnu \
+          binutils-aarch64-linux-gnu \
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
           openjdk-17-jdk \
