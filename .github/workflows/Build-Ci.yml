@@ -317,8 +317,15 @@ jobs:
         free -h
 
         # ⭐⭐ استخدام جميع الأنوية المتاحة فقط ⭐⭐
+        # TOTAL_CORES=$(nproc)
+        # CORES=$TOTAL_CORES  # استخدام جميع الأنوية فقط
+
+        # ⭐⭐ استخدام نصف الأنوية ⭐⭐
         TOTAL_CORES=$(nproc)
-        CORES=$TOTAL_CORES  # استخدام جميع الأنوية فقط
+        CORES=$(($TOTAL_CORES / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        echo "🎯 إستراتيجية: نصف الأنوية"
+        echo "⚡ استخدام $CORES أنوية (من أصل $TOTAL_CORES)"
         
         echo "🎯 إستراتيجية البناء:"
         echo "🔧 Clang + Swap 16GB + جميع الأنوية + CCache 5GB + LDFLAGS"
