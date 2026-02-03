@@ -52,7 +52,7 @@ jobs:
           libtinfo6 \
           cpio kmod openssl pahole \
           libarchive-tools rsync \
-          util-linux 
+          util-linux
 
     # 🆕 تحرير مساحة القرص
     - name: Free up disk space
@@ -249,37 +249,40 @@ jobs:
     # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
     - name: Export env
       run: |
-       echo "ARCH=arm64" >> $GITHUB_ENV
-       echo "SUBARCH=arm64" >> $GITHUB_ENV
-       echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-       echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-       echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-       echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-       
-       # حساب CORES هنا مرة واحدة
-       TOTAL_CORES=$(nproc)
-       echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-
-       CORES=$(($TOTAL_CORES / 2))
-       [ $CORES -lt 2 ] && CORES=2
-       echo "CORES=$CORES" >> $GITHUB_ENV
-       
-       # التحقق الدقيق من إصدار make
-       echo "🔍 التحقق من إصدار make..."
-       MAKE_VERSION=$(make --version 2>&1 | head -1)
-       echo "make version: $MAKE_VERSION"
-       
-       # تحسين التحقق
-       if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
-        echo "✅ GNU Make 4.x - يدعم jobserver-auth"
-        echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
-       elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
-        echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
-        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-       else
-        echo "❌ make غير GNU (قد يكون bmake أو busybox)"
-        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-       fi
+        echo "ARCH=arm64" >> $GITHUB_ENV
+        echo "SUBARCH=arm64" >> $GITHUB_ENV
+        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        
+        # حساب CORES هنا مرة واحدة
+        TOTAL_CORES=$(nproc)
+        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
+        
+        CORES=$(($TOTAL_CORES / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        echo "CORES=$CORES" >> $GITHUB_ENV
+        
+        # التحقق الدقيق من إصدار make
+        echo "🔍 التحقق من إصدار make..."
+        MAKE_VERSION=$(make --version 2>&1 | head -1)
+        echo "make version: $MAKE_VERSION"
+        
+        # تحسين التحقق
+        if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
+            echo "✅ GNU Make 4.x - يدعم jobserver-auth"
+            echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+            echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
+        elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
+            echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
+            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
+        else
+            echo "❌ make غير GNU (قد يكون bmake أو busybox)"
+            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
+        fi
         
         # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
@@ -295,7 +298,6 @@ jobs:
         
         echo "🔧 معلومات المعالج (CPU):"
         echo "------------------------"
-        TOTAL_CORES=$(nproc)
         echo "الأنوية الكلية: $TOTAL_CORES"
         echo "نموذج المعالج: $(lscpu | grep 'Model name' | cut -d: -f2 | xargs)"
         
@@ -321,9 +323,6 @@ jobs:
         echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
         echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
-        
-        # حفظ عدد الأنوية للمراحل التالية
-        echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
     # 5️⃣ Defconfig
     - name: Load defconfig
@@ -352,7 +351,6 @@ jobs:
         # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
         # ============================================
         
-        TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
         # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
