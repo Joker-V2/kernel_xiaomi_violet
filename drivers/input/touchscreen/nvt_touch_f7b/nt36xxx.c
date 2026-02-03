@@ -1337,7 +1337,7 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	ts->max_button_num = TOUCH_KEY_NUM;
 #endif
 
-	ts->int_trigger_type = INT_TRIGGER_TYPE;
+	ts->int_trigger_type = 2;
 
 
 	//---set input device info.---
