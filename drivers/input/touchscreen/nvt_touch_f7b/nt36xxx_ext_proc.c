@@ -593,6 +593,8 @@ static const struct file_operations nvt_diff_fops = {
 };
 static int32_t nvt_get_oem_data(uint8_t *data, uint32_t flash_address, int32_t size)
 {
+	return 0;
+
 	uint8_t buf[64] = {0};
 	uint8_t tmp_data[512] = {0};
 	int32_t count_256 = 0;
