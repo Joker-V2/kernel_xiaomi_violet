@@ -212,6 +212,7 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
+        ccache -M 5G
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
@@ -262,7 +263,7 @@ jobs:
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
-        echo "  • CCache: حجم افتراضي"
+        echo "  • CCache: 5GB"
         
         # البناء
         echo "🏗️  بدء عملية البناء..."
@@ -279,7 +280,7 @@ jobs:
         
         # إحصائيات
         echo "📈 إحصائيات CCache:"
-        ccache -s | grep -E "cache hit rate|cache size|max cache size"
+        ccache -s
         
         echo "📊 استخدام الموارد بعد البناء:"
         free -h
@@ -289,7 +290,7 @@ jobs:
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - Clang: $CLANG_BIN_NAME"
             echo "   - الأنوية: $CORES"
-            echo "   - CCache: حجم افتراضي"
+            echo "   - CCache: 5GB"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -394,7 +395,7 @@ jobs:
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
-        echo "  - CCache: حجم افتراضي"
+        echo "  - CCache: 5GB"
         echo ""
         echo "📦 الملفات المنتجة:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "⚠️  ZIP غير موجود"
