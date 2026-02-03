@@ -252,7 +252,7 @@ jobs:
         echo "✅ Disk Swap مفعّل (2GB)"
         
         # ============= تحسين الإعدادات =============
-        sudo sysctl vm.swappiness=60
+        sudo sysctl vm.swappiness=40
         sudo sysctl vm.vfs_cache_pressure=50
         
         echo "📊 حالة الذاكرة بعد Swap:"
