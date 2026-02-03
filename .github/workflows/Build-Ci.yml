@@ -34,83 +34,6 @@ jobs:
           ccache \
           zstd
 
-    # 🆕 تحرير مساحة القرص
-    - name: Free up disk space
-      run: |
-        echo "🧹 تحرير مساحة القرص..."
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-        
-        echo "📊 المساحة المتاحة:"
-        df -h
-
-    # 💾 إعداد Swap محسّن لبناء الكيرنل
-    - name: Setup 16GB Swap (Optimized for Kernel Build)
-      run: |
-        echo "🚀 إعداد Swap مثالي لبناء الكيرنل..."
-        echo "📊 المساحة المتاحة: 90GB ← كافية لـ 16GB swap"
-        
-        # 1. تنظيف أي swap سابق
-        echo "🧹 تنظيف swap سابق..."
-        sudo swapoff -a 2>/dev/null || true
-        sudo rm -f /swapfile 2>/dev/null || true
-        
-        # 2. إنشاء swap file 16GB (أفضل حجم لـ 15GB RAM)
-        echo "📦 إنشاء swap file 16GB..."
-        
-        # استخدام الطريقة الأسرع أولاً
-        if command -v fallocate >/dev/null 2>&1; then
-            sudo fallocate -l 16G /swapfile && echo "✅ تم باستخدام fallocate (فوري)"
-        else
-            # fallocate غير متوفر، استخدم dd مع progress
-            echo "⏳ يستخدم dd (قد يأخذ 30-60 ثانية)..."
-            sudo dd if=/dev/zero of=/swapfile bs=1M count=16384 status=progress
-            echo "✅ تم إنشاء swap file"
-        fi
-        
-        # 3. ضبط الصلاحيات والتهيئة
-        sudo chmod 600 /swapfile
-        sudo mkswap /swapfile
-        sudo swapon /swapfile
-        
-        # 4. إعدادات Kernel محسنة للبناء
-        echo "⚙️ ضبط إعدادات Kernel الأمثل للبناء..."
-        
-        # swappiness متوسط (توازن بين RAM وswap)
-        sudo sysctl vm.swappiness=40
-        echo "✅ vm.swappiness=40 (توازن جيد)"
-        
-        # vfs_cache_pressure لصالح cache الملفات
-        sudo sysctl vm.vfs_cache_pressure=50
-        echo "✅ vm.vfs_cache_pressure=50 (احتفظ بcache أكثر)"
-        
-        # كتابة مبكرة للقرص لتجنب I/O spikes
-        sudo sysctl vm.dirty_ratio=10
-        sudo sysctl vm.dirty_background_ratio=5
-        echo "✅ كتابة مبكرة (dirty_ratio=10, background=5)"
-        
-        # إضافة مهمة: زيادة max_map_count لـ Clang
-        sudo sysctl vm.max_map_count=262144 2>/dev/null || true
-        echo "✅ vm.max_map_count=262144 (مهم لـ Clang)"
-        
-        # 5. التحقق والنتائج
-        echo ""
-        echo "🎯 إعدادات Swap مكتملة!"
-        echo "================================"
-        echo "💾 استخدام الذاكرة الحالي:"
-        free -h
-        echo ""
-        echo "📊 Swap المفعل:"
-        swapon --show
-        echo ""
-        echo "📈 المساحة المتاحة بعد Swap:"
-        df -h / | awk 'NR==2{print "💿 " $4 " حرة من " $2}'
-        echo "================================"
-        echo "✅ جاهز لبناء الكيرنل مع Clang!"
-
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
       id: setup_clang
@@ -118,7 +41,7 @@ jobs:
         echo "📥 تحميل ZyCromerZ Clang..."
         
         # ⭐⭐ يمكن تغيير الرابط هنا فقط ⭐⭐
-        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
+        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
         
         wget -q "$CLANG_URL" -O zycromerz-clang.tar.gz
         
@@ -226,7 +149,7 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env مع LDFLAGS
+    # 4️⃣ Export env
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -235,7 +158,11 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
+
+    # 5️⃣ Defconfig
+    - name: Load defconfig
+      run: |
+        make O=out vendor/violet-perf_defconfig
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -269,17 +196,10 @@ jobs:
         echo "⚡ اكتشاف موارد قوية:"
         echo "---------------------"
         echo "✅ النظام لديه $TOTAL_CORES أنوية و $AVAILABLE_RAM MB ذاكرة حرة"
-        echo "📊 مع Swap 16GB: إجمالي ذاكرة افتراضية 31GB"
-        echo "🛡️  مع LDFLAGS: -Wl,--threads=1"
         echo "========================================"
         
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-
-    # 5️⃣ Defconfig
-    - name: Load defconfig
-      run: |
-        make O=out vendor/violet-perf_defconfig
 
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
@@ -288,7 +208,6 @@ jobs:
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
         CLANG_TRIPLE: aarch64-linux-gnu-
-        LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
         mkdir -p logs
@@ -344,33 +263,20 @@ jobs:
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
-        echo "  • Swap: 16GB"
         echo "  • CCache: 5GB"
-        echo "  • LDFLAGS: -Wl,--threads=1"
         
-        # البناء باستعمال الحل الذي يمنع Broken Pipe (التوجيه المباشر للملف مع tail)
+        # البناء
         echo "🏗️  بدء عملية البناء..."
-        make O=out -j$CORES \
+        stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
-        KCFLAGS="-no-integrated-as" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
         LLVM=1 \
-        LLVM_IAS=0 > logs/build.log 2>&1 &
+        LLVM_IAS=1 \
+        2>&1 | tee logs/build.log
         
-        BUILD_PID=$!
-        
-        # عرض اللوغ "لايف" بينما البناء شغال في الخلفية
-        tail -f logs/build.log &
-        TAIL_PID=$!
-        
-        # انتظار انتهاء البناء
-        wait $BUILD_PID
-        BUILD_STATUS=$?
-        
-        # إيقاف عرض اللوغ
-        kill $TAIL_PID 2>/dev/null || true
+        BUILD_STATUS=${PIPESTATUS[0]}
         
         # إحصائيات
         echo "📈 إحصائيات CCache:"
@@ -385,7 +291,6 @@ jobs:
             echo "   - Clang: $CLANG_BIN_NAME"
             echo "   - الأنوية: $CORES"
             echo "   - CCache: 5GB"
-            echo "   - Swap: 16GB"
             ls -lh out/arch/arm64/boot/Image.gz
         else
             echo "❌ فشل بناء النواة!"
@@ -401,22 +306,6 @@ jobs:
         gzip -9 logs/build.log
         echo "📏 حجم build.log.gz:"
         ls -lh logs/build.log.gz
-
-    # تنظيف
-    - name: Cleanup build files
-      if: always()
-      run: |
-        echo "🧹 تنظيف الملفات الوسيطة..."
-        
-        find out/ -name "*.o" -delete 2>/dev/null || true
-        find out/ -name "*.cmd" -delete 2>/dev/null || true
-        find out/ -name "*.d" -delete 2>/dev/null || true
-        
-        rm -rf $HOME/.ccache
-        rm -rf zycromerz-clang
-        
-        echo "📊 المساحة بعد التنظيف:"
-        df -h
 
     # 7️⃣ Symbol analysis
     - name: Symbol analysis
@@ -506,9 +395,7 @@ jobs:
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
-        echo "  - Swap: 16GB مفعل"
         echo "  - CCache: 5GB"
-        echo "  - LDFLAGS: -Wl,--threads=1"
         echo ""
         echo "📦 الملفات المنتجة:"
         ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "⚠️  ZIP غير موجود"
