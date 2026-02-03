@@ -249,28 +249,37 @@ jobs:
     # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
     - name: Export env
       run: |
-        echo "ARCH=arm64" >> $GITHUB_ENV
-        echo "SUBARCH=arm64" >> $GITHUB_ENV
-        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        
-        # إعداد MAKEFLAGS مع jobserver-auth (بعد حساب CORES)
-        TOTAL_CORES=$(nproc)
-        CORES=$(($TOTAL_CORES / 2))
-        [ $CORES -lt 2 ] && CORES=2
-        
-        # التحقق إذا make يدعم jobserver-auth
-        if make --help 2>&1 | grep -q "jobserver-auth"; then
-            echo "✅ make يدعم jobserver-auth"
-            echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
-            echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
-        else
-            echo "⚠️ make لا يدعم jobserver-auth"
-            echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-            echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
-        fi
+       echo "ARCH=arm64" >> $GITHUB_ENV
+       echo "SUBARCH=arm64" >> $GITHUB_ENV
+       echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+       echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+       echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+       echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+       
+       # حساب CORES هنا مرة واحدة
+       TOTAL_CORES=$(nproc)
+       echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
+
+       CORES=$(($TOTAL_CORES / 2))
+       [ $CORES -lt 2 ] && CORES=2
+       echo "CORES=$CORES" >> $GITHUB_ENV
+       
+       # التحقق الدقيق من إصدار make
+       echo "🔍 التحقق من إصدار make..."
+       MAKE_VERSION=$(make --version 2>&1 | head -1)
+       echo "make version: $MAKE_VERSION"
+       
+       # تحسين التحقق
+       if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
+        echo "✅ GNU Make 4.x - يدعم jobserver-auth"
+        echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+       elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
+        echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
+        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+       else
+        echo "❌ make غير GNU (قد يكون bmake أو busybox)"
+        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+       fi
         
         # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
