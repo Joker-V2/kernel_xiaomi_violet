@@ -352,6 +352,7 @@ jobs:
         echo "🏗️  بدء عملية البناء..."
         make O=out -j$CORES \
         CC="ccache clang" \
+        KCFLAGS="-no-integrated-as" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
