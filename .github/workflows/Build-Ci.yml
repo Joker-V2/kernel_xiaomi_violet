@@ -118,7 +118,7 @@ jobs:
         echo "📥 تحميل ZyCromerZ Clang..."
         
         # ⭐⭐ يمكن تغيير الرابط هنا فقط ⭐⭐
-        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
+        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
         
         wget -q "$CLANG_URL" -O zycromerz-clang.tar.gz
         
@@ -226,7 +226,7 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env مع LDFLAGS
+    # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
@@ -235,7 +235,10 @@ jobs:
         echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
+        # رفع حد الـ Stack للعمليات لتفادي انقطاع الأنابيب
+        ulimit -s unlimited
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -306,15 +309,15 @@ jobs:
         TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # 🟢 الخيار 1: جميع الأنوية (مفعّل حالياً) 🟢
+        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
         #   - أسرع بناء
         #   - مناسب للأنظمة القوية
         #   - قد يستهلك ذاكرة أكثر
         # CORES=$TOTAL_CORES
         
-        # 🔵 الخيار 2: نصف الأنوية 🔵
+        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
         #   - أكثر استقراراً
-        #   - أفضل مع Clang 20
+        #   - أفضل مع Clang 20/21
         #   - مناسب للذاكرة المحدودة
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
@@ -338,8 +341,12 @@ jobs:
         fi
         
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 20، الخيار 2 أكثر استقراراً"
+        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
+        # تحسينات إضافية لثبات العمليات قبل البدء
+        export MAKEFLAGS="-j$CORES"
+        ulimit -s unlimited
+
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • Clang: $CLANG_BIN_NAME"
