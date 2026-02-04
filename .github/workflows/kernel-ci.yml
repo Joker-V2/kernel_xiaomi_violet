@@ -484,11 +484,9 @@ jobs:
 
         # ⭐⭐ بناء defconfig⭐⭐
         make O=out vendor/violet-perf_defconfig \
-         CC=clang \
-         HOSTCC=clang \
-      	 HOSTCXX=clang++ \
-         CROSS_COMPILE="aarch64-linux-android-" \
-         CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+          CC=clang \
+          HOSTCC=clang \
+          HOSTCXX=clang++ \
     
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
