@@ -220,7 +220,7 @@ jobs:
         mkdir -p "$TOOLS_DIR"
         cd "$TOOLS_DIR"
         
-        # 1. استنساخ المستودع
+        # 1. استنسخ المستودع
         git clone --depth 1 --branch tools https://github.com/prabhatkrmishra/android-kernel-tools.git
         
         # 2. ✅ نقل المجلدات الرئيسية الكاملة (ليس فقط bin)
@@ -355,11 +355,12 @@ jobs:
         MAKE_VERSION=$(make --version 2>&1 | head -1)
         echo "make version: $MAKE_VERSION"
        
+        # ✅✅✅ التعديل المهم: إزالة --jobserver-auth=3,4 لتجنب مشكلة defconfig
         # تحسين التحقق
         if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
-          echo "✅ GNU Make 4.x - يدعم jobserver-auth"
-          echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
-          echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
+          echo "✅ GNU Make 4.x - لكن لن نستخدم jobserver-auth لتجنب مشكلة defconfig"
+          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV  # ⭐⭐ التعديل هنا: إزالة --jobserver-auth=3,4 ⭐⭐
+          echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth (لتجنب مشكلة defconfig)"
         elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
           echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
           echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
@@ -417,16 +418,19 @@ jobs:
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig
+    # 5️⃣ Defconfig - ✅ مع التعديل لحل مشكلة jobserver
     - name: Load defconfig
       run: |
-        make O=out vendor/violet-perf_defconfig
+        echo "📖 تحميل defconfig..."
+        echo "📍 استخدام + قبل make لتجنب مشكلة jobserver"
+        +make O=out vendor/violet-perf_defconfig
+        echo "✅ تم تحميل defconfig بنجاح"
 
-    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
+    # 🆕 =========== التعديل الثالث هنا ===========
+    # 6️⃣ Build kernel
     - name: Build kernel
       shell: bash
       env:
-        # ⭐⭐ استخدام CC من export env ⭐⭐
         CC: ${{ env.CC || 'clang' }}
         CROSS_COMPILE: aarch64-linux-android-
         CROSS_COMPILE_ARM32: arm-linux-androideabi-
@@ -440,12 +444,30 @@ jobs:
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
-        echo "🔧 CC المستخدم: $CC"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
-        echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
-        echo "🔧 CLANG_TRIPLE المستخدم: $CLANG_TRIPLE"
+        echo ""
+        echo "📌 مصادر الأدوات (المجلدات الكاملة):"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
+        echo "📁 يأخذ من: ${{ env.AARCH64_TOOLCHAIN_PATH }}/bin"
+        echo "📁 المجلد الكامل يحتوي على: bin/, lib/, libexec/, share/"
+        echo ""
+        echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
+        echo "📁 يأخذ من: ${{ env.ARM32_TOOLCHAIN_PATH }}/bin"
+        echo "📁 المجلد الكامل يحتوي على: bin/, lib/, libexec/, share/"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
-        # ⭐⭐ التحقق من CC المحدد ⭐⭐
+        # ✅ التحقق من أن gcc يعمل مع الهيكل الكامل
+        echo "🔍 اختبار gcc مع الهيكل الكامل..."
+        if [ -f "${{ env.AARCH64_TOOLCHAIN_PATH }}/bin/aarch64-linux-android-gcc" ]; then
+            echo "✅ aarch64-gcc موجود"
+            "${{ env.AARCH64_TOOLCHAIN_PATH }}/bin/aarch64-linux-android-gcc" --version | head -1
+        fi
+        
+        # بقية السكريبت تبقى كما هي...
+        echo "🔧 CC المستخدم: $CC"
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
+        
+        # التحقق من CC المحدد
         if command -v "$CC" >/dev/null 2>&1; then
           echo "✅ $CC موجود في PATH"
           "$CC" --version | head -2
@@ -461,7 +483,7 @@ jobs:
           fi
         fi
         
-        # ⭐⭐ التحقق من CROSS_COMPILE ⭐⭐
+        # التحقق من CROSS_COMPILE
         if command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
           echo "✅ ${CROSS_COMPILE}gcc موجود في PATH"
           "${CROSS_COMPILE}gcc" --version | head -1
@@ -470,46 +492,14 @@ jobs:
           echo "💡 قد يحتاج المسار إلى إضافة إلى PATH"
         fi
         
-        # ============================================
-        # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
-        # ============================================
-        
         TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
-        #   - أسرع بناء
-        #   - مناسب للأنظمة القوية
-        #   - قد يستهلك ذاكرة أكثر
-        # CORES=$TOTAL_CORES
-        
-        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
-        #   - أكثر استقراراً
-        #   - أفضل مع Clang 20/21
-        #   - مناسب للذاكرة المحدودة
+        # استخدام نصف الأنوية (كما في export env)
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
         
-        # ============================================
-        # ⚠️  تعليمات التبديل:
-        # 1. أضف # قبل السطر الذي تريد تعطيله
-        # 2. احذف # من السطر الذي تريد تفعيله
-        # 3. مثال: لتفعيل الخيار 2:
-        #    - # CORES=$TOTAL_CORES ← مضاف #
-        #    - CORES=$(($TOTAL_CORES / 2)) ← محذوف #
-        # ============================================
-        
-        # ✅ عرض الخيار المفعّل
-        if [ $CORES -eq $TOTAL_CORES ]; then
-            echo "✅ الخيار المفعّل: جميع الأنوية"
-            echo "⚡ السرعة: عالية | الاستقرار: متوسط"
-        else
-            echo "✅ الخيار المفعّل: نصف الأنوية"  
-            echo "⚡ السرعة: متوسطة | الاستقرار: عالي"
-        fi
-        
         echo "🎯 الأنوية المستخدمة: $CORES"
-        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
         # تحسينات إضافية لثبات العمليات قبل البدء
         export MAKEFLAGS="-j$CORES"
@@ -518,7 +508,7 @@ jobs:
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • CC: $CC (ZyCromerZ)"
-        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
+        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
         echo "  • CROSS_COMPILE: $CROSS_COMPILE (Android Toolchains)"
         echo "  • CLANG_TRIPLE: $CLANG_TRIPLE"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
@@ -559,7 +549,7 @@ jobs:
             echo "✅✅✅ تم بناء النواة بنجاح!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - CC: $CC (ZyCromerZ)"
-            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
+            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
             echo "   - CROSS_COMPILE: $CROSS_COMPILE (Android Toolchains)"
             echo "   - CLANG_TRIPLE: $CLANG_TRIPLE"
             echo "   - الأنوية: $CORES"
