@@ -418,12 +418,10 @@ jobs:
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig - ✅ مع التعديل لحل مشكلة jobserver
+    # 5️⃣ Defconfig 
     - name: Load defconfig
       run: |
-        echo "📖 تحميل defconfig..."
-        echo "📍 استخدام + قبل make لتجنب مشكلة jobserver"
-        +make O=out vendor/violet-perf_defconfig
+        make O=out vendor/violet-perf_defconfig
         echo "✅ تم تحميل defconfig بنجاح"
 
     # 🆕 =========== التعديل الثالث هنا ===========
