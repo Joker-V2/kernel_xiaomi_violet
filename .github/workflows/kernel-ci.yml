@@ -243,7 +243,10 @@ jobs:
         
         # 3. التحقق من الهيكل
         echo "🔍 التحقق من هيكل المجلدات..."
-        ls -la "$TOOLS_DIR/"
+        echo "📋 aarch64 structure:"
+        ls -la "$TOOLS_DIR/aarch64-linux-android-4.9/" | head -10
+        echo "📋 arm32 structure:"
+        ls -la "$TOOLS_DIR/arm-linux-androideabi-4.9/" | head -10
         
         # 4. إضافة الأدوات إلى PATH
         echo "🔗 إضافة الأدوات إلى PATH..."
