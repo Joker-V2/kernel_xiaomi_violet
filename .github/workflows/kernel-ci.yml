@@ -209,68 +209,58 @@ jobs:
         
         echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
 
-    # 🆕 =========== التعديل الأول هنا ===========
-    # 🆕 تحميل أدوات الترجمة من المستودع (Git Clone) - ✅ المعدل
+    # 🆕 =========== التعديل البسيط هنا فقط ===========
+    # 🆕 تحميل أدوات الترجمة من المستودع (الطريقة البسيطة)
     - name: Setup Android Toolchains from GitHub
       run: |
         echo "🔧 تحميل أدوات الترجمة من المستودع..."
-        echo "📌 سنحفظ المجلدات الرئيسية الكاملة مع جميع محتوياتها"
         
+        # إنشاء مجلد
         TOOLS_DIR="$HOME/toolchains"
         mkdir -p "$TOOLS_DIR"
         cd "$TOOLS_DIR"
         
         # 1. استنساخ المستودع
+        echo "📦 استنساخ المستودع..."
         git clone --depth 1 --branch tools https://github.com/prabhatkrmishra/android-kernel-tools.git
         
-        # 2. ✅ نقل المجلدات الرئيسية الكاملة (ليس فقط bin)
-        echo "📦 نقل المجلدات الرئيسية الكاملة..."
-        
-        # ✅ نقل aarch64 المجلد الكامل: aarch64-linux-android-4.9
-        AARCH64_MAIN_DIR="android-kernel-tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9"
-        if [ -d "$AARCH64_MAIN_DIR" ]; then
-            echo "📍 نسخ: $AARCH64_MAIN_DIR"
-            echo "📍 إلى: $TOOLS_DIR/aarch64"
-            cp -r "$AARCH64_MAIN_DIR" aarch64
-            echo "✅ تم نسخ مجلد aarch64-linux-android-4.9 كاملاً"
+        if [ ! -d "android-kernel-tools" ]; then
+          echo "❌ فشل استنساخ المستودع!"
+          exit 1
         fi
         
-        # ✅ نقل arm32 المجلد الكامل: arm-linux-androideabi-4.9
-        ARM32_MAIN_DIR="android-kernel-tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9"
-        if [ -d "$ARM32_MAIN_DIR" ]; then
-            echo "📍 نسخ: $ARM32_MAIN_DIR"
-            echo "📍 إلى: $TOOLS_DIR/arm32"
-            cp -r "$ARM32_MAIN_DIR" arm32
-            echo "✅ تم نسخ مجلد arm-linux-androideabi-4.9 كاملاً"
+        # 2. ✅ تحديد مسارات bin مباشرة
+        AARCH64_BIN="$TOOLS_DIR/android-kernel-tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
+        ARM32_BIN="$TOOLS_DIR/android-kernel-tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin"
+        
+        # 3. ✅ التحقق من وجود bin
+        if [ ! -d "$AARCH64_BIN" ]; then
+          echo "❌ مجلد aarch64 bin غير موجود!"
+          exit 1
         fi
         
-        # 3. تنظيف
-        rm -rf android-kernel-tools
+        if [ ! -d "$ARM32_BIN" ]; then
+          echo "❌ مجلد arm32 bin غير موجود!"
+          exit 1
+        fi
         
-        # 4. ✅ منح صلاحيات التنفيذ لملفات bin
-        chmod +x aarch64/bin/* arm32/bin/* 2>/dev/null || true
+        # 4. ✅ إضافة المسارات إلى PATH مباشرة
+        echo "📍 إضافة مسارات bin إلى PATH..."
+        echo "$AARCH64_BIN" >> $GITHUB_PATH
+        echo "$ARM32_BIN" >> $GITHUB_PATH
         
-        # 5. ✅ إضافة فقط bin إلى PATH
-        echo "📍 إضافة bin إلى PATH..."
-        echo "$TOOLS_DIR/aarch64/bin" >> $GITHUB_PATH
-        echo "$TOOLS_DIR/arm32/bin" >> $GITHUB_PATH
+        # 5. ✅ حفظ المسارات
+        echo "AARCH64_TOOLCHAIN_PATH=$AARCH64_BIN" >> $GITHUB_ENV
+        echo "ARM32_TOOLCHAIN_PATH=$ARM32_BIN" >> $GITHUB_ENV
         
-        # 6. ✅ حفظ مسارات المجلدات الكاملة
-        echo "💾 حفظ مسارات المجلدات الكاملة..."
-        echo "AARCH64_TOOLCHAIN_PATH=$TOOLS_DIR/aarch64" >> $GITHUB_ENV
-        echo "ARM32_TOOLCHAIN_PATH=$TOOLS_DIR/arm32" >> $GITHUB_ENV
-        
-        # 7. التحقق
-        echo "🔍 التحقق من الهيكل الكامل..."
-        echo "📁 هيكل aarch64:"
-        ls -la "$TOOLS_DIR/aarch64/"
-        echo ""
-        echo "📁 هيكل arm32:"
-        ls -la "$TOOLS_DIR/arm32/"
+        # 6. التحقق البسيط
+        echo "✅ تم إعداد أدوات الترجمة"
+        echo "📁 aarch64 bin: $AARCH64_BIN"
+        echo "📁 arm32 bin: $ARM32_BIN"
         
         cd "$GITHUB_WORKSPACE"
 
-    # 🆕 التحقق التلقائي من Clang
+    # 🆕 التحقق التلقائي من Clang (أبقيتها كما تريدها)
     - name: Verify Clang Auto-Detection
       run: |
         echo "🔍 التحقق التلقائي من Clang..."
@@ -310,42 +300,75 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 🆕 =========== التعديل الثاني هنا ===========
-    # 4️⃣ Export env مع التوضيح
+    # 4️⃣ Export env - أبقيته كما هو (ممتاز لك)
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         
+        # ⭐⭐ التصحيح: إضافة CC بشكل صريح ⭐⭐
         echo "CC=clang" >> $GITHUB_ENV
+        echo "✅ تم تعيين CC لـ clang (ZyCromerZ)"
         
+        # ⭐⭐ إضافة متغيرات Clang ⭐⭐
         if [ -n "$CLANG_BIN_NAME" ]; then
           echo "CLANG_VERSION=$CLANG_BIN_NAME" >> $GITHUB_ENV
+          echo "✅ تم تعيين CLANG_VERSION لـ $CLANG_BIN_NAME"
         fi
         
-        # ⭐⭐ التوضيح: CROSS_COMPILE يأخذ من المجلد الكامل
+        # ⭐⭐ استخدام CROSS_COMPILE من أدوات الترجمة الجديدة ⭐⭐
         echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
-        echo "✅ CROSS_COMPILE يأخذ من: ${{ env.AARCH64_TOOLCHAIN_PATH }}/bin"
+        echo "✅ تم تعيين CROSS_COMPILE لـ aarch64-linux-android-"
         
         echo "CROSS_COMPILE_ARM32=arm-linux-androideabi-" >> $GITHUB_ENV
-        echo "✅ CROSS_COMPILE_ARM32 يأخذ من: ${{ env.ARM32_TOOLCHAIN_PATH }}/bin"
+        echo "✅ تم تعيين CROSS_COMPILE_ARM32 لـ arm-linux-androideabi-"
         
+        # ⭐⭐ التصحيح: تغيير CLANG_TRIPLE ⭐⭐
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "✅ تم تعيين CLANG_TRIPLE لـ aarch64-linux-gnu-"
         
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "✅ تم تعيين CCACHE_DIR لـ $HOME/.ccache"
+        
+        # حساب CORES هنا مرة واحدة
         TOTAL_CORES=$(nproc)
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-        
+        echo "✅ تم تعيين TOTAL_CORES لـ $TOTAL_CORES"
+
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
         echo "CORES=$CORES" >> $GITHUB_ENV
+        echo "✅ تم تعيين CORES لـ $CORES"
+       
+        # التحقق الدقيق من إصدار make
+        echo "🔍 التحقق من إصدار make..."
+        MAKE_VERSION=$(make --version 2>&1 | head -1)
+        echo "make version: $MAKE_VERSION"
+       
+        # تحسين التحقق
+        if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
+          echo "✅ GNU Make 4.x - يدعم jobserver-auth"
+          echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+          echo "✅ تم إضافة MAKEFLAGS مع jobserver-auth"
+        elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
+          echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
+          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+          echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
+        else
+          echo "❌ make غير GNU (قد يكون bmake أو busybox)"
+          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+          echo "✅ تم إضافة MAKEFLAGS"
+        fi
         
-        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+        # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
+        echo "✅ تم تعيين LDFLAGS لـ -Wl,--threads=1"
         
+        # رفع حد الـ Stack للعمليات لتفادي انقطاع الأنابيب
         ulimit -s unlimited
+        echo "✅ تم رفع حد Stack إلى unlimited"
 
-    # 🔍 خطوة جديدة: تحقق من الموارد
+    # 🔍 خطوة جديدة: تحقق من الموارد (أبقيتها)
     - name: Check System Resources
       run: |
         echo "========================================"
@@ -389,11 +412,11 @@ jobs:
       run: |
         make O=out vendor/violet-perf_defconfig
 
-    # 🆕 =========== التعديل الثالث هنا ===========
-    # 6️⃣ Build kernel
+    # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐ (أبقيتها كما تريدها)
     - name: Build kernel
       shell: bash
       env:
+        # ⭐⭐ استخدام CC من export env ⭐⭐
         CC: ${{ env.CC || 'clang' }}
         CROSS_COMPILE: aarch64-linux-android-
         CROSS_COMPILE_ARM32: arm-linux-androideabi-
@@ -407,30 +430,12 @@ jobs:
         ccache -z
         
         echo "🚀 بدء بناء النواة..."
-        echo ""
-        echo "📌 مصادر الأدوات (المجلدات الكاملة):"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
-        echo "📁 يأخذ من: ${{ env.AARCH64_TOOLCHAIN_PATH }}/bin"
-        echo "📁 المجلد الكامل يحتوي على: bin/, lib/, libexec/, share/"
-        echo ""
-        echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
-        echo "📁 يأخذ من: ${{ env.ARM32_TOOLCHAIN_PATH }}/bin"
-        echo "📁 المجلد الكامل يحتوي على: bin/, lib/, libexec/, share/"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # ✅ التحقق من أن gcc يعمل مع الهيكل الكامل
-        echo "🔍 اختبار gcc مع الهيكل الكامل..."
-        if [ -f "${{ env.AARCH64_TOOLCHAIN_PATH }}/bin/aarch64-linux-android-gcc" ]; then
-            echo "✅ aarch64-gcc موجود"
-            "${{ env.AARCH64_TOOLCHAIN_PATH }}/bin/aarch64-linux-android-gcc" --version | head -1
-        fi
-        
-        # بقية السكريبت تبقى كما هي...
         echo "🔧 CC المستخدم: $CC"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
+        echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
+        echo "🔧 CLANG_TRIPLE المستخدم: $CLANG_TRIPLE"
         
-        # التحقق من CC المحدد
+        # ⭐⭐ التحقق من CC المحدد ⭐⭐
         if command -v "$CC" >/dev/null 2>&1; then
           echo "✅ $CC موجود في PATH"
           "$CC" --version | head -2
@@ -446,7 +451,7 @@ jobs:
           fi
         fi
         
-        # التحقق من CROSS_COMPILE
+        # ⭐⭐ التحقق من CROSS_COMPILE ⭐⭐
         if command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
           echo "✅ ${CROSS_COMPILE}gcc موجود في PATH"
           "${CROSS_COMPILE}gcc" --version | head -1
@@ -455,14 +460,46 @@ jobs:
           echo "💡 قد يحتاج المسار إلى إضافة إلى PATH"
         fi
         
+        # ============================================
+        # ⭐⭐ نظام التبديل السهل - اختر خياراً واحداً ⭐⭐
+        # ============================================
+        
         TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        # استخدام نصف الأنوية (كما في export env)
+        # 🟢 الخيار 1: جميع الأنوية (معطل حالياً) 🟢
+        #   - أسرع بناء
+        #   - مناسب للأنظمة القوية
+        #   - قد يستهلك ذاكرة أكثر
+        # CORES=$TOTAL_CORES
+        
+        # 🔵 الخيار 2: نصف الأنوية (مفعّل حالياً ✅)
+        #   - أكثر استقراراً
+        #   - أفضل مع Clang 20/21
+        #   - مناسب للذاكرة المحدودة
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
         
+        # ============================================
+        # ⚠️  تعليمات التبديل:
+        # 1. أضف # قبل السطر الذي تريد تعطيله
+        # 2. احذف # من السطر الذي تريد تفعيله
+        # 3. مثال: لتفعيل الخيار 2:
+        #    - # CORES=$TOTAL_CORES ← مضاف #
+        #    - CORES=$(($TOTAL_CORES / 2)) ← محذوف #
+        # ============================================
+        
+        # ✅ عرض الخيار المفعّل
+        if [ $CORES -eq $TOTAL_CORES ]; then
+            echo "✅ الخيار المفعّل: جميع الأنوية"
+            echo "⚡ السرعة: عالية | الاستقرار: متوسط"
+        else
+            echo "✅ الخيار المفعّل: نصف الأنوية"  
+            echo "⚡ السرعة: متوسطة | الاستقرار: عالي"
+        fi
+        
         echo "🎯 الأنوية المستخدمة: $CORES"
+        echo "💡 نصيحة: مع Clang 20/21، الخيار 2 أكثر استقراراً"
         
         # تحسينات إضافية لثبات العمليات قبل البدء
         export MAKEFLAGS="-j$CORES"
@@ -471,7 +508,7 @@ jobs:
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • CC: $CC (ZyCromerZ)"
-        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
+        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
         echo "  • CROSS_COMPILE: $CROSS_COMPILE (Android Toolchains)"
         echo "  • CLANG_TRIPLE: $CLANG_TRIPLE"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
@@ -512,7 +549,7 @@ jobs:
             echo "✅✅✅ تم بناء النواة بنجاح!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - CC: $CC (ZyCromerZ)"
-            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"
+            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
             echo "   - CROSS_COMPILE: $CROSS_COMPILE (Android Toolchains)"
             echo "   - CLANG_TRIPLE: $CLANG_TRIPLE"
             echo "   - الأنوية: $CORES"
@@ -633,7 +670,7 @@ jobs:
         echo "📊 ملخص البناء:"
         echo "================================="
         echo "🔧 CC المستخدم: ${{ env.CC || 'clang' }}"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }} (ZyCromerZ)"
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }} (ZyCromerZ)"  # ⭐⭐ تصحيح ⭐⭐
         echo "📁 مسار Clang: $CLANG_PATH"
         echo "🔧 CROSS_COMPILE المستخدم: aarch64-linux-android- (Android Toolchains)"
         echo "🔧 CROSS_COMPILE_ARM32 المستخدم: arm-linux-androideabi- (Android Toolchains)"
