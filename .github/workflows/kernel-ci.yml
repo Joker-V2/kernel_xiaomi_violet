@@ -755,7 +755,7 @@ jobs:
         echo "📁 مسار Clang: $CLANG_PATH"
         echo "🔧 CROSS_COMPILE المستخدم: aarch64-linux-android- (Android Toolchains)"
         echo "🔧 CROSS_COMPILE_ARM32 المستخدم: arm-linux-androideabi- (Android Toolchains)"
-        echo "🔧 CLANG_TRIPLE المستخدم: aarch64-linux-gnu-"
+        echo "🔧 CLANG_TRIPLE المستخدم: aarch64-linux-android-"
         echo ""
         echo "⚡ إعدادات البناء:"
         echo "  - الأنوية: $TOTAL_CORES أنوية"
