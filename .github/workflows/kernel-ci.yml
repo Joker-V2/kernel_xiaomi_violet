@@ -209,7 +209,7 @@ jobs:
         
         echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
 
-    # 🆕 تحميل أدوات الترجمة مباشرة من الروابط (بدون git clone) ⭐⭐
+    # 🆕 تحميل أدوات الترجمة مباشرة من الروابط (بدون git clone) - ✅ تصحيح نهائي
     - name: Download Android Toolchains Directly
       run: |
         echo "🔧 تحميل أدوات الترجمة مباشرة من الروابط المحددة..."
@@ -223,84 +223,127 @@ jobs:
         AARCH64_URL="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/5c970a204b44b1002fd9cbc954084c03e7bf9008.tar.gz"
         ARM32_URL="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/326e6d4b31cc8c4e3adcf54672735d6f20a60503.tar.gz"
         
-        # 1. تحميل وتفريغ aarch64 toolchain
-        echo "📥 تحميل aarch64 toolchain..."
-        echo "📎 الرابط: $AARCH64_URL"
-        curl -L "$AARCH64_URL" -o aarch64-toolchain.tar.gz
+        echo "📥 تحميل وتفريغ أدوات الترجمة..."
         
-        echo "📦 فك ضغط aarch64..."
+        # 1. تحميل aarch64 toolchain
+        echo "🔧 معالجة aarch64..."
+        curl -L "$AARCH64_URL" -o aarch64-full.tar.gz
+        
+        # ✅ تصحيح: فك الضغط للحفاظ على هيكل الملفات
+        mkdir -p aarch64-temp
+        tar -xzf aarch64-full.tar.gz -C aarch64-temp
+        rm -f aarch64-full.tar.gz
+        
+        # ✅ البحث عن مجلد bin ونقل محتوياته
+        echo "🔍 البحث عن مجلد bin في aarch64..."
         mkdir -p aarch64
-        tar -xzf aarch64-toolchain.tar.gz -C aarch64 --strip-components=1
-        rm -f aarch64-toolchain.tar.gz
         
-        # 2. تحميل وتفريغ arm32 toolchain
-        echo "📥 تحميل arm32 toolchain..."
-        echo "📎 الرابط: $ARM32_URL"
-        curl -L "$ARM32_URL" -o arm32-toolchain.tar.gz
+        if [ -d "aarch64-temp/bin" ]; then
+            echo "📁 وجد bin! نسخ الملفات..."
+            cp -r aarch64-temp/bin/* aarch64/
+            echo "✅ تم نسخ $(ls aarch64/ | wc -l) ملف من bin إلى aarch64/"
+        elif [ -d "aarch64-temp" ]; then
+            echo "📁 نسخ جميع ملفات aarch64 (بدون bin)..."
+            cp -r aarch64-temp/* aarch64/
+            echo "✅ تم نسخ $(find aarch64 -type f | wc -l) ملف إلى aarch64/"
+        fi
         
-        echo "📦 فك ضغط arm32..."
+        rm -rf aarch64-temp
+        
+        # 2. تحميل arm32 toolchain
+        echo "🔧 معالجة arm32..."
+        curl -L "$ARM32_URL" -o arm32-full.tar.gz
+        
+        # ✅ تصحيح: فك الضغط للحفاظ على هيكل الملفات
+        mkdir -p arm32-temp
+        tar -xzf arm32-full.tar.gz -C arm32-temp
+        rm -f arm32-full.tar.gz
+        
+        # ✅ البحث عن مجلد bin ونقل محتوياته
+        echo "🔍 البحث عن مجلد bin في arm32..."
         mkdir -p arm32
-        tar -xzf arm32-toolchain.tar.gz -C arm32 --strip-components=1
-        rm -f arm32-toolchain.tar.gz
         
-        # 3. البحث عن الملفات التنفيذية
-        echo "🔍 البحث عن الملفات التنفيذية..."
+        if [ -d "arm32-temp/bin" ]; then
+            echo "📁 وجد bin! نسخ الملفات..."
+            cp -r arm32-temp/bin/* arm32/
+            echo "✅ تم نسخ $(ls arm32/ | wc -l) ملف من bin إلى arm32/"
+        elif [ -d "arm32-temp" ]; then
+            echo "📁 نسخ جميع ملفات arm32 (بدون bin)..."
+            cp -r arm32-temp/* arm32/
+            echo "✅ تم نسخ $(find arm32 -type f | wc -l) ملف إلى arm32/"
+        fi
+        
+        rm -rf arm32-temp
+        
+        # 3. منح صلاحيات التنفيذ
+        echo "🔧 منح صلاحيات التنفيذ..."
+        chmod +x aarch64/* arm32/* 2>/dev/null || true
+        
+        # 4. البحث عن الملفات المهمة
+        echo "🔍 البحث عن الملفات الرئيسية..."
         
         # البحث عن aarch64-linux-android-gcc
-        AARCH64_GCC=$(find "$TOOLS_DIR/aarch64" -type f -executable \( -name "aarch64-linux-android-gcc" -o -name "*aarch64*gcc" \) 2>/dev/null | head -1)
+        AARCH64_GCC=$(find aarch64 -name "*aarch64-linux-android*gcc" -type f | head -1)
         if [ -z "$AARCH64_GCC" ]; then
-            AARCH64_GCC=$(find "$TOOLS_DIR/aarch64" -type f \( -name "aarch64-linux-android-gcc" -o -name "*aarch64*gcc" \) 2>/dev/null | head -1)
+            AARCH64_GCC=$(find aarch64 -name "*gcc" -type f | head -1)
         fi
         
         # البحث عن arm-linux-androideabi-gcc
-        ARM32_GCC=$(find "$TOOLS_DIR/arm32" -type f -executable \( -name "arm-linux-androideabi-gcc" -o -name "*arm*gcc" \) 2>/dev/null | head -1)
+        ARM32_GCC=$(find arm32 -name "*arm-linux-androideabi*gcc" -type f | head -1)
         if [ -z "$ARM32_GCC" ]; then
-            ARM32_GCC=$(find "$TOOLS_DIR/arm32" -type f \( -name "arm-linux-androideabi-gcc" -o -name "*arm*gcc" \) 2>/dev/null | head -1)
+            ARM32_GCC=$(find arm32 -name "*gcc" -type f | head -1)
         fi
         
-        # 4. التحقق من وجود الملفات
+        # 5. التحقق من الملفات
         if [ -n "$AARCH64_GCC" ] && [ -f "$AARCH64_GCC" ]; then
-            AARCH64_PATH=$(dirname "$AARCH64_GCC")
-            echo "✅ وجد aarch64-gcc في: $AARCH64_PATH"
-            chmod +x "$AARCH64_GCC" 2>/dev/null || true
+            AARCH64_PATH="$TOOLS_DIR/aarch64"
+            echo "✅ وجد aarch64-gcc: $(basename "$AARCH64_GCC")"
+            echo "📁 المسار: $AARCH64_PATH"
             
-            # إنشاء رابط رمزي لـ aarch64-linux-android-
-            if [ ! -L "$AARCH64_PATH/aarch64-linux-android-" ] && [ ! -f "$AARCH64_PATH/aarch64-linux-android-" ]; then
-                # إنشاء رابط للملفات الرئيسية
-                for prefix in "aarch64-linux-android-" "arm-linux-androideabi-"; do
-                    # هذا سيعمل كسويفكس للملفات
-                    echo "🔗 إعداد بادئة $prefix"
-                done
+            # التحقق من أن الملف قابل للتنفيذ
+            if [ -x "$AARCH64_GCC" ]; then
+                echo "✅ الملف قابل للتنفيذ"
+            else
+                chmod +x "$AARCH64_GCC"
+                echo "🔧 تم منح صلاحيات التنفيذ"
             fi
         else
             echo "❌ لم يتم العثور على aarch64-gcc"
             echo "📋 محتويات مجلد aarch64:"
-            find "$TOOLS_DIR/aarch64" -type f | head -10
+            ls -la aarch64/ | head -10
             exit 1
         fi
         
         if [ -n "$ARM32_GCC" ] && [ -f "$ARM32_GCC" ]; then
-            ARM32_PATH=$(dirname "$ARM32_GCC")
-            echo "✅ وجد arm32-gcc في: $ARM32_PATH"
-            chmod +x "$ARM32_GCC" 2>/dev/null || true
+            ARM32_PATH="$TOOLS_DIR/arm32"
+            echo "✅ وجد arm32-gcc: $(basename "$ARM32_GCC")"
+            echo "📁 المسار: $ARM32_PATH"
+            
+            # التحقق من أن الملف قابل للتنفيذ
+            if [ -x "$ARM32_GCC" ]; then
+                echo "✅ الملف قابل للتنفيذ"
+            else
+                chmod +x "$ARM32_GCC"
+                echo "🔧 تم منح صلاحيات التنفيذ"
+            fi
         else
             echo "❌ لم يتم العثور على arm32-gcc"
             echo "📋 محتويات مجلد arm32:"
-            find "$TOOLS_DIR/arm32" -type f | head -10
+            ls -la arm32/ | head -10
             exit 1
         fi
         
-        # 5. إضافة المسارات إلى PATH
+        # 6. إضافة المسارات إلى PATH
         echo "📍 إضافة مسارات الأدوات إلى PATH..."
         echo "$AARCH64_PATH" >> $GITHUB_PATH
         echo "$ARM32_PATH" >> $GITHUB_PATH
         
-        # 6. حفظ المتغيرات البيئية
+        # 7. حفظ المتغيرات البيئية
         echo "💾 حفظ إعدادات المسارات..."
         echo "AARCH64_TOOLCHAIN_PATH=$AARCH64_PATH" >> $GITHUB_ENV
         echo "ARM32_TOOLCHAIN_PATH=$ARM32_PATH" >> $GITHUB_ENV
         
-        # 7. التحقق النهائي
+        # 8. التحقق النهائي
         echo ""
         echo "🔍 التحقق النهائي من الأدوات:"
         echo "=============================="
@@ -308,14 +351,18 @@ jobs:
         echo "📊 معلومات aarch64:"
         if [ -f "$AARCH64_GCC" ]; then
             "$AARCH64_GCC" --version | head -1
-            echo "📁 مسار: $AARCH64_PATH"
+            echo "📁 عدد الملفات: $(ls aarch64/ | wc -l)"
+            echo "📋 عينة الملفات:"
+            ls aarch64/ | grep -E "gcc|g\+\+|ld|as" | head -5
         fi
         
         echo ""
         echo "📊 معلومات arm32:"
         if [ -f "$ARM32_GCC" ]; then
             "$ARM32_GCC" --version | head -1
-            echo "📁 مسار: $ARM32_PATH"
+            echo "📁 عدد الملفات: $(ls arm32/ | wc -l)"
+            echo "📋 عينة الملفات:"
+            ls arm32/ | grep -E "gcc|g\+\+|ld|as" | head -5
         fi
         
         echo ""
@@ -525,24 +572,22 @@ jobs:
           echo "✅ ${CROSS_COMPILE}gcc موجود في PATH"
           "${CROSS_COMPILE}gcc" --version | head -1
         else
-          echo "⚠️  تحذير: ${CROSS_COMPILE}gcc غير موجود في PATH!"
+          echo "⚠️  تحذير: ${CROSS_COMPILE}gcc غير موجود في PATH مباشرة!"
           echo "💡 البحث في المسارات المخصصة..."
           
-          # البحث في المسار المحفوظ
+          # استخدام المسار المحفوظ
           if [ -n "${{ env.AARCH64_TOOLCHAIN_PATH }}" ]; then
-            echo "🔍 البحث في: ${{ env.AARCH64_TOOLCHAIN_PATH }}"
-            if [ -f "${{ env.AARCH64_TOOLCHAIN_PATH }}/aarch64-linux-android-gcc" ]; then
-              echo "✅ وجد aarch64-linux-android-gcc في المسار المخصص"
-              export CROSS_COMPILE_PATH="${{ env.AARCH64_TOOLCHAIN_PATH }}/"
+            echo "🔍 استخدام المسار: ${{ env.AARCH64_TOOLCHAIN_PATH }}"
+            export PATH="${{ env.AARCH64_TOOLCHAIN_PATH }}:$PATH"
+            
+            if command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+              echo "✅ وجد ${CROSS_COMPILE}gcc بعد إضافة المسار"
+              "${CROSS_COMPILE}gcc" --version | head -1
+            else
+              echo "❌ لم يتم العثور على ${CROSS_COMPILE}gcc حتى بعد إضافة المسار"
+              echo "📋 محتويات المسار:"
+              ls "${{ env.AARCH64_TOOLCHAIN_PATH }}/" | grep -i gcc || true
             fi
-          fi
-          
-          # بحث عام
-          AARCH64_GCC=$(find "$HOME/toolchains" -name "aarch64-linux-android-gcc" -type f 2>/dev/null | head -1)
-          if [ -n "$AARCH64_GCC" ]; then
-            export CROSS_COMPILE_PATH=$(dirname "$AARCH64_GCC")/
-            echo "✅ وجد: $AARCH64_GCC"
-            echo "📁 المسار: $CROSS_COMPILE_PATH"
           fi
         fi
         
@@ -595,8 +640,8 @@ jobs:
         echo "📋 الإعدادات النهائية:"
         echo "  • CC: $CC (ZyCromerZ)"
         echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
-        echo "  • CROSS_COMPILE: $CROSS_COMPILE (من الروابط المباشرة)"
-        echo "  • CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32 (من الروابط المباشرة)"
+        echo "  • CROSS_COMPILE: $CROSS_COMPILE (من android.googlesource.com)"
+        echo "  • CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32 (من android.googlesource.com)"
         echo "  • CLANG_TRIPLE: $CLANG_TRIPLE"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
         echo "  • Swap: 16GB"
