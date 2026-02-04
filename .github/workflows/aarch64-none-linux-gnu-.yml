@@ -18,7 +18,7 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies (بدون gcc-aarch64-linux-gnu)
+    # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -423,7 +423,7 @@ jobs:
         
         echo "🚀 بدء بناء النواة..."
         echo "🔧 CC المستخدم: $CC"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || 'غير محدد' }}"
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
         echo "🔧 CROSS_COMPILE المستخدم: $CROSS_COMPILE"
         echo "🔧 CLANG_TRIPLE المستخدم: $CLANG_TRIPLE"
         
@@ -500,7 +500,7 @@ jobs:
         # التحقق من الإعدادات
         echo "📋 الإعدادات النهائية:"
         echo "  • CC: $CC (ZyCromerZ)"
-        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || $CLANG_BIN_NAME }}"
+        echo "  • CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
         echo "  • CROSS_COMPILE: $CROSS_COMPILE (ARM GNU Toolchain)"
         echo "  • CLANG_TRIPLE: $CLANG_TRIPLE"
         echo "  • الأنوية: $CORES/$TOTAL_CORES"
@@ -535,7 +535,7 @@ jobs:
             echo "✅✅✅ تم بناء النواة بنجاح!"
             echo "🎯 الإعدادات المستخدمة:"
             echo "   - CC: $CC (ZyCromerZ)"
-            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || $CLANG_BIN_NAME }}"
+            echo "   - CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }}"  # ⭐⭐ تصحيح ⭐⭐
             echo "   - CROSS_COMPILE: $CROSS_COMPILE (ARM GNU Toolchain)"
             echo "   - CLANG_TRIPLE: $CLANG_TRIPLE"
             echo "   - الأنوية: $CORES"
@@ -655,7 +655,7 @@ jobs:
         echo "📊 ملخص البناء:"
         echo "================================="
         echo "🔧 CC المستخدم: ${{ env.CC || 'clang' }}"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || $CLANG_BIN_NAME }} (ZyCromerZ)"
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }} (ZyCromerZ)"  # ⭐⭐ تصحيح ⭐⭐
         echo "📁 مسار Clang: $CLANG_PATH"
         echo "🔧 CROSS_COMPILE المستخدم: aarch64-none-linux-gnu- (ARM GNU Toolchain)"
         echo "🔧 CLANG_TRIPLE المستخدم: aarch64-none-linux-gnu-"
