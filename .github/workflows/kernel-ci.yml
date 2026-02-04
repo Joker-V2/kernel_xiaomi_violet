@@ -602,7 +602,7 @@ jobs:
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
         LLVM=1 \
-        LLVM_IAS=1 \
+        LLVM_IAS=0 \
         2>&1 | tee logs/build.log
         
         BUILD_STATUS=${PIPESTATUS[0]}
