@@ -386,8 +386,8 @@ jobs:
         echo "✅ تم تعيين CROSS_COMPILE_ARM32 لـ arm-linux-androideabi-"
         
         # ⭐⭐ التصحيح: تغيير CLANG_TRIPLE ⭐⭐
-        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "✅ تم تعيين CLANG_TRIPLE لـ aarch64-linux-gnu-"
+        echo "CLANG_TRIPLE=aarch64-linux-android-" >> $GITHUB_ENV
+        echo "✅ تم تعيين CLANG_TRIPLE لـ aarch64-linux-android-"
         
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         echo "✅ تم تعيين CCACHE_DIR لـ $HOME/.ccache"
@@ -493,7 +493,7 @@ jobs:
         CC: ${{ env.CC || 'clang' }}
         CROSS_COMPILE: aarch64-linux-android-
         CROSS_COMPILE_ARM32: arm-linux-androideabi-
-        CLANG_TRIPLE: arch64-linux-android-
+        CLANG_TRIPLE: aarch64-linux-android-
         LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
