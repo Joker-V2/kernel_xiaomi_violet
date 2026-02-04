@@ -483,7 +483,7 @@ jobs:
         echo "🧪 تجربة defconfig بمتغيرات مختلفة..."
 
         # ⭐⭐ بناء defconfig⭐⭐
-        make O=out vendor/violet-perf_defconfig \
+        make O=out \
              CC=clang \
              AR=llvm-ar \
              NM=llvm-nm \
