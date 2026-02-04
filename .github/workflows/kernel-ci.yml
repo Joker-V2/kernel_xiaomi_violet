@@ -482,11 +482,15 @@ jobs:
 
         echo "🧪 تجربة defconfig بمتغيرات مختلفة..."
 
-        # المحاولة 1: مع HOSTCC فقط
-        make O=out vendor/violet-perf_defconfig HOSTCC=gcc 2>&1 | grep -v "error trying to exec" || true
-
-        # المحاولة 2: مع CC=gcc مؤقتاً
-        CC=gcc make O=out vendor/violet-perf_defconfig 2>&1 | tail -20
+        # ⭐⭐ بناء defconfig بأدوات GNU فقط (بدون LLVM) ⭐⭐
+        make O=out vendor/violet-perf_defconfig \
+         HOSTCC=gcc \
+         HOSTLD=ld \
+         HOSTAR=ar \
+         HOSTNM=nm \
+         HOSTOBJCOPY=objcopy \
+         HOSTOBJDUMP=objdump \
+         HOSTSTRIP=strip
     
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
