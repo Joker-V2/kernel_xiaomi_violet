@@ -62,15 +62,15 @@ jobs:
         
     - name: 📦 Download ZyC Clang 22.0.0
       run: |
-        echo "📥 Downloading ZyC Clang 22.0.0 (20 Sep 2025)..."
-        wget -q --show-progress https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250920-release/Clang-22.0.0git-20250920.tar.gz
+        echo "📥 Downloading ZyC Clang 23.0.0 ..."
+        wget -q --show-progress https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz
         
         echo "📂 Extracting..."
         mkdir clang
-        tar -xf Clang-22.0.0git-20250920.tar.gz -C clang/
-        rm Clang-22.0.0git-20250920.tar.gz
+        tar -xf Clang-23.0.0git-20260130.tar.gz -C clang/
+        rm Clang-23.0.0git-20260130.tar.gz
         
-        echo "✅ ZyC Clang 22.0.0 ready"
+        echo "✅ ZyC Clang 23.0.0 ready"
         echo "📋 Clang version:"
         ./clang/bin/clang --version
         
@@ -97,7 +97,7 @@ jobs:
         
         echo "✅ Defconfig generated successfully"
         
-    - name: 🔨 Compile Kernel with ZyC 22.0.0
+    - name: 🔨 Compile Kernel with ZyC 23.0.0
       run: |
         export PATH="$(pwd)/clang/bin:$PATH"
         export ARCH=arm64
@@ -185,7 +185,7 @@ jobs:
         
         # Create ZIP
         cd AK3
-        ZIPNAME="Violet-KSU-ZyC22-$(date +%Y%m%d-%H%M).zip"
+        ZIPNAME="Violet-KSU-ZyC23-$(date +%Y%m%d-%H%M).zip"
         zip -r9 ../${ZIPNAME} * -x .git README.md .gitignore
         cd ..
         
@@ -201,8 +201,8 @@ jobs:
         wget -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
         
         java -jar zipsigner.jar \
-          Violet-KSU-ZyC22-*.zip \
-          Violet-KSU-ZyC22-SIGNED.zip
+          Violet-KSU-ZyC23-*.zip \
+          Violet-KSU-ZyC23-SIGNED.zip
         
         echo "✅ ZIP signed successfully!"
         
@@ -210,8 +210,8 @@ jobs:
       if: steps.check.outputs.success == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: Violet-KSU-ZyC22-${{ github.run_number }}
-        path: Violet-KSU-ZyC22-*.zip
+        name: Violet-KSU-ZyC23-${{ github.run_number }}
+        path: Violet-KSU-ZyC23-*.zip
         retention-days: 30
         
     - name: 📤 Upload Build Log
