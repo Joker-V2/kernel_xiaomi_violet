@@ -471,16 +471,22 @@ jobs:
 
     # 5️⃣ Defconfig
     - name: Load defconfig
+      env:
+        HOSTCC: gcc
+        HOSTCXX: g++
+        HOSTCFLAGS: -O2
+        HOSTCXXFLAGS: -O2
       run: |
-        echo "🚀 بدء إنشاء defconfig (باستخدام جميع الأنوية)..."
-        
-        # ⭐⭐ الحل الأمثل: صامت + جميع الأنوية + HOSTCC صريح ⭐⭐
-        make -s O=out vendor/violet-perf_defconfig \
-         HOSTCC=gcc \
-         HOSTCXX=g++ \
-         -j$(nproc)
-         
-        echo "✅ تم إنشاء defconfig بنجاح!"
+       echo "🔧 إعداد متغيرات البيئة الكاملة..."
+       # تنظيف 
+       rm -rf out/
+       # بناء defconfig مع بيئة كاملة
+       make O=out vendor/violet-perf_defconfig \
+        ARCH=arm64 \
+        HOSTCC="$HOSTCC" \
+        HOSTCXX="$HOSTCXX" \
+        HOSTCFLAGS="$HOSTCFLAGS" \
+        HOSTCXXFLAGS="$HOSTCXXFLAGS"
     
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
