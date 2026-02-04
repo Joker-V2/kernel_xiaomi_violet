@@ -1,3 +1,4 @@
+
 name: Build Kernel (violet | KernelSu-Next-legacy | susfs-V2.0.0)
 
 on:
@@ -5,7 +6,7 @@ on:
   push:
     branches:
       - zycromerz 
-
+      
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -15,10 +16,10 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
       with:
-        ref: zycromerz
+        ref: zycromerz 
         fetch-depth: 1
 
-    # 2️⃣ Dependencies
+    # 2️⃣ Install dependencies
     - name: Install dependencies
       run: |
         sudo apt update
@@ -52,9 +53,9 @@ jobs:
           libtinfo6 \
           cpio kmod openssl pahole \
           libarchive-tools rsync \
-          util-linux
+          util-linux 
 
-    # 🆕 تحرير مساحة القرص
+    # 3️⃣ Free up disk space
     - name: Free up disk space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -64,12 +65,16 @@ jobs:
         sudo docker image prune --all --force
         df -h
 
-    # 💾 إعداد Swap 16GB
+    # 4️⃣ Setup 16GB Swap
     - name: Setup 16GB Swap
       run: |
         sudo swapoff -a || true
         sudo rm -f /swapfile || true
-        sudo fallocate -l 16G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=16384
+        if command -v fallocate >/dev/null 2>&1; then
+            sudo fallocate -l 16G /swapfile
+        else
+            sudo dd if=/dev/zero of=/swapfile bs=1M count=16384
+        fi
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
@@ -78,10 +83,8 @@ jobs:
         sudo sysctl vm.dirty_ratio=10
         sudo sysctl vm.dirty_background_ratio=5
         sudo sysctl vm.max_map_count=262144 || true
-        free -h
-        swapon --show
 
-    # 3️⃣ Setup ZyCromerZ Clang
+    # 5️⃣ Setup ZyCromerZ Clang
     - name: Setup ZyCromerZ Clang
       run: |
         CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
@@ -90,25 +93,26 @@ jobs:
         tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
         rm -f zycromerz-clang.tar.gz
         CLANG_PATH="$PWD/zycromerz-clang/bin"
-        CLANG_BIN=$(find "$CLANG_PATH" -name "clang-[0-9]*" -type f | head -1)
-        CLANG_BASENAME=$(basename "$CLANG_BIN")
-        ln -sf "$CLANG_BASENAME" "$CLANG_PATH/clang"
-        ln -sf "$(echo "$CLANG_BASENAME" | sed 's/^clang/clang++/')" "$CLANG_PATH/clang++"
         echo "$CLANG_PATH" >> $GITHUB_PATH
         echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
+        CLANG_BIN=$(find "$CLANG_PATH" -name "clang-[0-9]*" -type f | head -1)
+        CLANG_BASENAME=$(basename "$CLANG_BIN")
         echo "CLANG_BIN_NAME=$CLANG_BASENAME" >> $GITHUB_ENV
         echo "FULL_CLANG_PATH=$CLANG_PATH/clang" >> $GITHUB_ENV
 
-    # 4️⃣ Setup Android Toolchains
+    # 6️⃣ Setup Android Toolchains from GitHub
     - name: Setup Android Toolchains
       run: |
         TOOLS_DIR="$HOME/toolchains/android-tools"
         mkdir -p "$TOOLS_DIR"
         cd "$TOOLS_DIR"
         git clone --depth 1 --branch tools https://github.com/prabhatkrmishra/android-kernel-tools.git
-        cp -r android-kernel-tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/* "$TOOLS_DIR/aarch64/"
-        cp -r android-kernel-tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/* "$TOOLS_DIR/arm32/"
-        chmod +x "$TOOLS_DIR/aarch64"/* "$TOOLS_DIR/arm32"/*
+        # Arm64
+        cp -r android-kernel-tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/* aarch64/
+        chmod +x aarch64/*
+        # Arm32
+        cp -r android-kernel-tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/* arm32/
+        chmod +x arm32/*
         echo "$TOOLS_DIR/aarch64" >> $GITHUB_PATH
         echo "$TOOLS_DIR/arm32" >> $GITHUB_PATH
         echo "AARCH64_TOOLCHAIN_PATH=$TOOLS_DIR/aarch64" >> $GITHUB_ENV
@@ -116,86 +120,57 @@ jobs:
         rm -rf android-kernel-tools
         cd "$GITHUB_WORKSPACE"
 
-    # 5️⃣ Export env
-    - name: Export env
+    # 7️⃣ Export env
+    - name: Export environment variables
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "CC=clang" >> $GITHUB_ENV
-        echo "CLANG_VERSION=${CLANG_BIN_NAME}" >> $GITHUB_ENV
+        echo "CLANG_VERSION=$CLANG_BIN_NAME" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
         echo "CROSS_COMPILE_ARM32=arm-linux-androideabi-" >> $GITHUB_ENV
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         TOTAL_CORES=$(nproc)
-        CORES=$(($TOTAL_CORES / 2)); [ $CORES -lt 2 ] && CORES=2
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
+        CORES=$(($TOTAL_CORES / 2)); [ $CORES -lt 2 ] && CORES=2
         echo "CORES=$CORES" >> $GITHUB_ENV
-        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+        MAKE_VERSION=$(make --version | head -1)
+        if echo "$MAKE_VERSION" | grep -q "GNU Make 4"; then
+          echo "MAKEFLAGS=-j$CORES --jobserver-auth=3,4" >> $GITHUB_ENV
+        else
+          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
+        fi
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
         ulimit -s unlimited
 
-    # 6️⃣ Load defconfig
+    # 8️⃣ Load defconfig
     - name: Load defconfig
       run: |
+        echo "✅ إعداد CROSS_COMPILE و CROSS_COMPILE_ARM32 قبل defconfig"
+        export CROSS_COMPILE=$AARCH64_TOOLCHAIN_PATH/aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=$ARM32_TOOLCHAIN_PATH/arm-linux-androideabi-
+        echo "CROSS_COMPILE=$CROSS_COMPILE"
+        echo "CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32"
         make O=out vendor/violet-perf_defconfig
 
-    # 7️⃣ Build kernel
+    # 9️⃣ Build kernel
     - name: Build kernel
       shell: bash
-      env:
-        CC: clang
-        CROSS_COMPILE: aarch64-linux-android-
-        CROSS_COMPILE_ARM32: arm-linux-androideabi-
-        CLANG_TRIPLE: aarch64-linux-gnu-
-        LDFLAGS: "-Wl,--threads=1"
       run: |
-        mkdir -p logs
-        ccache -M 5G
-        ccache -z
+        export CROSS_COMPILE=$AARCH64_TOOLCHAIN_PATH/aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=$ARM32_TOOLCHAIN_PATH/arm-linux-androideabi-
         TOTAL_CORES=$(nproc)
         CORES=$(($TOTAL_CORES / 2)); [ $CORES -lt 2 ] && CORES=2
         make O=out -j$CORES \
-          ARCH=arm64 \
-          SUBARCH=arm64 \
-          CC="ccache clang" \
-          LD=ld.lld \
-          AR=llvm-ar \
-          NM=llvm-nm \
-          OBJCOPY=llvm-objcopy \
-          OBJDUMP=llvm-objdump \
-          STRIP=llvm-strip \
-          CLANG_TRIPLE="$CLANG_TRIPLE" \
-          CROSS_COMPILE="$CROSS_COMPILE" \
-          CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
-          LLVM=1 LLVM_IAS=1 2>&1 | tee logs/build.log
-        BUILD_STATUS=${PIPESTATUS[0]}
-        ccache -s
-        free -h
-        if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
-          echo "✅ Kernel build successful"
-        else
-          echo "❌ Kernel build failed"
-          exit 1
-        fi
-
-    # 8️⃣ Compress logs
-    - name: Compress build log
-      if: always()
-      run: gzip -9 logs/build.log
-
-    # 9️⃣ Cleanup
-    - name: Cleanup build files
-      if: always()
-      run: |
-        find out/ -name "*.o" -delete
-        find out/ -name "*.cmd" -delete
-        find out/ -name "*.d" -delete
-        rm -rf $HOME/.ccache
-        rm -rf zycromerz-clang
-        rm -rf $HOME/toolchains
-        df -h
-
+        ARCH=arm64 SUBARCH=arm64 \
+        CC="ccache clang" \
+        CROSS_COMPILE=$CROSS_COMPILE \
+        CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 \
+        CLANG_TRIPLE=aarch64-linux-gnu- \
+        LLVM=1 LLVM_IAS=1 \
+        2>&1 | tee logs/build.log
+            
     # 🔟 Package AnyKernel3
     - name: Package AnyKernel3
       run: |
