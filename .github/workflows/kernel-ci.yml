@@ -484,14 +484,18 @@ jobs:
 
         # ⭐⭐ بناء defconfig⭐⭐
         make O=out vendor/violet-perf_defconfig \
-             ARCH=arm64 \
-             SUBARCH=arm64 \
              CC=clang \
-             CROSS_COMPILE=aarch64-linux-android- \
-             CROSS_COMPILE_ARM32=arm-linux-androideabi- \
-             CLANG_TRIPLE=aarch64-linux-android- \
+             AR=llvm-ar \
+             NM=llvm-nm \
+             OBJCOPY=llvm-objcopy \
+             OBJDUMP=llvm-objdump \
+             READELF=llvm-readelf \
+             OBJSIZE=llvm-size \
+             STRIP=llvm-strip \
+             HOSTCC=clang \
+             HOSTCXX=clang++ \
              vendor/violet-perf_defconfig
-    
+             
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
       shell: bash
@@ -603,17 +607,16 @@ jobs:
         ARCH="arm64" \
         SUBARCH="arm64" \
         CC="ccache $CC" \
-        HOSTCC=clang \
-        HOSTCXX=clang++ \
-        HOSTLD=ld.lld \
-        HOSTAR=llvm-ar \
-        HOSTNM=llvm-nm \
-        LD=ld.lld \
+        CC=clang \
         AR=llvm-ar \
         NM=llvm-nm \
         OBJCOPY=llvm-objcopy \
         OBJDUMP=llvm-objdump \
+        READELF=llvm-readelf \
+        OBJSIZE=llvm-size \
         STRIP=llvm-strip \
+        HOSTCC=clang \
+        HOSTCXX=clang++ \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
