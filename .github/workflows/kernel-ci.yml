@@ -493,7 +493,7 @@ jobs:
         CC: ${{ env.CC || 'clang' }}
         CROSS_COMPILE: aarch64-linux-android-
         CROSS_COMPILE_ARM32: arm-linux-androideabi-
-        CLANG_TRIPLE: aarch64-linux-gnu-
+        CLANG_TRIPLE: arch64-linux-android-
         LDFLAGS: "-Wl,--threads=1"
       run: |
         set -o pipefail
@@ -598,6 +598,9 @@ jobs:
         CC="ccache $CC" \
         HOSTCC=clang \
         HOSTCXX=clang++ \
+        HOSTLD=ld.lld \
+        HOSTAR=llvm-ar \
+        HOSTNM=llvm-nm \
         LD=ld.lld \
         AR=llvm-ar \
         NM=llvm-nm \
