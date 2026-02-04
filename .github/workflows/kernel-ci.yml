@@ -396,6 +396,7 @@ jobs:
         echo "🏗️  بدء عملية البناء..."
         stdbuf -oL -eL make O=out -j$CORES \
         CC="ccache clang" \
+        CXX="ccache clang++" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
