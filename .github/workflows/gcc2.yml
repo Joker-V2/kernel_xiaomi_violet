@@ -209,7 +209,7 @@ jobs:
         
         echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
 
-    # 🆕 =========== التعديل الدقيق هنا ===========
+    # 🆕 =========== التعديل الأول هنا ===========
     # 🆕 تحميل أدوات الترجمة من المستودع (Git Clone) - ✅ المعدل
     - name: Setup Android Toolchains from GitHub
       run: |
@@ -220,7 +220,7 @@ jobs:
         mkdir -p "$TOOLS_DIR"
         cd "$TOOLS_DIR"
         
-        # 1. استنسخ المستودع
+        # 1. استنساخ المستودع
         git clone --depth 1 --branch tools https://github.com/prabhatkrmishra/android-kernel-tools.git
         
         # 2. ✅ نقل المجلدات الرئيسية الكاملة (ليس فقط bin)
@@ -310,74 +310,40 @@ jobs:
         
         echo "✅ التحقق التلقائي اكتمل!"
 
-    # 4️⃣ Export env مع تحسينات الاستقرار لـ Clang 21
+    # 🆕 =========== التعديل الثاني هنا ===========
+    # 4️⃣ Export env مع التوضيح
     - name: Export env
       run: |
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         
-        # ⭐⭐ التصحيح: إضافة CC بشكل صريح ⭐⭐
         echo "CC=clang" >> $GITHUB_ENV
-        echo "✅ تم تعيين CC لـ clang (ZyCromerZ)"
         
-        # ⭐⭐ إضافة متغيرات Clang ⭐⭐
         if [ -n "$CLANG_BIN_NAME" ]; then
           echo "CLANG_VERSION=$CLANG_BIN_NAME" >> $GITHUB_ENV
-          echo "✅ تم تعيين CLANG_VERSION لـ $CLANG_BIN_NAME"
         fi
         
-        # ⭐⭐ استخدام CROSS_COMPILE من أدوات الترجمة الجديدة ⭐⭐
+        # ⭐⭐ التوضيح: CROSS_COMPILE يأخذ من المجلد الكامل
         echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
-        echo "✅ تم تعيين CROSS_COMPILE لـ aarch64-linux-android-"
+        echo "✅ CROSS_COMPILE يأخذ من: ${{ env.AARCH64_TOOLCHAIN_PATH }}/bin"
         
         echo "CROSS_COMPILE_ARM32=arm-linux-androideabi-" >> $GITHUB_ENV
-        echo "✅ تم تعيين CROSS_COMPILE_ARM32 لـ arm-linux-androideabi-"
+        echo "✅ CROSS_COMPILE_ARM32 يأخذ من: ${{ env.ARM32_TOOLCHAIN_PATH }}/bin"
         
-        # ⭐⭐ التصحيح: تغيير CLANG_TRIPLE ⭐⭐
         echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-        echo "✅ تم تعيين CLANG_TRIPLE لـ aarch64-linux-gnu-"
-        
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        echo "✅ تم تعيين CCACHE_DIR لـ $HOME/.ccache"
         
-        # حساب CORES هنا مرة واحدة
         TOTAL_CORES=$(nproc)
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
-        echo "✅ تم تعيين TOTAL_CORES لـ $TOTAL_CORES"
-
+        
         CORES=$(($TOTAL_CORES / 2))
         [ $CORES -lt 2 ] && CORES=2
         echo "CORES=$CORES" >> $GITHUB_ENV
-        echo "✅ تم تعيين CORES لـ $CORES"
-       
-        # التحقق الدقيق من إصدار make
-        echo "🔍 التحقق من إصدار make..."
-        MAKE_VERSION=$(make --version 2>&1 | head -1)
-        echo "make version: $MAKE_VERSION"
-       
-        # ✅✅✅ التعديل المهم: إزالة --jobserver-auth=3,4 لتجنب مشكلة defconfig
-        # تحسين التحقق
-        if echo "$MAKE_VERSION" | grep -q "GNU Make 4\.[0-9]"; then
-          echo "✅ GNU Make 4.x - لكن لن نستخدم jobserver-auth لتجنب مشكلة defconfig"
-          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV  # ⭐⭐ التعديل هنا: إزالة --jobserver-auth=3,4 ⭐⭐
-          echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth (لتجنب مشكلة defconfig)"
-        elif echo "$MAKE_VERSION" | grep -q "GNU Make"; then
-          echo "⚠️ GNU Make قديم (<4.0) - لا يدعم jobserver-auth"
-          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-          echo "✅ تم إضافة MAKEFLAGS بدون jobserver-auth"
-        else
-          echo "❌ make غير GNU (قد يكون bmake أو busybox)"
-          echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
-          echo "✅ تم إضافة MAKEFLAGS"
-        fi
         
-        # إجبار الـ Linker على خيط واحد لتجنب Pipe Broken
+        echo "MAKEFLAGS=-j$CORES" >> $GITHUB_ENV
         echo "LDFLAGS=-Wl,--threads=1" >> $GITHUB_ENV
-        echo "✅ تم تعيين LDFLAGS لـ -Wl,--threads=1"
         
-        # رفع حد الـ Stack للعمليات لتفادي انقطاع الأنابيب
         ulimit -s unlimited
-        echo "✅ تم رفع حد Stack إلى unlimited"
 
     # 🔍 خطوة جديدة: تحقق من الموارد
     - name: Check System Resources
@@ -418,11 +384,10 @@ jobs:
         # حفظ عدد الأنوية للمراحل التالية
         echo "TOTAL_CORES=$TOTAL_CORES" >> $GITHUB_ENV
 
-    # 5️⃣ Defconfig 
+    # 5️⃣ Defconfig
     - name: Load defconfig
       run: |
         make O=out vendor/violet-perf_defconfig
-        echo "✅ تم تحميل defconfig بنجاح"
 
     # 🆕 =========== التعديل الثالث هنا ===========
     # 6️⃣ Build kernel
@@ -668,7 +633,7 @@ jobs:
         echo "📊 ملخص البناء:"
         echo "================================="
         echo "🔧 CC المستخدم: ${{ env.CC || 'clang' }}"
-        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }} (ZyCromerZ)"  # ⭐⭐ تصحيح ⭐⭐
+        echo "🔧 CLANG_VERSION: ${{ env.CLANG_VERSION || env.CLANG_BIN_NAME }} (ZyCromerZ)"
         echo "📁 مسار Clang: $CLANG_PATH"
         echo "🔧 CROSS_COMPILE المستخدم: aarch64-linux-android- (Android Toolchains)"
         echo "🔧 CROSS_COMPILE_ARM32 المستخدم: arm-linux-androideabi- (Android Toolchains)"
