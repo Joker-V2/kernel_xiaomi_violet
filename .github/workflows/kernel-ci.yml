@@ -599,6 +599,8 @@ jobs:
         ARCH="arm64" \
         SUBARCH="arm64" \
         CC="ccache $CC" \
+        HOSTCC=clang \
+        HOSTCXX=clang++ \
         LD=ld.lld \
         AR=llvm-ar \
         NM=llvm-nm \
