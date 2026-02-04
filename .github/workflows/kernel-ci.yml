@@ -483,10 +483,7 @@ jobs:
         echo "🧪 تجربة defconfig بمتغيرات مختلفة..."
 
         # ⭐⭐ بناء defconfig⭐⭐
-        make O=out vendor/violet-perf_defconfig \
-          CC=clang \
-          HOSTCC=clang \
-          HOSTCXX=clang++ \
+        make O=out vendor/violet-perf_defconfig 
     
     # 6️⃣ Build kernel - نظام التبديل السهل ⭐⭐
     - name: Build kernel
