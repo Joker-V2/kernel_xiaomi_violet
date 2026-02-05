@@ -1,4 +1,4 @@
-name: Build Kernel - ZyC Clang 23
+name: Build Kernel - ZyC Clang 15.0.7 (2026-02-05)
 
 on:
   workflow_dispatch:
@@ -15,12 +15,12 @@ env:
   KBUILD_BUILD_USER: "Redhawk"
   ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
   ANYKERNEL_BRANCH: "sixteen"
-  CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260129-release/Clang-23.0.0git-20260129.tar.gz"
+  CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260205-release/Clang-15.0.7-20260205.tar.gz"
   ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     
     steps:
     - name: 📥 Checkout Kernel Source
@@ -109,11 +109,11 @@ jobs:
       run: |
         if [ ! -d "${{ env.TC_DIR }}" ]; then
           echo "Toolchain not found! Cloning to ${{ env.TC_DIR }}..."
-          echo "Downloading ZyC-Clang 23.0.0"
+          echo "Downloading ZyC-Clang 15.0.7"
           wget -q "${{ env.CLANG_URL }}"
           mkdir -p "${{ env.TC_DIR }}"
-          tar -xvf Clang-23.0.0git-20260129.tar.gz -C "${{ env.TC_DIR }}"
-          rm -rf Clang-23.0.0git-20260129.tar.gz
+          tar -xvf Clang-15.0.7-20260205.tar.gz -C "${{ env.TC_DIR }}"
+          rm -rf Clang-15.0.7-20260205.tar.gz
         fi
         
         # Add toolchain to PATH
@@ -210,7 +210,7 @@ jobs:
         echo "Build took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
         echo "Compiled & Signed successfully ✅"
         echo "Build file: ${SIGNED_ZIP}"
-        echo "Toolchain: ZyC-Clang 23.0.0"
+        echo "Toolchain: ZyC-Clang 15.0.7"
         echo "Swap: 10GB enabled"
         echo "############################################"
         echo "############# OkThisIsEpic! ###############"
