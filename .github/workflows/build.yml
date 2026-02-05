@@ -12,10 +12,10 @@ env:
   CONFIG_FILE: "vendor/violet-perf_defconfig"
   ARCH: "arm64"
   KBUILD_BUILD_HOST: "SuperiorOS"
-  KBUILD_BUILD_USER: "Joker-V2"
+  KBUILD_BUILD_USER: "RedHawk"
   ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
-  ANYKERNEL_BRANCH: "sixteen"
-  CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250920-release/Clang-22.0.0git-20250920.tar.gz"
+  ANYKERNEL_BRANCH: "zycromerz"
+  CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
   ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
 
 jobs:
