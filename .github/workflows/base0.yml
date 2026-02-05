@@ -1,0 +1,394 @@
+name: Build Kernel (violet | KernelSu-Next-legacy | susfs-V2.0.0)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - zycromerz 
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    # 1️⃣ Checkout
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        ref: zycromerz 
+        fetch-depth: 1
+
+    # 2️⃣ Dependencies
+    - name: Install dependencies
+      run: |
+        bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd \
+          binutils-aarch64-linux-gnu \
+          device-tree-compiler \
+          lz4 xz-utils zlib1g-dev \
+          openjdk-17-jdk \
+          gcc g++ \
+          python-is-python3 \
+          p7zip-full \
+          android-sdk-libsparse-utils \
+          erofs-utils \
+          gnupg \
+          gperf \
+          libx11-dev \
+          libreadline-dev \
+          libgl1 libgl1-mesa-dev \
+          python3-markdown \
+          libxml2-utils xsltproc \
+          libtinfo6 \
+          cpio kmod openssl pahole \
+          libarchive-tools rsync \
+          util-linux 
+
+    # SWAP
+    - name: 💾 Setup 10GB Swap
+      run: |
+        echo "💾 Creating swap space..."
+        sudo swapoff -a
+        sudo dd if=/dev/zero of=/swapfile bs=1G count=10 status=progress
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        sudo sysctl vm.swappiness=100
+        echo "✅ Swap configured:"
+        free -h
+        swapon --show
+
+    # 🆕 تحرير مساحة القرص
+    - name: Free up disk space
+      run: |
+        echo "🧹 تحرير مساحة القرص..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        
+        echo "📊 المساحة المتاحة:"
+        df -h
+
+    # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
+    - name: Setup ZyCromerZ Clang
+      id: setup_clang
+      run: |
+        echo "📥 تحميل ZyCromerZ Clang..."
+        
+        # ⭐⭐ يمكن تغيير الرابط هنا فقط ⭐⭐
+        CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/23.0.0git-20260130-release/Clang-23.0.0git-20260130.tar.gz"
+        
+        wget -q "$CLANG_URL" -O zycromerz-clang.tar.gz
+        
+        echo "📦 فك الضغط..."
+        mkdir -p zycromerz-clang
+        tar -xf zycromerz-clang.tar.gz -C zycromerz-clang
+        
+        rm -f zycromerz-clang.tar.gz
+        
+        CLANG_PATH="$PWD/zycromerz-clang/bin"
+        
+        # ⭐⭐ الكشف التلقائي عن إصدار Clang ⭐⭐
+        echo "🔍 الكشف التلقائي عن Clang..."
+        
+        # البحث عن clang-* (مثل clang-23, clang-22, clang-18)
+        CLANG_BIN=$(find "$CLANG_PATH" -name "clang-[0-9]*" -type f | head -1)
+        
+        if [ -z "$CLANG_BIN" ]; then
+          # محاولة أخرى بنمط مختلف
+          CLANG_BIN=$(find "$CLANG_PATH" -name "clang*" -type f ! -name "clang++*" ! -name "*.so" ! -name "*.dll" | grep -E "/clang[^-]" | head -1)
+        fi
+        
+        if [ -z "$CLANG_BIN" ]; then
+          echo "❌ لم يتم العثور على clang في $CLANG_PATH"
+          echo "📋 محتويات المجلد:"
+          ls -la "$CLANG_PATH/"
+          exit 1
+        fi
+        
+        CLANG_BASENAME=$(basename "$CLANG_BIN")
+        echo "✅ وجد Clang: $CLANG_BASENAME"
+        
+        # إنشاء رابط رمزي clang
+        if [ ! -L "$CLANG_PATH/clang" ] && [ ! -f "$CLANG_PATH/clang" ]; then
+          echo "🔗 إنشاء رابط رمزي: clang -> $CLANG_BASENAME"
+          ln -sf "$CLANG_BASENAME" "$CLANG_PATH/clang"
+        fi
+        
+        # البحث عن clang++ المقابل
+        CLANGPP_PATTERN=$(echo "$CLANG_BASENAME" | sed 's/^clang/clang++/')
+        if [ -f "$CLANG_PATH/$CLANGPP_PATTERN" ] && [ ! -L "$CLANG_PATH/clang++" ] && [ ! -f "$CLANG_PATH/clang++" ]; then
+          echo "🔗 إنشاء رابط رمزي: clang++ -> $CLANGPP_PATTERN"
+          ln -sf "$CLANGPP_PATTERN" "$CLANG_PATH/clang++"
+        fi
+        
+        # التحقق من أدوات LLVM الأساسية
+        echo "🔧 التحقق من أدوات LLVM..."
+        REQUIRED_TOOLS="llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip"
+        for tool in $REQUIRED_TOOLS; do
+          if [ -f "$CLANG_PATH/$tool" ]; then
+            echo "✅ $tool موجود"
+          else
+            echo "⚠️  $tool غير موجود - قد يسبب مشاكل"
+          fi
+        done
+        
+        echo "📋 محتويات مجلد Clang (مختصر):"
+        ls -la "$CLANG_PATH/" | grep -E "^l.*clang|^[^d].*(clang|llvm)" | head -15
+        
+        # إضافة إلى PATH
+        echo "$CLANG_PATH" >> $GITHUB_PATH
+        
+        # حفظ معلومات Clang للمراحل التالية
+        echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
+        echo "CLANG_BIN_NAME=$CLANG_BASENAME" >> $GITHUB_ENV
+        
+        echo "✅ ZyCromerZ Clang جاهز! ($CLANG_BASENAME)"
+
+    # 🆕 التحقق التلقائي من Clang
+    - name: Verify Clang Auto-Detection
+      run: |
+        echo "🔍 التحقق التلقائي من Clang..."
+        
+        echo "📋 معلومات Clang المكتشف:"
+        echo "CLANG_PATH: $CLANG_PATH"
+        echo "CLANG_BIN_NAME: $CLANG_BIN_NAME"
+        
+        echo "🔎 البحث عن clang في PATH:"
+        which clang || { echo "❌ clang غير موجود في PATH"; exit 1; }
+        
+        CLANG_ACTUAL=$(which clang)
+        echo "✅ clang موجود في: $CLANG_ACTUAL"
+        
+        # التحقق من الرابط الرمزي
+        if [ -L "$CLANG_ACTUAL" ]; then
+          REAL_CLANG=$(readlink -f "$CLANG_ACTUAL")
+          echo "🔗 clang هو رابط رمزي إلى: $REAL_CLANG"
+          
+          if [ -f "$REAL_CLANG" ]; then
+            echo "✅ الملف الحقيقي موجود"
+          else
+            echo "❌ الملف الحقيقي غير موجود!"
+            exit 1
+          fi
+        fi
+        
+        echo "📊 معلومات Clang:"
+        clang --version | head -5
+        
+        # التحقق من الإصدار المحدد
+        if [ -n "$CLANG_BIN_NAME" ]; then
+          echo "🔍 التحقق من الإصدار المحدد ($CLANG_BIN_NAME):"
+          "$CLANG_PATH/$CLANG_BIN_NAME" --version | head -3
+        fi
+        
+        echo "✅ التحقق التلقائي اكتمل!"
+
+    # 4️⃣ Export env
+    - name: Export env
+      run: |
+        echo "ARCH=arm64" >> $GITHUB_ENV
+        echo "SUBARCH=arm64" >> $GITHUB_ENV
+        echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CROSS_COMPILE_ARM32=arm-linux-gnueabi-" >> $GITHUB_ENV
+        echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+    # 5️⃣ Defconfig
+    - name: Load defconfig
+      run: |
+        make O=out vendor/violet-perf_defconfig
+
+    # 6️⃣ Build kernel مع التحقق التلقائي
+    - name: Build kernel
+      shell: bash
+      env:
+        CROSS_COMPILE: aarch64-linux-gnu-
+        CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+        CLANG_TRIPLE: aarch64-linux-gnu-
+      run: |
+        set -o pipefail
+        mkdir -p logs
+        
+        ccache -M 500M
+        ccache -z
+        
+        echo "🚀 بدء بناء النواة..."
+        
+        # التحقق النهائي التلقائي
+        echo "🔍 التحقق النهائي التلقائي:"
+        echo "🔧 Clang المستخدم: $(which clang)"
+        echo "🔧 المسار الحقيقي: $(readlink -f $(which clang) 2>/dev/null || which clang)"
+        echo "🔧 الإصدار المكتشف: $CLANG_BIN_NAME"
+        
+        echo "📋 معلومات Clang النهائية:"
+        clang --version | head -3
+        
+        echo "🔧 CROSS_COMPILE: $CROSS_COMPILE"
+        echo "🔧 CROSS_COMPILE_ARM32: $CROSS_COMPILE_ARM32"
+        echo "🔧 CLANG_TRIPLE: $CLANG_TRIPLE"
+        
+        echo "📊 الموارد قبل البناء:"
+        df -h
+        free -h
+        
+        # تقليل عدد الـ cores
+        CORES=$(($(nproc) / 2))
+        [ $CORES -lt 2 ] && CORES=2
+        
+        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
+        
+        # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
+        stdbuf -oL -eL make O=out -j$CORES \
+        CC="ccache clang" \
+        CLANG_TRIPLE="$CLANG_TRIPLE" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32" \
+        LLVM=1 \
+        LLVM_IAS=1 \
+        2>&1 | tee logs/build.log
+        
+        BUILD_STATUS=${PIPESTATUS[0]}
+        
+        ccache -s
+        
+        echo "📊 الموارد بعد البناء:"
+        df -h
+        free -h
+        
+        echo "📏 حجم build.log:"
+        ls -lh logs/build.log
+        
+        if [ $BUILD_STATUS -eq 0 ] && [ -f "out/arch/arm64/boot/Image.gz" ]; then
+            echo "✅ تم بناء النواة بنجاح باستخدام $CLANG_BIN_NAME!"
+            ls -lh out/arch/arm64/boot/Image.gz
+        else
+            echo "❌ فشل بناء النواة!"
+            exit 1
+        fi
+
+    # ضغط اللوغ
+    - name: Compress build log
+      if: always()
+      run: |
+        echo "📦 ضغط اللوغ..."
+        gzip -9 logs/build.log
+        echo "📏 حجم build.log.gz:"
+        ls -lh logs/build.log.gz
+
+    # تنظيف
+    - name: Cleanup build files
+      if: always()
+      run: |
+        echo "🧹 تنظيف الملفات الوسيطة..."
+        
+        find out/ -name "*.o" -delete 2>/dev/null || true
+        find out/ -name "*.cmd" -delete 2>/dev/null || true
+        find out/ -name "*.d" -delete 2>/dev/null || true
+        
+        rm -rf $HOME/.ccache
+        rm -rf zycromerz-clang
+        
+        echo "📊 المساحة بعد التنظيف:"
+        df -h
+
+    # 7️⃣ Symbol analysis
+    - name: Symbol analysis
+      run: |
+        echo "🔍 تحليل الرموز..."
+        if [ -f "out/vmlinux" ]; then
+            nm out/vmlinux | grep -E "ksu_|kernelsu" > nm-ksu.txt || echo "⚠️  لم يتم العثور على رموز KSU"
+            nm out/vmlinux | grep -i susfs > nm-susfs.txt || echo "⚠️  لم يتم العثور على رموز susfs"
+            nm out/vmlinux > nm-full.txt
+            
+            echo "📏 أحجام الملفات:"
+            ls -lh nm-*.txt
+            
+            echo "✅ تم إنشاء ملفات التحليل"
+        else
+            echo "❌ ملف vmlinux غير موجود"
+        fi
+    
+    # 8️⃣ AnyKernel3
+    - name: Package AnyKernel3
+      run: |
+        echo "📦 تعبئة AnyKernel3..."
+        git clone --depth=1 -b sixteen https://github.com/Joker-V2/AnyKernel3.git AK3
+        cp out/arch/arm64/boot/Image.gz AK3/
+        
+        [ -f "out/arch/arm64/boot/dtbo.img" ] && cp out/arch/arm64/boot/dtbo.img AK3/
+        
+        cd AK3
+        zip -r9 ../Kernel-violet-zycromerz-clang.zip *
+        cd ..
+        
+        echo "📏 حجم ZIP:"
+        ls -lh Kernel-violet-zycromerz-clang.zip
+        echo "✅ تم إنشاء ZIP"
+    
+    # 9️⃣ Sign ZIP
+    - name: Sign zip
+      run: |
+        echo "🖊️ توقيع ZIP..."
+        wget -q -O zipsigner.jar https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar
+        java -jar zipsigner.jar Kernel-violet-zycromerz-clang.zip Kernel-violet-zycromerz-clang-signed.zip
+        
+        echo "📏 حجم ZIP الموقّع:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip
+        echo "✅ تم التوقيع"
+    
+    # 🔟 رفع ZIP
+    - name: Upload Kernel ZIP
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-ZyCromerZ-Clang-ZIP
+        path: Kernel-violet-zycromerz-clang-signed.zip
+        compression-level: 0
+    
+    # 1️⃣1️⃣ رفع اللوغ الكامل المضغوط
+    - name: Upload Build Log (Full & Compressed)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build-Log-Full
+        path: logs/build.log.gz
+        retention-days: 7
+        compression-level: 0
+    
+    # 1️⃣2️⃣ رفع التحليلات
+    - name: Upload Analysis
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Symbol-Analysis
+        path: |
+          nm-ksu.txt
+          nm-susfs.txt
+          nm-full.txt
+        retention-days: 5
+        compression-level: 9
+
+    # ملخص البناء مع ذكر Clang المستخدم
+    - name: Build Summary
+      if: always()
+      run: |
+        echo "📊 ملخص البناء:"
+        echo "================================"
+        echo "🔧 Clang المستخدم: $CLANG_BIN_NAME"
+        echo "📁 مسار Clang: $CLANG_PATH"
+        echo ""
+        echo "✅ ملفات تم إنشاؤها:"
+        ls -lh Kernel-violet-zycromerz-clang-signed.zip 2>/dev/null || echo "❌ ZIP غير موجود"
+        ls -lh logs/build.log.gz 2>/dev/null || echo "❌ اللوغ غير موجود"
+        ls -lh nm-*.txt 2>/dev/null || echo "❌ ملفات التحليل غير موجودة"
+        echo "================================"
