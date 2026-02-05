@@ -102,8 +102,10 @@ jobs:
         export PATH="$(pwd)/clang/bin:$PATH"
         export ARCH=arm64
         export SUBARCH=arm64
-        export KBUILD_BUILD_USER=Red-A-Hawk
-        export KBUILD_BUILD_HOST=GitHub-Actions
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CONFIG_FILE="vendor/violet-perf_defconfig
         
         echo "🔨 Starting kernel compilation..."
         echo "⏰ Start time: $(date)"
@@ -117,13 +119,6 @@ jobs:
           ARCH=arm64 \
           SUBARCH=arm64 \
           CC=clang \
-          AR="llvm-ar" \
-          NM="llvm-nm" \
-          OBJCOPY="llvm-objcopy" \
-          OBJDUMP="llvm-objdump" \
-          STRIP="llvm-strip" \
-          HOSTCC=clang \
-        	HOSTCXX=clang++ \
           CLANG_TRIPLE=aarch64-linux-gnu- \
           CROSS_COMPILE=aarch64-linux-gnu- \
           CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
