@@ -241,12 +241,7 @@ jobs:
         echo "📊 الموارد قبل البناء:"
         df -h
         free -h
-        
-        # cores
-        TOTAL_CORES=$(nproc)
-        echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
-        
-        
+
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         make -j$(nproc --all) O=out \
         ARCH=arm64 \
