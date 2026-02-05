@@ -42,13 +42,38 @@ jobs:
         ldd --version | head -1
         echo ""
         
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq \
-          wget zip unzip ccache git-core gnupg flex bison build-essential \
-          zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 \
-          lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev \
-          libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig \
-          openjdk-17-jdk libssl-dev ncurses-dev libelf-dev bc
+        sudo apt update
+        sudo apt install -y \
+          bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd \
+          binutils-aarch64-linux-gnu \
+          device-tree-compiler \
+          lz4 xz-utils zlib1g-dev \
+          openjdk-17-jdk \
+          gcc g++ \
+          python-is-python3 \
+          p7zip-full \
+          android-sdk-libsparse-utils \
+          erofs-utils \
+          gnupg \
+          gperf \
+          libx11-dev \
+          libreadline-dev \
+          libgl1 libgl1-mesa-dev \
+          python3-markdown \
+          libxml2-utils xsltproc \
+          libtinfo6 \
+          cpio kmod openssl pahole \
+          libarchive-tools rsync \
+          util-linux 
         
         # إعداد المتغيرات
         echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
