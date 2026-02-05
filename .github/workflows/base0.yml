@@ -248,7 +248,7 @@ jobs:
         
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
-        stdbuf -oL -eL make O=out -j$(nproc --all) O=out \
+        make -j$(nproc --all) O=out \
         ARCH=arm64 \
         SUBARCH=arm64 \
         CC=clang \
