@@ -17,6 +17,20 @@ jobs:
         ref: zycromerz 
         fetch-depth: 1
 
+    # 🆕 تحرير مساحة القرص
+    - name: Free up disk space
+      run: |
+        echo "🧹 تحرير مساحة القرص..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        
+        echo "📊 المساحة المتاحة:"
+        df -h
+        
+
     # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
@@ -67,19 +81,7 @@ jobs:
         free -h
         swapon --show
 
-    # 🆕 تحرير مساحة القرص
-    - name: Free up disk space
-      run: |
-        echo "🧹 تحرير مساحة القرص..."
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-        
-        echo "📊 المساحة المتاحة:"
-        df -h
-
+    
     # 3️⃣ ZyCromerZ Clang مع الكشف التلقائي ⭐⭐
     - name: Setup ZyCromerZ Clang
       id: setup_clang
