@@ -3,9 +3,9 @@ name: Build Kernel - Violet (Neutron Clang)
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, zycromerz]
+    branches: [zycromerz]
   pull_request:
-    branches: [main, master]
+    branches: [zycromerz]
 
 env:
   KERNEL_NAME: "xcalibur-v5.4-violet"
@@ -13,16 +13,12 @@ env:
   CONFIG_FILE: "vendor/violet-perf_defconfig"
   ARCH: "arm64"
   KBUILD_BUILD_HOST: "SuperiorOS"
-  KBUILD_BUILD_USER: "Joker-V2"
+  KBUILD_BUILD_USER: "RedHawk"
   ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
   ANYKERNEL_BRANCH: "sixteen"
   ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
   TOOLCHAIN_DIR: "${{ github.workspace }}/toolchains/neutron-clang"
   ANTMAN_URL: "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
-  # تحديد أسماء الملفات المطلوبة
-  KERNEL_IMAGE: "Image.gz"
-  DTBO_IMAGE: "dtbo.img"
-  BUILD_TARGETS: "Image.gz-dtb dtbo.img"
 
 jobs:
   build:
@@ -42,9 +38,9 @@ jobs:
           zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 \
           lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev \
           libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig \
-          openjdk-11-jdk libssl-dev ncurses-dev python3 python3-pip
+          openjdk-11-jdk libssl-dev ncurses-dev
         
-        # إعداد بيئة البناء
+        # إعداد المتغيرات
         echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
         echo "OBJ_DIR=$(pwd)/out" >> $GITHUB_ENV
         echo "ANYKERNEL_DIR=$(pwd)/anykernel" >> $GITHUB_ENV
@@ -52,55 +48,50 @@ jobs:
         echo "RELEASE_DIR=$(pwd)/release" >> $GITHUB_ENV
         
         # معلومات البناء
-        cores=$(nproc --all)
-        time=$(TZ="Asia/Kolkata" date "+%d-%m-%Y %H:%M:%S")
+        CORES=$(nproc)
+        time=$(TZ="Asia/Kolkata" date "+%d-%m-%Y %H:%M")
         commit_head=$(git log --oneline -1)
         branch=$(git branch --show-current)
         
-        echo "=========================================="
-        echo "    Kernel Build - Redmi Note 7 Pro"
-        echo "=========================================="
-        echo "📱 Device: violet"
+        echo "=================================================="
+        echo "    Building ${{ env.KERNEL_NAME }} for violet"
+        echo "=================================================="
+        echo ""
+        echo "📱 Device: ${{ env.DEVICE_NAME }}"
         echo "🔧 Kernel: ${{ env.KERNEL_NAME }}"
-        echo "🎯 Targets: ${{ env.KERNEL_IMAGE }}, ${{ env.DTBO_IMAGE }}"
-        echo "⚡ Cores: ${cores} (using 4)"
+        echo "⚡ Cores available: ${CORES}"
         echo "🕒 Time: ${time}"
         echo "🌿 Branch: ${branch}"
         echo "📝 Commit: ${commit_head}"
+        echo "🛠️  Toolchain: Neutron Clang"
         echo ""
     
     - name: 🔧 Setup Neutron Clang
       run: |
-        echo "=========================================="
-        echo "    Installing Neutron Clang Toolchain"
-        echo "=========================================="
+        echo "=================================================="
+        echo "    Setting up Neutron Clang Toolchain"
+        echo "=================================================="
+        echo ""
         
-        # إنشاء مجلد التول تشين
         mkdir -p "${{ env.TOOLCHAIN_DIR }}"
         cd "${{ env.TOOLCHAIN_DIR }}"
         
-        # تحميل وتشغيل AntMan
         echo "📥 Downloading AntMan..."
         curl -sSL "${{ env.ANTMAN_URL }}" -o antman
         chmod +x antman
         
-        # سحب آخر إصدار من Neutron Clang
-        echo "🔄 Syncing Neutron Clang..."
+        echo "🔄 Syncing latest Neutron Clang..."
         ./antman -S
         
-        # التحقق من التثبيت
         if [ -f "bin/clang" ] && [ -f "bin/ld.lld" ]; then
-          echo "✅ Toolchain installed successfully"
+          echo "✅ Toolchain ready"
+          echo "🔧 Version info:"
+          ./bin/clang --version | head -2
           
-          # عرض إصدار Clang
-          echo "🔧 Clang version:"
-          ./bin/clang --version | head -3
-          
-          # إضافة المسار إلى PATH
           echo "CLANG_PATH=${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_ENV
           echo "${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_PATH
         else
-          echo "❌ Toolchain installation failed"
+          echo "❌ Toolchain setup failed"
           exit 1
         fi
         
@@ -108,33 +99,32 @@ jobs:
     
     - name: 🧹 Clean Previous Builds
       run: |
-        echo "=========================================="
-        echo "        Cleaning Workspace"
-        echo "=========================================="
+        echo "=================================================="
+        echo "    Cleaning Workspace"
+        echo "=================================================="
+        echo ""
         
         cd "${{ env.KERNEL_DIR }}"
         
-        # تنظيف البناء السابق
-        echo "🧹 Cleaning build directory..."
-        rm -rf out .config .config.old Module.symvers
+        echo "🧹 Removing old build files..."
+        rm -rf out .config .config.old
         
-        # محاولة التنظيف باستخدام make
+        echo "🧽 Running make clean..."
         make clean 2>/dev/null || true
-        make mrproper 2>/dev/null || true
         
-        # إنشاء مجلدات المخرجات
-        echo "📁 Creating output directories..."
-        mkdir -p out/arch/arm64/boot
+        echo "🗑️ Creating fresh directories..."
+        mkdir -p out
         mkdir -p "${{ env.RELEASE_DIR }}"
         
-        echo "✅ Cleanup completed"
+        echo "✅ Workspace cleaned"
         echo ""
     
-    - name: 🏗️ Compile Kernel
+    - name: 🏗️ Build Kernel
       run: |
-        echo "=========================================="
-        echo "        Compiling Kernel"
-        echo "=========================================="
+        echo "=================================================="
+        echo "    Compiling Kernel"
+        echo "=================================================="
+        echo ""
         
         cd "${{ env.KERNEL_DIR }}"
         
@@ -149,24 +139,24 @@ jobs:
         export KBUILD_BUILD_HOST="${{ env.KBUILD_BUILD_HOST }}"
         export KBUILD_BUILD_USER="${{ env.KBUILD_BUILD_USER }}"
         
-        # إعداد ccache لتسريع البناء
+        # إعداد ccache
         export CCACHE_DIR="${{ env.KERNEL_DIR }}/.ccache"
         mkdir -p "${CCACHE_DIR}"
-        ccache -M 3G
+        ccache -M 5G
         ccache -z
         
+        CORES=$(nproc)
         echo "🔧 Build configuration:"
-        echo "   ARCH: $ARCH"
+        echo "   Using ${CORES} threads"
+        echo "   ARCH: arm64"
         echo "   Config: ${{ env.CONFIG_FILE }}"
         echo "   Toolchain: Neutron Clang"
-        echo "   Threads: 4"
         echo ""
         
-        # بدء计时
         START_TIME=$(date +"%s")
         
         # الخطوة 1: إنشاء defconfig
-        echo "📋 Step 1/3: Generating defconfig..."
+        echo "📋 Generating defconfig..."
         make CC="ccache clang" \
              AR="llvm-ar" \
              NM="llvm-nm" \
@@ -176,17 +166,21 @@ jobs:
              LD="ld.lld" \
              O=out \
              "${{ env.CONFIG_FILE }}" \
-             -j4
+             -j$(nproc)
         
         if [ $? -ne 0 ]; then
-          echo "❌ Failed to generate defconfig"
+          echo "❌ Defconfig generation failed"
           exit 1
         fi
         echo "✅ Defconfig generated"
-        
-        # الخطوة 2: بناء Image.gz
         echo ""
-        echo "🔨 Step 2/3: Building ${{ env.KERNEL_IMAGE }}..."
+        
+        # الخطوة 2: بناء الكيرنل (سيبني Image.gz و dtbo.img تلقائياً)
+        echo "🔨 Building kernel (this may take several minutes)..."
+        echo "   Note: Building Image.gz and dtbo.img automatically"
+        echo ""
+        
+        # بناء الكيرنل كاملاً
         make CC="ccache clang" \
              AR="llvm-ar" \
              NM="llvm-nm" \
@@ -197,46 +191,33 @@ jobs:
              O=out \
              LLVM=1 \
              LLVM_IAS=1 \
-             ${{ env.KERNEL_IMAGE }} \
-             -j4 2>&1 | tee build_kernel.log
+             -j$(nproc) 2>&1 | tee build.log
         
-        # الخطوة 3: بناء dtbo.img
+        BUILD_RESULT=$?
+        
+        # التحقق من المخرجات
         echo ""
-        echo "🔨 Step 3/3: Building ${{ env.DTBO_IMAGE }}..."
-        make CC="ccache clang" \
-             AR="llvm-ar" \
-             NM="llvm-nm" \
-             OBJCOPY="llvm-objcopy" \
-             OBJDUMP="llvm-objdump" \
-             STRIP="llvm-strip" \
-             LD="ld.lld" \
-             O=out \
-             LLVM=1 \
-             LLVM_IAS=1 \
-             ${{ env.DTBO_IMAGE }} \
-             -j4 2>&1 | tee build_dtbo.log
+        echo "🔍 Checking build outputs..."
         
-        # التحقق من الملفات المبنية
-        echo ""
-        echo "🔍 Verifying build outputs..."
+        IMAGE_GZ="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        DTBO_IMG="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
         
-        KERNEL_OUTPUT="${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.KERNEL_IMAGE }}"
-        DTBO_OUTPUT="${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.DTBO_IMAGE }}"
+        FILES_FOUND=0
         
-        if [ -f "$KERNEL_OUTPUT" ]; then
-          KERNEL_SIZE=$(stat -c%s "$KERNEL_OUTPUT")
-          echo "✅ ${{ env.KERNEL_IMAGE }}: $(numfmt --to=iec $KERNEL_SIZE)"
+        if [ -f "$IMAGE_GZ" ]; then
+          IMAGE_SIZE=$(stat -c%s "$IMAGE_GZ")
+          echo "✅ Image.gz: $(numfmt --to=iec $IMAGE_SIZE)"
+          FILES_FOUND=$((FILES_FOUND + 1))
         else
-          echo "❌ ${{ env.KERNEL_IMAGE }} not found!"
-          exit 1
+          echo "❌ Image.gz not found!"
         fi
         
-        if [ -f "$DTBO_OUTPUT" ]; then
-          DTBO_SIZE=$(stat -c%s "$DTBO_OUTPUT")
-          echo "✅ ${{ env.DTBO_IMAGE }}: $(numfmt --to=iec $DTBO_SIZE)"
+        if [ -f "$DTBO_IMG" ]; then
+          DTBO_SIZE=$(stat -c%s "$DTBO_IMG")
+          echo "✅ dtbo.img: $(numfmt --to=iec $DTBO_SIZE)"
+          FILES_FOUND=$((FILES_FOUND + 1))
         else
-          echo "❌ ${{ env.DTBO_IMAGE }} not found!"
-          exit 1
+          echo "⚠️  dtbo.img not found (may not be required for all kernels)"
         fi
         
         # إحصائيات ccache
@@ -244,75 +225,83 @@ jobs:
         echo "📊 CCache statistics:"
         ccache -s
         
-        # حساب وقت البناء
+        # وقت البناء
         END_TIME=$(date +"%s")
         BUILD_TIME=$((END_TIME - START_TIME))
         
         echo ""
-        echo "⏱️ Total build time: $((BUILD_TIME / 60))m $((BUILD_TIME % 60))s"
-        echo "🎉 Kernel compiled successfully!"
+        echo "⏱️  Build time: $((BUILD_TIME / 60))m $((BUILD_TIME % 60))s"
+        
+        if [ $BUILD_RESULT -eq 0 ] && [ $FILES_FOUND -ge 1 ]; then
+          echo "🎉 Kernel built successfully!"
+        else
+          echo "❌ Build failed or outputs missing"
+          echo ""
+          echo "📋 Last 20 lines of build log:"
+          tail -20 build.log
+          exit 1
+        fi
+        
         echo ""
     
-    - name: 📦 Create Flashable Zip
+    - name: 📦 Package Kernel
       run: |
-        echo "=========================================="
-        echo "     Creating Flashable Zip"
-        echo "=========================================="
+        echo "=================================================="
+        echo "    Creating Flashable Zip"
+        echo "=================================================="
+        echo ""
         
         cd "${{ env.KERNEL_DIR }}"
         
-        # إنشاء اسم للـ zip
+        # إنشاء اسم للـ zip مع التاريخ والوقت
         TIMESTAMP=$(date +"%Y%m%d_%H%M")
-        ZIP_NAME="${{ env.KERNEL_NAME }}-${{ env.DEVICE_NAME }}-${TIMESTAMP}.zip"
+        ZIP_NAME="${{ env.KERNEL_NAME }}-${TIMESTAMP}.zip"
         SIGNED_ZIP="${ZIP_NAME%.zip}-signed.zip"
         
         echo "📦 Creating: $ZIP_NAME"
+        echo ""
         
         # تحميل AnyKernel3
-        echo "📥 Downloading AnyKernel3..."
+        echo "📥 Setting up AnyKernel3..."
         rm -rf "${{ env.ANYKERNEL_DIR }}"
-        git clone --depth=1 \
+        git clone --depth=1 --quiet \
           "${{ env.ANYKERNEL_REPO }}" \
           -b "${{ env.ANYKERNEL_BRANCH }}" \
-          "${{ env.ANYKERNEL_DIR }}" \
-          2>/dev/null
+          "${{ env.ANYKERNEL_DIR }}"
         
-        # نسخ ملفات الكيرنل
+        # نسخ ملفات الكيرنل إلى AnyKernel3
         echo "📁 Copying kernel files..."
         
-        # نسخ Image.gz
-        KERNEL_SRC="${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.KERNEL_IMAGE }}"
-        if [ -f "$KERNEL_SRC" ]; then
-          cp -f "$KERNEL_SRC" "${{ env.ANYKERNEL_DIR }}/"
-          echo "✅ Copied ${{ env.KERNEL_IMAGE }}"
+        # نسخ Image.gz إذا كان موجوداً
+        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" ]; then
+          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" \
+                "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ Copied Image.gz"
         fi
         
-        # نسخ dtbo.img
-        DTBO_SRC="${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.DTBO_IMAGE }}"
-        if [ -f "$DTBO_SRC" ]; then
-          cp -f "$DTBO_SRC" "${{ env.ANYKERNEL_DIR }}/"
-          echo "✅ Copied ${{ env.DTBO_IMAGE }}"
-        fi
-        
-        # إنشاء ملف update-binary قابل للتنفيذ إذا لم يكن موجوداً
-        if [ -f "${{ env.ANYKERNEL_DIR }}/META-INF/com/google/android/update-binary" ]; then
-          chmod +x "${{ env.ANYKERNEL_DIR }}/META-INF/com/google/android/update-binary"
+        # نسخ dtbo.img إذا كان موجوداً
+        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" ]; then
+          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" \
+                "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ Copied dtbo.img"
         fi
         
         # إنشاء الـ zip
-        echo "🗜️ Creating zip file..."
+        echo ""
+        echo "🗜️ Creating flashable zip..."
         cd "${{ env.ANYKERNEL_DIR }}"
         
         # حذف أي ملفات zip سابقة
         rm -f *.zip
         
-        # إنشاء الـ zip مع استبعاد .git
-        zip -r9 "$ZIP_NAME" . -x "*.git*" 2>/dev/null
+        # إنشاء الـ zip
+        zip -r9 "$ZIP_NAME" ./* 2>/dev/null
         
         # نقل الـ zip إلى مجلد الكيرنل
         mv "$ZIP_NAME" "${{ env.KERNEL_DIR }}/"
         
         # توقيع الـ zip
+        echo ""
         echo "🔐 Signing zip file..."
         cd "${{ env.KERNEL_DIR }}"
         
@@ -329,42 +318,49 @@ jobs:
         fi
         
         # نسخ الملفات إلى مجلد release
-        echo "📂 Copying to release directory..."
+        echo ""
+        echo "📂 Organizing release files..."
         mkdir -p "${{ env.RELEASE_DIR }}"
-        cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.KERNEL_IMAGE }}" \
-              "${{ env.RELEASE_DIR }}/"
-        cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/${{ env.DTBO_IMAGE }}" \
-              "${{ env.RELEASE_DIR }}/"
-        cp -f "$SIGNED_ZIP" "${{ env.RELEASE_DIR }}/" 2>/dev/null || true
+        
+        # نسخ الملفات الفردية
+        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" ]; then
+          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" \
+                "${{ env.RELEASE_DIR }}/"
+        fi
+        
+        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" ]; then
+          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" \
+                "${{ env.RELEASE_DIR }}/"
+        fi
+        
+        if [ -f "$SIGNED_ZIP" ]; then
+          cp -f "$SIGNED_ZIP" "${{ env.RELEASE_DIR }}/"
+        fi
         
         # تنظيف
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         
         echo ""
-        echo "🎯 Build Summary:"
-        echo "   📁 Kernel: ${{ env.RELEASE_DIR }}/${{ env.KERNEL_IMAGE }}"
-        echo "   📁 DTBO: ${{ env.RELEASE_DIR }}/${{ env.DTBO_IMAGE }}"
-        if [ -f "$SIGNED_ZIP" ]; then
-          echo "   📦 Flashable: $SIGNED_ZIP"
-        fi
+        echo "📋 Available files:"
+        echo "-------------------"
+        ls -lh "${{ env.RELEASE_DIR }}/" 2>/dev/null || echo "No files in release directory"
         echo ""
     
-    - name: 📤 Upload Build Artifacts
+    - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-${{ env.DEVICE_NAME }}-${{ github.run_id }}
+        name: kernel-violet-${{ github.run_number }}
         path: |
           ${{ env.KERNEL_DIR }}/*.zip
           ${{ env.RELEASE_DIR }}/
-          ${{ env.KERNEL_DIR }}/build_*.log
+          ${{ env.KERNEL_DIR }}/build.log
         retention-days: 7
-        if-no-files-found: error
     
     - name: 💾 Cache Toolchain
       uses: actions/cache@v4
       with:
         path: ${{ env.TOOLCHAIN_DIR }}
-        key: neutron-clang-${{ runner.os }}-${{ hashFiles('**/Makefile', '**/Kbuild') }}
+        key: neutron-clang-${{ runner.os }}-${{ hashFiles('Makefile') }}
         restore-keys: |
           neutron-clang-${{ runner.os }}-
     
@@ -379,14 +375,18 @@ jobs:
     - name: 📊 Build Summary
       if: always()
       run: |
-        echo "=========================================="
-        echo "           Build Summary"
-        echo "=========================================="
-        echo "Status: ${{ job.status }}"
-        echo "Run ID: ${{ github.run_id }}"
-        echo "Commit: ${{ github.sha }}"
-        echo "Workflow: ${{ github.workflow }}"
+        echo "=================================================="
+        echo "             Build Summary"
+        echo "=================================================="
         echo ""
-        echo "Artifacts will be available in the"
-        echo "'Artifacts' section of this workflow run."
-        echo "=========================================="
+        echo "🏗️  Workflow: ${{ github.workflow }}"
+        echo "🔢 Run: #${{ github.run_number }}"
+        echo "📅 SHA: ${{ github.sha }}"
+        echo "📊 Status: ${{ job.status }}"
+        echo ""
+        echo "📦 Artifacts available for download:"
+        echo "   • kernel-violet-${{ github.run_number }}"
+        echo ""
+        echo "🔗 Check the 'Artifacts' section to download"
+        echo "   the compiled kernel files."
+        echo ""
