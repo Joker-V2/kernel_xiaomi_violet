@@ -223,9 +223,6 @@ jobs:
         set -o pipefail
         mkdir -p logs
         
-        ccache -M 5G
-        ccache -z
-        
         echo "🚀 بدء بناء النواة..."
         
         # التحقق النهائي التلقائي
@@ -245,13 +242,16 @@ jobs:
         df -h
         free -h
         
-        # تقليل عدد الـ cores
+        # cores
         TOTAL_CORES=$(nproc)
         echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
-        stdbuf -oL -eL make O=out -j$CORES \
+        stdbuf -oL -eL make O=out -j$(nproc --all) O=out \
+        ARCH=arm64 \
+        SUBARCH=arm64 \
+        CC=clang \
         CC="ccache clang" \
         CLANG_TRIPLE="$CLANG_TRIPLE" \
         CROSS_COMPILE="$CROSS_COMPILE" \
@@ -261,8 +261,6 @@ jobs:
         2>&1 | tee logs/build.log
         
         BUILD_STATUS=${PIPESTATUS[0]}
-        
-        ccache -s
         
         echo "📊 الموارد بعد البناء:"
         df -h
@@ -297,9 +295,6 @@ jobs:
         find out/ -name "*.o" -delete 2>/dev/null || true
         find out/ -name "*.cmd" -delete 2>/dev/null || true
         find out/ -name "*.d" -delete 2>/dev/null || true
-        
-        rm -rf $HOME/.ccache
-        rm -rf zycromerz-clang
         
         echo "📊 المساحة بعد التنظيف:"
         df -h
