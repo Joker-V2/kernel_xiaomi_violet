@@ -104,6 +104,7 @@ jobs:
     # 4️⃣ Export env
     - name: Export env
       run: |
+        echo CLANG_PATH="$PWD/zycromerz-clang/bin" >> $GITHUB_ENV
         echo "ARCH=arm64" >> $GITHUB_ENV
         echo "SUBARCH=arm64" >> $GITHUB_ENV
         echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
