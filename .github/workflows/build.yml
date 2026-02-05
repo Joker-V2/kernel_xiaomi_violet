@@ -32,13 +32,23 @@ jobs:
     
     - name: ⚙️ Setup Build Environment
       run: |
+        echo "=================================================="
+        echo "    System Information"
+        echo "=================================================="
+        echo "Ubuntu Version:"
+        lsb_release -d
+        echo ""
+        echo "GLIBC Version:"
+        ldd --version | head -1
+        echo ""
+        
         sudo apt-get update -qq
         sudo apt-get install -y -qq \
           wget zip unzip ccache git-core gnupg flex bison build-essential \
           zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 \
           lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev \
           libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig \
-          openjdk-11-jdk libssl-dev ncurses-dev
+          openjdk-17-jdk libssl-dev ncurses-dev libelf-dev bc
         
         # إعداد المتغيرات
         echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
@@ -53,6 +63,7 @@ jobs:
         commit_head=$(git log --oneline -1)
         branch=$(git branch --show-current)
         
+        echo ""
         echo "=================================================="
         echo "    Building ${{ env.KERNEL_NAME }} for violet"
         echo "=================================================="
@@ -64,6 +75,7 @@ jobs:
         echo "🌿 Branch: ${branch}"
         echo "📝 Commit: ${commit_head}"
         echo "🛠️  Toolchain: Neutron Clang"
+        echo "💻 System: Ubuntu 24.04 (GLIBC 2.39+)"
         echo ""
     
     - name: 🔧 Setup Neutron Clang
@@ -86,12 +98,20 @@ jobs:
         if [ -f "bin/clang" ] && [ -f "bin/ld.lld" ]; then
           echo "✅ Toolchain ready"
           echo "🔧 Version info:"
-          ./bin/clang --version | head -2
+          ./bin/clang --version | head -3
           
           echo "CLANG_PATH=${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_ENV
           echo "${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_PATH
+          
+          # اختبر أن clang يعمل
+          echo "🧪 Testing clang compilation..."
+          echo 'int main() { return 0; }' > test.c
+          ./bin/clang test.c -o test 2>/dev/null && echo "✅ Clang works!" || echo "⚠️ Clang test failed"
+          rm -f test.c test
         else
           echo "❌ Toolchain setup failed"
+          echo "Files in toolchain directory:"
+          find . -type f -name "*" | head -20
           exit 1
         fi
         
@@ -107,13 +127,14 @@ jobs:
         cd "${{ env.KERNEL_DIR }}"
         
         echo "🧹 Removing old build files..."
-        rm -rf out .config .config.old
+        rm -rf out .config .config.old Module.symvers
         
         echo "🧽 Running make clean..."
         make clean 2>/dev/null || true
+        make mrproper 2>/dev/null || true
         
         echo "🗑️ Creating fresh directories..."
-        mkdir -p out
+        mkdir -p out/arch/arm64/boot
         mkdir -p "${{ env.RELEASE_DIR }}"
         
         echo "✅ Workspace cleaned"
@@ -151,12 +172,13 @@ jobs:
         echo "   ARCH: arm64"
         echo "   Config: ${{ env.CONFIG_FILE }}"
         echo "   Toolchain: Neutron Clang"
+        echo "   CCache: 5GB"
         echo ""
         
         START_TIME=$(date +"%s")
         
         # الخطوة 1: إنشاء defconfig
-        echo "📋 Generating defconfig..."
+        echo "📋 Step 1: Generating defconfig..."
         make CC="ccache clang" \
              AR="llvm-ar" \
              NM="llvm-nm" \
@@ -170,14 +192,17 @@ jobs:
         
         if [ $? -ne 0 ]; then
           echo "❌ Defconfig generation failed"
+          echo "Debug info:"
+          ls -la out/.config 2>/dev/null || echo "No .config generated"
           exit 1
         fi
         echo "✅ Defconfig generated"
         echo ""
         
-        # الخطوة 2: بناء الكيرنل (سيبني Image.gz و dtbo.img تلقائياً)
-        echo "🔨 Building kernel (this may take several minutes)..."
-        echo "   Note: Building Image.gz and dtbo.img automatically"
+        # الخطوة 2: بناء الكيرنل
+        echo "🔨 Step 2: Building kernel..."
+        echo "   This will build Image.gz and dtbo.img automatically"
+        echo "   Estimated time: 3-10 minutes depending on kernel size"
         echo ""
         
         # بناء الكيرنل كاملاً
@@ -197,7 +222,7 @@ jobs:
         
         # التحقق من المخرجات
         echo ""
-        echo "🔍 Checking build outputs..."
+        echo "🔍 Step 3: Checking build outputs..."
         
         IMAGE_GZ="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
         DTBO_IMG="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
@@ -208,8 +233,20 @@ jobs:
           IMAGE_SIZE=$(stat -c%s "$IMAGE_GZ")
           echo "✅ Image.gz: $(numfmt --to=iec $IMAGE_SIZE)"
           FILES_FOUND=$((FILES_FOUND + 1))
+          
+          # تحقق أن الملف ليس فارغاً
+          if [ "$IMAGE_SIZE" -lt 1000000 ]; then
+            echo "⚠️  Warning: Image.gz seems very small (${IMAGE_SIZE} bytes)"
+          fi
         else
           echo "❌ Image.gz not found!"
+          echo "Looking for alternatives..."
+          # ابحث عن Image بدلاً من Image.gz
+          if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image" ]; then
+            IMAGE_SIZE=$(stat -c%s "${{ env.OBJ_DIR }}/arch/arm64/boot/Image")
+            echo "✅ Found Image instead: $(numfmt --to=iec $IMAGE_SIZE)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          fi
         fi
         
         if [ -f "$DTBO_IMG" ]; then
@@ -217,7 +254,7 @@ jobs:
           echo "✅ dtbo.img: $(numfmt --to=iec $DTBO_SIZE)"
           FILES_FOUND=$((FILES_FOUND + 1))
         else
-          echo "⚠️  dtbo.img not found (may not be required for all kernels)"
+          echo "ℹ️  dtbo.img not found (this is normal for some kernels)"
         fi
         
         # إحصائيات ccache
@@ -234,11 +271,19 @@ jobs:
         
         if [ $BUILD_RESULT -eq 0 ] && [ $FILES_FOUND -ge 1 ]; then
           echo "🎉 Kernel built successfully!"
+          echo "✅ Successfully compiled:"
+          ls -lh "${{ env.OBJ_DIR }}/arch/arm64/boot/" 2>/dev/null | grep -E "Image|dtbo"
         else
           echo "❌ Build failed or outputs missing"
           echo ""
-          echo "📋 Last 20 lines of build log:"
-          tail -20 build.log
+          echo "📋 Last 30 lines of build log:"
+          tail -30 build.log
+          echo ""
+          echo "🔍 Checking for common issues..."
+          if grep -q "error:" build.log; then
+            echo "Found errors in build log:"
+            grep -i "error:" build.log | head -10
+          fi
           exit 1
         fi
         
@@ -272,11 +317,20 @@ jobs:
         # نسخ ملفات الكيرنل إلى AnyKernel3
         echo "📁 Copying kernel files..."
         
-        # نسخ Image.gz إذا كان موجوداً
+        # ابحث عن ملف الكيرنل
+        KERNEL_FILE=""
         if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" ]; then
-          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" \
-                "${{ env.ANYKERNEL_DIR }}/"
-          echo "✅ Copied Image.gz"
+          KERNEL_FILE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        elif [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image" ]; then
+          KERNEL_FILE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image"
+        fi
+        
+        if [ -n "$KERNEL_FILE" ]; then
+          cp -f "$KERNEL_FILE" "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ Copied $(basename "$KERNEL_FILE")"
+        else
+          echo "❌ No kernel image found!"
+          exit 1
         fi
         
         # نسخ dtbo.img إذا كان موجوداً
@@ -295,7 +349,7 @@ jobs:
         rm -f *.zip
         
         # إنشاء الـ zip
-        zip -r9 "$ZIP_NAME" ./* 2>/dev/null
+        zip -r9 "$ZIP_NAME" ./* >/dev/null 2>&1
         
         # نقل الـ zip إلى مجلد الكيرنل
         mv "$ZIP_NAME" "${{ env.KERNEL_DIR }}/"
@@ -310,11 +364,15 @@ jobs:
         fi
         
         # توقيع الـ zip
-        java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP" 2>/dev/null
+        java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP" >/dev/null 2>&1
         
         if [ -f "$SIGNED_ZIP" ]; then
           ZIP_SIZE=$(stat -c%s "$SIGNED_ZIP")
           echo "✅ Signed zip created: $(numfmt --to=iec $ZIP_SIZE)"
+          echo "   File: $SIGNED_ZIP"
+        else
+          echo "⚠️  Zip signing failed, using unsigned zip"
+          SIGNED_ZIP="$ZIP_NAME"
         fi
         
         # نسخ الملفات إلى مجلد release
@@ -323,26 +381,21 @@ jobs:
         mkdir -p "${{ env.RELEASE_DIR }}"
         
         # نسخ الملفات الفردية
-        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" ]; then
-          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" \
-                "${{ env.RELEASE_DIR }}/"
-        fi
+        cp -f "$KERNEL_FILE" "${{ env.RELEASE_DIR }}/" 2>/dev/null || true
         
         if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" ]; then
           cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" \
-                "${{ env.RELEASE_DIR }}/"
+                "${{ env.RELEASE_DIR }}/" 2>/dev/null || true
         fi
         
-        if [ -f "$SIGNED_ZIP" ]; then
-          cp -f "$SIGNED_ZIP" "${{ env.RELEASE_DIR }}/"
-        fi
+        cp -f "${{ env.KERNEL_DIR }}/$SIGNED_ZIP" "${{ env.RELEASE_DIR }}/" 2>/dev/null || true
         
         # تنظيف
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         
         echo ""
-        echo "📋 Available files:"
-        echo "-------------------"
+        echo "📋 Available files in release/:"
+        echo "-------------------------------"
         ls -lh "${{ env.RELEASE_DIR }}/" 2>/dev/null || echo "No files in release directory"
         echo ""
     
@@ -351,7 +404,6 @@ jobs:
       with:
         name: kernel-violet-${{ github.run_number }}
         path: |
-          ${{ env.KERNEL_DIR }}/*.zip
           ${{ env.RELEASE_DIR }}/
           ${{ env.KERNEL_DIR }}/build.log
         retention-days: 7
@@ -383,10 +435,11 @@ jobs:
         echo "🔢 Run: #${{ github.run_number }}"
         echo "📅 SHA: ${{ github.sha }}"
         echo "📊 Status: ${{ job.status }}"
+        echo "🕒 Completed: $(date '+%H:%M:%S')"
         echo ""
         echo "📦 Artifacts available for download:"
         echo "   • kernel-violet-${{ github.run_number }}"
         echo ""
-        echo "🔗 Check the 'Artifacts' section to download"
-        echo "   the compiled kernel files."
+        echo "🔗 Download from the 'Artifacts' section"
+        echo "   in this workflow run."
         echo ""
