@@ -20,7 +20,9 @@ jobs:
     # 2️⃣ Dependencies
     - name: Install dependencies
       run: |
-        bc bison flex \
+        sudo apt update
+        sudo apt install -y \
+          bc bison flex \
           build-essential \
           libssl-dev libelf-dev libncurses-dev \
           gcc-aarch64-linux-gnu \
@@ -242,10 +244,9 @@ jobs:
         free -h
         
         # تقليل عدد الـ cores
-        CORES=$(($(nproc) / 2))
-        [ $CORES -lt 2 ] && CORES=2
+        TOTAL_CORES=$(nproc)
+        echo "🔧 الأنوية المتاحة: $TOTAL_CORES"
         
-        echo "🔧 استخدام $CORES cores (من أصل $(nproc))"
         
         # ⭐⭐ البناء باستخدام clang المكتشف تلقائياً ⭐⭐
         stdbuf -oL -eL make O=out -j$CORES \
