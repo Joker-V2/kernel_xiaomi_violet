@@ -1,4 +1,4 @@
-name: Build Kernel - ZyC Clang 22
+name: Build Kernel - ZyC Clang 20
 
 on:
   workflow_dispatch:
@@ -12,9 +12,9 @@ env:
   CONFIG_FILE: "vendor/violet-perf_defconfig"
   ARCH: "arm64"
   KBUILD_BUILD_HOST: "SuperiorOS"
-  KBUILD_BUILD_USER: "RedHawk"
+  KBUILD_BUILD_USER: "Redhawk"
   ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
-  ANYKERNEL_BRANCH: "zycromerz"
+  ANYKERNEL_BRANCH: "sixteen"
   CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/20.0.0git-20250129-release/Clang-20.0.0git-20250129.tar.gz"
   ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
 
@@ -70,15 +70,19 @@ jobs:
       run: |
         if [ ! -d "${{ env.TC_DIR }}" ]; then
           echo "Toolchain not found! Cloning to ${{ env.TC_DIR }}..."
-          echo "Toolchain not found! Cloning ZyC-Clang"
+          echo "Downloading ZyC-Clang 20.0.0"
           wget -q "${{ env.CLANG_URL }}"
           mkdir -p "${{ env.TC_DIR }}"
-          tar -xvf Clang-22.0.0git-20250920.tar.gz -C "${{ env.TC_DIR }}"
-          rm -rf Clang-22.0.0git-20250920.tar.gz
+          tar -xvf Clang-20.0.0git-20250129.tar.gz -C "${{ env.TC_DIR }}"
+          rm -rf Clang-20.0.0git-20250129.tar.gz
         fi
         
         # Add toolchain to PATH
         echo "${{ env.CLANG_DIR }}/bin" >> $GITHUB_PATH
+        
+        # Verify clang version
+        echo "Clang version:"
+        ${{ env.CLANG_DIR }}/bin/clang --version | head -3
     
     - name: 🏗️ Build Kernel
       run: |
@@ -167,6 +171,7 @@ jobs:
         echo "Build took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
         echo "Compiled & Signed successfully ✅"
         echo "Build file: ${SIGNED_ZIP}"
+        echo "Toolchain: ZyC-Clang 20.0.0"
         echo "############################################"
         echo "############# OkThisIsEpic! ###############"
         echo "############################################"
@@ -174,20 +179,20 @@ jobs:
     - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-build
+        name: kernel-build-${{ env.KERNEL_NAME }}-$(date +'%Y%m%d-%H%M')
         path: |
           ${{ env.KERNEL_DIR }}/*.zip
           ${{ env.KERNEL_DIR }}/error.log
-          ${{ env.OBJ_DIR }}/arch/arm64/boot/
+          ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz
+          ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
         retention-days: 30
     
-    # إضافة الكاش لتحسين الأداء
-    - name: 💾 Cache Toolchain
+    - name: 💾 Cache Toolchain and CCache
       uses: actions/cache@v4
       with:
         path: |
           ${{ env.TC_DIR }}
           ${{ env.CCACHE_DIR }}
-        key: ${{ runner.os }}-tc-${{ hashFiles('**/Kbuild', '**/Makefile') }}
+        key: ${{ runner.os }}-zyc-clang-20-${{ hashFiles('**/Kbuild', '**/Makefile') }}
         restore-keys: |
-          ${{ runner.os }}-tc-
+          ${{ runner.os }}-zyc-clang-20-
