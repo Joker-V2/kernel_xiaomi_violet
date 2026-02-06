@@ -90,7 +90,6 @@ jobs:
         echo ""
         
         # متغيرات البيئة من سكريبت bash
-        export CONFIG_FILE="vendor/violet-perf_defconfig"
         export ARCH=arm64
         export SUBARCH=arm64
         export CLANG_PATH="${{ env.TOOLCHAIN_DIR }}/bin"
@@ -99,12 +98,15 @@ jobs:
         export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
+        # إنشاء مجلد out
+        mkdir -p out
+        
         echo ""
         echo "📝 Set DEFCONFIG"
         echo ""
         
         # ═══════════════════════════════════════════════════
-        # ⚡⚡⚡ vendor/violet-perf_defconfig ⚡⚡⚡
+        # ⚡⚡⚡ التصحيح: vendor/violet-perf_defconfig و O=out في نفس السطر ⚡⚡⚡
         # ═══════════════════════════════════════════════════
         echo "Using defconfig: vendor/violet-perf_defconfig"
         make CC=clang \
@@ -113,9 +115,8 @@ jobs:
              OBJCOPY=llvm-objcopy \
              OBJDUMP=llvm-objdump \
              STRIP=llvm-strip \
-             vendor/violet-perf_defconfig \
-             O=out 
-              
+             O=out \
+             vendor/violet-perf_defconfig  # ← هنا الخطأ كان في السابق
         
         echo ""
         echo "🔨 Build The Good Stuff"
