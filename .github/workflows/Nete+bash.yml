@@ -40,39 +40,61 @@ jobs:
           zstd \
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
-          python-is-python3
+          python-is-python3 \
+          p7zip-full \
+          android-sdk-libsparse-utils \
+          erofs-utils \
+          gnupg \
+          libxml2-utils xsltproc \
+          libtinfo6 \
+          cpio kmod openssl pahole \
+          libarchive-tools rsync
         
         echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
         echo "OBJ_DIR=$(pwd)/out" >> $GITHUB_ENV
         echo "ANYKERNEL_DIR=$(pwd)/anykernel" >> $GITHUB_ENV
         echo "TOOLCHAIN_DIR=$(pwd)/toolchains/neutron-clang" >> $GITHUB_ENV
         
+        # إعداد ccache
         ccache --max-size=2G
         ccache --clear
+        
+        # معلومات النظام
+        echo "🚀 نظام البناء:"
+        echo "المعالج: $(nproc) نواة"
+        echo "الذاكرة: $(free -h | awk '/^Mem:/{print $2}')"
+        echo "التاريخ: $(date)"
     
     - name: 🔧 Setup Neutron Clang
       run: |
-        echo "🔧 Setting up Neutron Clang..."
+        echo "🔧 إعداد Neutron Clang..."
         
         mkdir -p "${{ env.TOOLCHAIN_DIR }}"
         cd "${{ env.TOOLCHAIN_DIR }}"
         
+        # تحميل AntMan
         curl -sSL "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" -o antman
         chmod +x antman
         
-        echo "📥 Downloading Neutron Clang..."
+        # تنزيل Neutron Clang
+        echo "📥 جاري تنزيل Neutron Clang..."
         ./antman -S 2>&1 | grep -v "Broken pipe" || true
         
+        # التحقق
         if [ -f "bin/clang" ]; then
-          echo "✅ Neutron Clang ready"
+          echo "✅ Neutron Clang جاهز"
           echo "CLANG_PATH=${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_ENV
           echo "${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_PATH
+          
+          # عرض إصدار clang للتأكد
+          echo "🔍 إصدار Clang:"
+          ./bin/clang --version | head -5
         else
-          echo "❌ Neutron Clang setup failed"
+          echo "❌ فشل إعداد Neutron Clang"
           exit 1
         fi
     
-    - name: 🏗️ Build Kernel (FIXED)
+    - name: 🏗️ Build Kernel with Neutron Clang
       run: |
         cd "${{ env.KERNEL_DIR }}"
         
@@ -82,21 +104,18 @@ jobs:
         echo "🧹 تنظيف مجلد البناء..."
         echo ""
         
-        # ═══════════════════════════════════════════════════
-        # ⚡⚡⚡ الحل: تنظيف بسيط بدون make clean ⚡⚡⚡
-        # ═══════════════════════════════════════════════════
+        # تنظيف يدوي بدون make clean
         rm -rf "${{ env.OBJ_DIR }}"
         mkdir -p "${{ env.OBJ_DIR }}"
-        
-        # تنظيف بسيط فقط (لا تستخدم make clean)
-        rm -f .config
-        rm -f out/.config
+        rm -f .config .config.old
         
         echo ""
-        echo "🔧 إعداد متغيرات البيئة"
+        echo "🔧 إعداد متغيرات Neutron Clang..."
         echo ""
         
-        # متغيرات البيئة
+        # ═══════════════════════════════════════════════════
+        # ⚡⚡⚡ متغيرات Neutron Clang الأساسية ⚡⚡⚡
+        # ═══════════════════════════════════════════════════
         export ARCH=arm64
         export SUBARCH=arm64
         export CLANG_PATH="${{ env.TOOLCHAIN_DIR }}/bin"
@@ -105,27 +124,25 @@ jobs:
         export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
+        # تأكيد استخدام Neutron
+        echo "🔍 التحقق من Neutron Clang:"
+        which clang
+        clang --version | head -3
+        
         echo ""
-        echo "📝 إنشاء Defconfig"
+        echo "📝 إنشاء Defconfig..."
         echo ""
         
         echo "استخدام: ${{ env.CONFIG_FILE }}"
         
         # ═══════════════════════════════════════════════════
-        # ⚡⚡⚡ الطريقة المضمونة: بدون make clean أولاً ⚡⚡⚡
+        # ✅ بناء defconfig (بدون CC و AR - هذا مهم!)
         # ═══════════════════════════════════════════════════
         make \
           O="${{ env.OBJ_DIR }}" \
           ARCH="${{ env.ARCH }}" \
-          CC="clang" \
-          AR="llvm-ar" \
-          NM="llvm-nm" \
-          OBJCOPY="llvm-objcopy" \
-          OBJDUMP="llvm-objdump" \
-          STRIP="llvm-strip" \
           CROSS_COMPILE="aarch64-linux-gnu-" \
           CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \
-          CLANG_TRIPLE="aarch64-linux-gnu-" \
           "${{ env.CONFIG_FILE }}"
         
         if [ $? -eq 0 ]; then
@@ -136,11 +153,14 @@ jobs:
         fi
         
         echo ""
-        echo "🔨 بدء بناء الكيرنل..."
+        echo "🔨 بدء بناء الكيرنل مع Neutron Clang..."
         echo ""
         
         echo "البناء باستخدام $(nproc) نواة معالج"
         
+        # ═══════════════════════════════════════════════════
+        # ✅ بناء الكيرنل مع Neutron Clang
+        # ═══════════════════════════════════════════════════
         make -j$(nproc) \
           O="${{ env.OBJ_DIR }}" \
           ARCH="${{ env.ARCH }}" \
@@ -156,77 +176,121 @@ jobs:
           CLANG_TRIPLE="aarch64-linux-gnu-" \
           LLVM=1 \
           LLVM_IAS=1 \
+          KBUILD_BUILD_USER="GitHub-Actions" \
+          KBUILD_BUILD_HOST="Neutron-Clang" \
           2>&1 | tee build.log
         
         # التحقق من النجاح
-        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image" ]; then
-          KERNEL_FILE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image"
-          echo "✅ تم بناء Kernel Image"
-        elif [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz" ]; then
-          KERNEL_FILE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
-          echo "✅ تم بناء Kernel Image.gz"
+        COMPILED_IMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image"
+        COMPILED_IMAGE_GZ="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        COMPILED_DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        
+        if [[ -f "${COMPILED_IMAGE}" || -f "${COMPILED_IMAGE_GZ}" ]]; then
+          echo ""
+          echo "🎉 تم بناء الكيرنل بنجاح باستخدام Neutron Clang ✅"
+          
+          # تحديد ملف الكيرنل
+          if [ -f "${COMPILED_IMAGE}" ]; then
+            KERNEL_FILE="${COMPILED_IMAGE}"
+            echo "📄 ملف الكيرنل: Image (غير مضغوط)"
+          elif [ -f "${COMPILED_IMAGE_GZ}" ]; then
+            KERNEL_FILE="${COMPILED_IMAGE_GZ}"
+            echo "📄 ملف الكيرنل: Image.gz (مضغوط)"
+          fi
+          
+          END_TIME=$(date +"%s")
+          DIFF=$((END_TIME - START_TIME))
+          
+          echo "⏱️  وقت البناء: $((DIFF / 60)) دقيقة و $((DIFF % 60)) ثانية"
+          
+          # عرض حجم الملفات
+          echo ""
+          echo "📁 مخرجات البناء:"
+          ls -lh "${{ env.OBJ_DIR }}/arch/arm64/boot/" | grep -E "Image|dtbo"
+          
+          # حفظ المتغيرات للمراحل التالية
+          echo "KERNEL_FILE=${KERNEL_FILE}" >> $GITHUB_ENV
+          
+          if [ -f "${COMPILED_DTBO}" ]; then
+            echo "DTBO_FILE=${COMPILED_DTBO}" >> $GITHUB_ENV
+          fi
+          
+          # إحصائيات CCache
+          echo ""
+          echo "📊 إحصائيات CCache:"
+          ccache -s
+          
         else
+          echo ""
           echo "❌ فشل البناء - ملف الكيرنل غير موجود"
           echo "آخر 50 سطر من سجل البناء:"
           tail -50 build.log
           exit 1
         fi
+    
+    - name: 📦 Create Flashable Zip
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        START_TIME=$(date +"%s")
+        
+        echo ""
+        echo "📦 جاري إنشاء حزمة التثبيت..."
+        echo ""
+        
+        # تحديد الملفات
+        ZIMAGE="${{ env.KERNEL_FILE }}"
+        DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +"%Y%m%d-%H%M").zip"
+        
+        # Clone AnyKernel3 (بنفس طريقة ZyC)
+        rm -rf "${{ env.ANYKERNEL_DIR }}"
+        git clone -q "${{ env.ANYKERNEL_REPO }}" -b "${{ env.ANYKERNEL_BRANCH }}" "${{ env.ANYKERNEL_DIR }}"
+        
+        # Copy kernel files (بنفس طريقة ZyC)
+        cp -f "${ZIMAGE}" "${{ env.ANYKERNEL_DIR }}/"
+        
+        if [ -f "${DTBO}" ]; then
+          cp -f "${DTBO}" "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ تم نسخ dtbo.img"
+        fi
+        
+        # Create zip (بنفس طريقة ZyC)
+        cd "${{ env.ANYKERNEL_DIR }}"
+        find . -name "*.zip" -type f -delete
+        zip -r -9 AnyKernel.zip *
+        mv AnyKernel.zip "${ZIP_NAME}"
+        
+        # Sign the zip (بنفس طريقة ZyC)
+        echo "🔏 Signing build with AOSP keys"
+        cd "${{ env.KERNEL_DIR }}"
+        if [ ! -f zipsigner-3.0.jar ]; then
+          wget -O zipsigner-3.0.jar "${{ env.ZIPSIGNER_URL }}"
+        fi
+        
+        java -jar zipsigner-3.0.jar "${{ env.ANYKERNEL_DIR }}/${ZIP_NAME}" "${ZIP_NAME/.zip/-signed.zip}"
+        SIGNED_ZIP="${ZIP_NAME/.zip/-signed.zip}"
+        
+        # Clean up (اختياري مثل ZyC)
+        rm -rf "${{ env.ANYKERNEL_DIR }}"
         
         END_TIME=$(date +"%s")
         DIFF=$((END_TIME - START_TIME))
         
-        echo "⏱️  وقت البناء: $((DIFF / 60)) دقيقة و $((DIFF % 60)) ثانية"
+        echo "############################################"
+        echo "🚀 Build Complete"
+        echo "############################################"
+        echo "Total packaging time: $((DIFF / 60))m $((DIFF % 60))s"
+        echo "Toolchain: Neutron Clang"
+        echo "Build file: ${SIGNED_ZIP}"
+        echo "############################################"
         
-        echo "KERNEL_FILE=$KERNEL_FILE" >> $GITHUB_ENV
-        
-        # عرض إحصائيات CCache
-        echo ""
-        echo "📊 إحصائيات CCache:"
-        ccache -s
+        echo "FINAL_ZIP=${SIGNED_ZIP}" >> $GITHUB_ENV
     
-    - name: 📦 تعبئة الكيرنل
-      run: |
-        cd "${{ env.KERNEL_DIR }}"
-        
-        # Clone AnyKernel
-        rm -rf "${{ env.ANYKERNEL_DIR }}"
-        git clone -q \
-          "${{ env.ANYKERNEL_REPO }}" \
-          -b "${{ env.ANYKERNEL_BRANCH }}" \
-          "${{ env.ANYKERNEL_DIR }}"
-        
-        # نسخ ملف الكيرنل
-        echo "📁 نسخ ملف الكيرنل..."
-        cp -f "${{ env.KERNEL_FILE }}" "${{ env.ANYKERNEL_DIR }}/"
-        
-        # نسخ dtbo.img إذا وجد
-        if [ -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" ]; then
-          cp -f "${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img" "${{ env.ANYKERNEL_DIR }}/"
-          echo "✅ تم نسخ dtbo.img"
-        fi
-        
-        # إنشاء ZIP
-        cd "${{ env.ANYKERNEL_DIR }}"
-        ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +"%Y%m%d-%H%M").zip"
-        zip -r -9 "$ZIP_NAME" . -x ".git/*"
-        mv "$ZIP_NAME" "${{ env.KERNEL_DIR }}/"
-        
-        # توقيع الـ ZIP
-        cd "${{ env.KERNEL_DIR }}"
-        if [ ! -f "zipsigner-3.0.jar" ]; then
-          wget -q -O zipsigner-3.0.jar "${{ env.ZIPSIGNER_URL }}"
-        fi
-        
-        SIGNED_ZIP="${ZIP_NAME%.zip}-signed.zip"
-        java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP"
-        
-        echo "✅ تم التوقيع: $SIGNED_ZIP"
-        echo "FINAL_ZIP=$SIGNED_ZIP" >> $GITHUB_ENV
-    
-    - name: 📤 رفع الملفات
+    - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-neutron
+        name: kernel-neutron-${{ env.KERNEL_NAME }}
         path: |
           ${{ env.KERNEL_DIR }}/*-signed.zip
           ${{ env.KERNEL_DIR }}/build.log
@@ -234,16 +298,24 @@ jobs:
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
         retention-days: 7
     
-    - name: 📊 ملخص البناء
+    - name: 📊 Build Summary
       if: always()
       run: |
         echo "══════════════════════════════════════════════════════════════"
         echo "                    🚀 ملخص البناء 🚀                     "
         echo "══════════════════════════════════════════════════════════════"
         echo "🔸 الكيرنل: ${{ env.KERNEL_NAME }}"
+        echo "🔸 الإصدار: ${{ env.KERNEL_VARIANT }}"
         echo "🔸 الأداة: Neutron Clang"
-        echo "🔸 Config: ${{ env.CONFIG_FILE }}"
-        echo "🔸 المعمارية: arm64"
+        echo "🔸 الإعداد: ${{ env.CONFIG_FILE }}"
+        echo "🔸 المعمارية: ${{ env.ARCH }}"
         echo "🔸 الأنوية المستخدمة: $(nproc)"
         echo "🔸 الملف النهائي: ${{ env.FINAL_ZIP }}"
+        echo "══════════════════════════════════════════════════════════════"
+        echo ""
+        echo "📊 متغيرات Neutron المستخدمة:"
+        echo "CLANG_PATH: ${{ env.TOOLCHAIN_DIR }}/bin"
+        echo "CROSS_COMPILE: aarch64-linux-gnu-"
+        echo "CROSS_COMPILE_ARM32: arm-linux-gnueabi-"
+        echo "CLANG_TRIPLE: aarch64-linux-gnu-"
         echo "══════════════════════════════════════════════════════════════"
