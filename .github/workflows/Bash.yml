@@ -1,0 +1,725 @@
+name: Build Kernel - ZyC Clang 15.0.7 (2026-02-05)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [zycromerz]
+
+env:
+  KERNEL_NAME: "xcalibur-v5.4-violet-dynamic"
+  KERNEL_VARIANT: "Retrofit Dynamic"
+  KERNEL_SUPPORT: "Android 15.0-16.0"
+  CONFIG_FILE: "vendor/violet-perf_defconfig"
+  ARCH: "arm64"
+  KBUILD_BUILD_HOST: "SuperiorOS"
+  KBUILD_BUILD_USER: "Redhawk"
+  ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
+  ANYKERNEL_BRANCH: "sixteen"
+  CLANG_URL: "https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260205-release/Clang-15.0.7-20260205.tar.gz"
+  ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    
+    steps:
+    - name: 📥 Checkout Kernel Source
+      uses: actions/checkout@v4
+      with:
+        ref: zycromerz
+        fetch-depth: 1
+    
+    - name: ⚙️ Setup Build Environment
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd \
+          binutils-aarch64-linux-gnu \
+          device-tree-compiler \
+          lz4 xz-utils zlib1g-dev \
+          openjdk-17-jdk \
+          python-is-python3 \
+          p7zip-full \
+          android-sdk-libsparse-utils \
+          erofs-utils \
+          gnupg \
+          gperf \
+          libx11-dev \
+          libreadline-dev \
+          libgl1 libgl1-mesa-dev \
+          python3-markdown \
+          libxml2-utils xsltproc \
+          libtinfo6 \
+          cpio kmod openssl pahole \
+          libarchive-tools rsync \
+          util-linux 
+        
+        # Set up environment variables
+        echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
+        echo "OBJ_DIR=$(pwd)/out" >> $GITHUB_ENV
+        echo "ANYKERNEL_DIR=$(pwd)/anykernel" >> $GITHUB_ENV
+        echo "TC_DIR=$(pwd)/tc" >> $GITHUB_ENV
+        echo "CLANG_DIR=$(pwd)/tc" >> $GITHUB_ENV
+        
+        # ✅ إصلاح: تحديد حجم CCache (5GB مثالي لـ GitHub)
+        echo "CCACHE_DIR=$(pwd)/.ccache" >> $GITHUB_ENV
+        mkdir -p "$(pwd)/.ccache"
+        ccache -M 5G  # ✅ هذا مهم!
+        ccache -z     # ✅ مسح الإحصائيات القديمة
+        
+        # Display build info
+        cores=$(nproc --all)
+        os=$(lsb_release -d | cut -f2-)  # ✅ طريقة أفضل
+        time=$(TZ="Asia/Kolkata" date "+%Y-%m-%d %H:%M:%S")
+        commit_head=$(git log --oneline -1)
+        
+        echo "🚀 Build Triggered ⌛"
+        echo "Kernel: ${{ env.KERNEL_NAME }}"
+        echo "Support: ${{ env.KERNEL_SUPPORT }}"
+        echo "Variant: ${{ env.KERNEL_VARIANT }}"
+        echo "System: ${os}"
+        echo "Cores: ${cores}"
+        echo "Time (IST): ${time}"
+        echo "Last Commit: ${commit_head}"
+        echo "CCache: 5GB enabled"
+        echo "Note: No swap needed (16GB RAM available)"
+    
+    - name: 🔧 Download Toolchain
+      run: |
+        if [ ! -d "${{ env.TC_DIR }}" ]; then
+          echo "📥 Downloading ZyC-Clang 15.0.7..."
+          wget -q "${{ env.CLANG_URL }}"
+          mkdir -p "${{ env.TC_DIR }}"
+          tar -xvf Clang-15.0.7-20260205.tar.gz -C "${{ env.TC_DIR }}"
+          rm -rf Clang-15.0.7-20260205.tar.gz
+          echo "✅ Toolchain downloaded and extracted"
+        else
+          echo "✅ Toolchain already exists"
+        fi
+        
+        # Add toolchain to PATH
+        echo "${{ env.CLANG_DIR }}/bin" >> $GITHUB_PATH
+        
+        # Verify clang version
+        echo "🔧 Clang version:"
+        ${{ env.CLANG_DIR }}/bin/clang --version | head -3
+    
+    - name: 🏗️ Build Kernel
+      run: |
+        START_TIME=$(date +"%s")
+        
+        # Clean previous builds
+        rm -rf "${{ env.OBJ_DIR }}"
+        mkdir -p "${{ env.OBJ_DIR }}"
+        
+        # Generate defconfig
+        echo "########### Generating Defconfig ############"
+        make -s ARCH="${{ env.ARCH }}" O="${{ env.OBJ_DIR }}" "${{ env.CONFIG_FILE }}" -j$(nproc --all)
+        
+        if [ $? -eq 0 ]; then
+          echo "✅ Defconfig generated successfully"
+        else
+          echo "❌ Defconfig generation failed"
+          exit 1
+        fi
+        
+        # Compile kernel
+        echo "######### Compiling kernel #########"
+        make -j$(nproc --all) \
+          O="${{ env.OBJ_DIR }}" \
+          ARCH="${{ env.ARCH }}" \
+          CC="ccache clang" \
+          CLANG_TRIPLE="aarch64-linux-gnu-" \
+          CROSS_COMPILE="aarch64-linux-gnu-" \
+          CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \
+          LLVM=1 \
+          LLVM_IAS=1 \
+          2>&1 | tee error.log
+        
+        # Check if compilation succeeded
+        COMPILED_IMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        COMPILED_DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        
+        if [[ -f "${COMPILED_IMAGE}" && -f "${COMPILED_DTBO}" ]]; then
+          echo "🎉 Kernel compiled successfully ✅"
+          END_TIME=$(date +"%s")
+          DIFF=$((END_TIME - START_TIME))
+          echo "⏱️  Compilation took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
+          
+          # ✅ إظهار إحصائيات CCache
+          echo ""
+          echo "📊 CCache Statistics:"
+          ccache -s
+        else
+          echo "❌ Compilation failed"
+          echo "Check error.log for details"
+          exit 1
+        fi
+    
+    # ====================== 📦 نظام حفظ وإدارة Modules ======================
+    - name: 🔍 Discover Kernel Modules
+      if: success()
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        echo "🔍 جاري البحث عن جميع Kernel Modules..."
+        echo ""
+        
+        # البحث عن جميع ملفات .ko في مجلد out
+        MODULES_LIST=$(find ./out -name "*.ko" -type f 2>/dev/null | sort)
+        
+        if [ -n "${MODULES_LIST}" ]; then
+          echo "══════════════════════════════════════════════════════════════"
+          echo "📦 قائمة جميع الـ Modules المكتشفة"
+          echo "══════════════════════════════════════════════════════════════"
+          
+          MODULE_COUNT=0
+          TOUCH_MODULE=""
+          WIFI_MODULE=""
+          CAMERA_MODULE=""
+          AUDIO_MODULE=""
+          
+          while IFS= read -r MODULE_PATH; do
+            MODULE_COUNT=$((MODULE_COUNT + 1))
+            MODULE_NAME=$(basename "${MODULE_PATH}")
+            MODULE_SIZE=$(ls -lh "${MODULE_PATH}" | awk '{print $5}')
+            MODULE_DIR=$(dirname "${MODULE_PATH}" | sed 's|^\./out/||')
+            
+            echo "${MODULE_COUNT}. ${MODULE_NAME} (${MODULE_SIZE})"
+            echo "   📍 ${MODULE_DIR}/"
+            
+            # تحديد نوع الـ module
+            if [[ "${MODULE_NAME}" == *touch* ]] || [[ "${MODULE_NAME}" == *ts* ]] || [[ "${MODULE_NAME}" == *s3706* ]]; then
+              echo "   📱 Touchscreen Driver"
+              TOUCH_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *wlan* ]] || [[ "${MODULE_NAME}" == *wifi* ]] || [[ "${MODULE_NAME}" == *qca* ]]; then
+              echo "   📶 Wi-Fi Driver"
+              WIFI_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *cam* ]] || [[ "${MODULE_NAME}" == *sensor* ]] || [[ "${MODULE_NAME}" == *ois* ]]; then
+              echo "   📷 Camera Driver"
+              CAMERA_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *audio* ]] || [[ "${MODULE_NAME}" == *snd* ]] || [[ "${MODULE_NAME}" == *sound* ]]; then
+              echo "   🔊 Audio Driver"
+              AUDIO_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *bt* ]] || [[ "${MODULE_NAME}" == *bluetooth* ]]; then
+              echo "   🎧 Bluetooth Driver"
+            elif [[ "${MODULE_NAME}" == *battery* ]] || [[ "${MODULE_NAME}" == *charger* ]]; then
+              echo "   🔋 Power/Battery Driver"
+            else
+              echo "   ⚙️ Generic Driver"
+            fi
+            
+            echo ""
+          done <<< "${MODULES_LIST}"
+          
+          echo "══════════════════════════════════════════════════════════════"
+          echo "📊 الإجمالي: ${MODULE_COUNT} module(s)"
+          echo ""
+          
+          # حفظ المعلومات للمراحل التالية
+          echo "MODULES_COUNT=${MODULE_COUNT}" >> $GITHUB_ENV
+          echo "ALL_MODULES=\"${MODULES_LIST}\"" >> $GITHUB_ENV
+          
+          # حفظ modules مهمة
+          if [ -n "${TOUCH_MODULE}" ]; then
+            echo "TOUCH_MODULE=${TOUCH_MODULE}" >> $GITHUB_ENV
+            echo "TOUCH_MODULE_NAME=$(basename "${TOUCH_MODULE}")" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${WIFI_MODULE}" ]; then
+            echo "WIFI_MODULE=${WIFI_MODULE}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${CAMERA_MODULE}" ]; then
+            echo "CAMERA_MODULE=${CAMERA_MODULE}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${AUDIO_MODULE}" ]; then
+            echo "AUDIO_MODULE=${AUDIO_MODULE}" >> $GITHUB_ENV
+          fi
+          
+        else
+          echo "ℹ️ لم يتم العثور على أي modules في مجلد out/"
+          echo "MODULES_COUNT=0" >> $GITHUB_ENV
+        fi
+    
+    - name: 💾 Save Modules Database
+      if: env.MODULES_COUNT != '0' && success()
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        echo "💾 إنشاء قاعدة بيانات Modules..."
+        echo ""
+        
+        # إنشاء مجلد حفظ Modules
+        MODULES_DB_DIR="./modules_database"
+        mkdir -p "${MODULES_DB_DIR}/modules"
+        mkdir -p "${MODULES_DB_DIR}/backups"
+        
+        DB_FILE="${MODULES_DB_DIR}/modules_database.json"
+        INFO_FILE="${MODULES_DB_DIR}/modules_info.md"
+        
+        # بدء JSON
+        echo "[" > "${DB_FILE}"
+        
+        # إنشاء ملف المعلومات
+        echo "# Kernel Modules Database" > "${INFO_FILE}"
+        echo "" >> "${INFO_FILE}"
+        echo "## Build Information" >> "${INFO_FILE}"
+        echo "- **Kernel**: ${{ env.KERNEL_NAME }}" >> "${INFO_FILE}"
+        echo "- **Variant**: ${{ env.KERNEL_VARIANT }}" >> "${INFO_FILE}"
+        echo "- **Toolchain**: ZyC Clang 15.0.7" >> "${INFO_FILE}"
+        echo "- **Date**: $(date)" >> "${INFO_FILE}"
+        echo "- **Total Modules**: ${{ env.MODULES_COUNT }}" >> "${INFO_FILE}"
+        echo "" >> "${INFO_FILE}"
+        echo "## Modules List" >> "${INFO_FILE}"
+        echo "" >> "${INFO_FILE}"
+        
+        FIRST=true
+        MODULE_INDEX=0
+        
+        echo "${{ env.ALL_MODULES }}" | while IFS= read -r MODULE_PATH; do
+          if [ -f "${MODULE_PATH}" ]; then
+            MODULE_INDEX=$((MODULE_INDEX + 1))
+            MODULE_NAME=$(basename "${MODULE_PATH}")
+            MODULE_SIZE=$(stat -c%s "${MODULE_PATH}")
+            MODULE_SIZE_MB=$(echo "scale=2; ${MODULE_SIZE} / 1048576" | bc)
+            MODULE_SHA=$(sha256sum "${MODULE_PATH}" | cut -d' ' -f1)
+            MODULE_DATE=$(stat -c "%y" "${MODULE_PATH}")
+            
+            # تحديد التصنيف
+            CATEGORY="generic"
+            if [[ "${MODULE_NAME}" == *touch* ]] || [[ "${MODULE_NAME}" == *ts* ]]; then
+              CATEGORY="touch"
+            elif [[ "${MODULE_NAME}" == *wifi* ]] || [[ "${MODULE_NAME}" == *wlan* ]]; then
+              CATEGORY="wifi"
+            elif [[ "${MODULE_NAME}" == *cam* ]] || [[ "${MODULE_NAME}" == *sensor* ]]; then
+              CATEGORY="camera"
+            elif [[ "${MODULE_NAME}" == *audio* ]] || [[ "${MODULE_NAME}" == *sound* ]]; then
+              CATEGORY="audio"
+            elif [[ "${MODULE_NAME}" == *bt* ]] || [[ "${MODULE_NAME}" == *bluetooth* ]]; then
+              CATEGORY="bluetooth"
+            elif [[ "${MODULE_NAME}" == *battery* ]] || [[ "${MODULE_NAME}" == *charger* ]]; then
+              CATEGORY="power"
+            elif [[ "${MODULE_NAME}" == *gpu* ]] || [[ "${MODULE_NAME}" == *adreno* ]]; then
+              CATEGORY="gpu"
+            fi
+            
+            # نسخ Module إلى قاعدة البيانات
+            cp "${MODULE_PATH}" "${MODULES_DB_DIR}/modules/${MODULE_NAME}"
+            
+            # إضافة إلى JSON
+            if [ "${FIRST}" = false ]; then
+              echo "," >> "${DB_FILE}"
+            fi
+            
+            cat >> "${DB_FILE}" << EOF
+  {
+    "id": ${MODULE_INDEX},
+    "name": "${MODULE_NAME}",
+    "path": "${MODULE_PATH}",
+    "size_bytes": ${MODULE_SIZE},
+    "size_mb": ${MODULE_SIZE_MB},
+    "sha256": "${MODULE_SHA}",
+    "category": "${CATEGORY}",
+    "build_date": "${MODULE_DATE}",
+    "signed": false
+  }
+EOF
+            
+            # إضافة إلى ملف المعلومات
+            echo "### ${MODULE_INDEX}. ${MODULE_NAME}" >> "${INFO_FILE}"
+            echo "- **Category**: ${CATEGORY}" >> "${INFO_FILE}"
+            echo "- **Size**: ${MODULE_SIZE_MB} MB" >> "${INFO_FILE}"
+            echo "- **SHA256**: \`${MODULE_SHA:0:16}...\`" >> "${INFO_FILE}"
+            echo "- **Build Date**: ${MODULE_DATE}" >> "${INFO_FILE}"
+            echo "" >> "${INFO_FILE}"
+            
+            FIRST=false
+            echo "✅ حفظ: ${MODULE_NAME} (${CATEGORY})"
+          fi
+        done
+        
+        echo "]" >> "${DB_FILE}"
+        
+        # إنشاء ملف نصي بسيط للقائمة
+        LIST_FILE="${MODULES_DB_DIR}/modules_list.txt"
+        echo "# Modules List" > "${LIST_FILE}"
+        echo "# Generated: $(date)" >> "${LIST_FILE}"
+        echo "" >> "${LIST_FILE}"
+        
+        find "${MODULES_DB_DIR}/modules" -name "*.ko" -type f | while read f; do
+          basename "$f" >> "${LIST_FILE}"
+        done
+        
+        # إنشاء script نسخ احتياطي
+        BACKUP_SCRIPT="${MODULES_DB_DIR}/backup_modules.sh"
+        cat > "${BACKUP_SCRIPT}" << 'EOF'
+#!/bin/bash
+# Module Backup Script
+# Usage: ./backup_modules.sh [backup_dir]
+
+BACKUP_DIR="${1:-modules_backup_$(date +%Y%m%d_%H%M%S)}"
+MODULES_DIR="modules"
+
+echo "📦 Creating modules backup..."
+echo "Backup directory: ${BACKUP_DIR}"
+
+mkdir -p "${BACKUP_DIR}"
+
+if [ -d "${MODULES_DIR}" ]; then
+    cp -r "${MODULES_DIR}" "${BACKUP_DIR}/"
+    echo "✅ Modules backed up successfully"
+    
+    # Create backup info
+    echo "Backup created: $(date)" > "${BACKUP_DIR}/backup_info.txt"
+    echo "Total modules: $(find "${MODULES_DIR}" -name "*.ko" | wc -l)" >> "${BACKUP_DIR}/backup_info.txt"
+    
+    # Create restore script
+    cat > "${BACKUP_DIR}/restore.sh" << 'EOR'
+#!/bin/bash
+# Restore Modules Script
+
+echo "🔧 Restoring modules..."
+MODULES_SRC="modules"
+
+if [ -d "${MODULES_SRC}" ]; then
+    mkdir -p /tmp/modules_restore
+    cp -r "${MODULES_SRC}"/*.ko /tmp/modules_restore/
+    echo "✅ Modules restored to /tmp/modules_restore/"
+    echo "To install: cp /tmp/modules_restore/*.ko /system/lib/modules/"
+else
+    echo "❌ No modules found to restore"
+fi
+EOR
+    chmod +x "${BACKUP_DIR}/restore.sh"
+    
+    # Create zip of backup
+    zip -r "${BACKUP_DIR}.zip" "${BACKUP_DIR}" > /dev/null 2>&1
+    echo "📁 Backup zip created: ${BACKUP_DIR}.zip"
+    
+else
+    echo "❌ Modules directory not found"
+fi
+EOF
+        
+        chmod +x "${BACKUP_SCRIPT}"
+        
+        # إحصائيات
+        TOTAL_MODULES=$(find "${MODULES_DB_DIR}/modules" -name "*.ko" | wc -l)
+        TOTAL_SIZE=$(du -sh "${MODULES_DB_DIR}" | cut -f1)
+        
+        echo ""
+        echo "══════════════════════════════════════════════════════════════"
+        echo "💾 Modules Database Created Successfully"
+        echo "══════════════════════════════════════════════════════════════"
+        echo "📁 Database Directory: ${MODULES_DB_DIR}"
+        echo "📄 Database File: ${DB_FILE}"
+        echo "📋 Info File: ${INFO_FILE}"
+        echo "📦 Total Modules: ${TOTAL_MODULES}"
+        echo "💾 Total Size: ${TOTAL_SIZE}"
+        echo "🔄 Backup Script: ${BACKUP_SCRIPT}"
+        echo "══════════════════════════════════════════════════════════════"
+        
+        # حفظ متغيرات للمراحل التالية
+        echo "MODULES_DB_DIR=${MODULES_DB_DIR}" >> $GITHUB_ENV
+        echo "MODULES_DB_FILE=${DB_FILE}" >> $GITHUB_ENV
+        echo "MODULES_INFO_FILE=${INFO_FILE}" >> $GITHUB_ENV
+    
+    - name: 📦 Package Modules for Distribution
+      if: env.MODULES_COUNT != '0' && success()
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        echo "📦 تجهيز حزمة Modules للتوزيع..."
+        echo ""
+        
+        # إنشاء مجلد الحزمة
+        PACKAGE_DIR="./modules_package_$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "${PACKAGE_DIR}"
+        
+        # نسخ قاعدة البيانات
+        if [ -d "${{ env.MODULES_DB_DIR }}" ]; then
+          cp -r "${{ env.MODULES_DB_DIR }}"/* "${PACKAGE_DIR}/"
+          echo "✅ تم نسخ قاعدة البيانات"
+        fi
+        
+        # إنشاء ملف تثبيت
+        INSTALL_SCRIPT="${PACKAGE_DIR}/install_modules.sh"
+        cat > "${INSTALL_SCRIPT}" << 'EOF'
+#!/system/bin/sh
+# Kernel Modules Installer
+# For Android devices
+
+MOD_DIR="/system/lib/modules"
+TEMP_DIR="/tmp/modules_install"
+BACKUP_DIR="/data/modules_backup_$(date +%Y%m%d_%H%M%S)"
+
+echo "========================================="
+echo "   ZyCromerZ Modules Installer"
+echo "========================================="
+
+# Check root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "❌ This script requires root privileges"
+    exit 1
+fi
+
+# Create temp directory
+mkdir -p "${TEMP_DIR}"
+
+# Extract modules
+if [ -f "modules.zip" ]; then
+    echo "📦 Extracting modules..."
+    unzip -o modules.zip -d "${TEMP_DIR}" > /dev/null 2>&1
+fi
+
+# Create backup
+echo "💾 Creating backup..."
+mkdir -p "${BACKUP_DIR}"
+if [ -d "${MOD_DIR}" ]; then
+    cp -r "${MOD_DIR}"/*.ko "${BACKUP_DIR}/" 2>/dev/null || true
+    echo "✅ Backup created: ${BACKUP_DIR}"
+else
+    mkdir -p "${MOD_DIR}"
+    echo "✅ Created modules directory"
+fi
+
+# Install modules
+echo "🔧 Installing modules..."
+MODULES_COUNT=0
+for module in "${TEMP_DIR}"/modules/*.ko "${TEMP_DIR}"/*.ko; do
+    if [ -f "${module}" ]; then
+        MODULE_NAME=$(basename "${module}")
+        cp "${module}" "${MOD_DIR}/${MODULE_NAME}"
+        chmod 644 "${MOD_DIR}/${MODULE_NAME}"
+        MODULES_COUNT=$((MODULES_COUNT + 1))
+        echo "  ✅ Installed: ${MODULE_NAME}"
+    fi
+done
+
+# Update permissions
+chmod -R 755 "${MOD_DIR}"
+echo "✅ Updated permissions"
+
+# Create modules.load if needed
+if [ ! -f "${MOD_DIR}/modules.load" ] && [ -f "${TEMP_DIR}/modules_list.txt" ]; then
+    cp "${TEMP_DIR}/modules_list.txt" "${MOD_DIR}/modules.load"
+    echo "✅ Created modules.load file"
+fi
+
+# Clean up
+rm -rf "${TEMP_DIR}"
+
+echo ""
+echo "========================================="
+echo "   Installation Complete!"
+echo "========================================="
+echo "📊 Total modules installed: ${MODULES_COUNT}"
+echo "💾 Backup location: ${BACKUP_DIR}"
+echo "⚠️  Reboot required for changes to take effect"
+echo "========================================="
+EOF
+        
+        chmod +x "${INSTALL_SCRIPT}"
+        
+        # إنشاء ملف معلومات التثبيت
+        INFO_FILE="${PACKAGE_DIR}/README.md"
+        cat > "${INFO_FILE}" << EOF
+# ZyCromerZ Kernel Modules Package
+
+## Package Information
+- **Kernel**: ${{ env.KERNEL_NAME }}
+- **Variant**: ${{ env.KERNEL_VARIANT }}
+- **Toolchain**: ZyC Clang 15.0.7
+- **Build Date**: $(date)
+- **Total Modules**: ${{ env.MODULES_COUNT }}
+
+## Installation Instructions
+
+### Method 1: Manual Installation
+1. Copy all \`.ko\` files to \`/system/lib/modules/\`
+2. Set permissions:
+   \`\`\`bash
+   chmod 644 /system/lib/modules/*.ko
+   chmod 755 /system/lib/modules
+   \`\`\`
+3. Reboot device
+
+### Method 2: Using Installer Script
+1. Push package to device:
+   \`\`\`bash
+   adb push modules_package /sdcard/
+   \`\`\`
+2. Run installer:
+   \`\`\`bash
+   su
+   cd /sdcard/modules_package
+   sh install_modules.sh
+   \`\`\`
+3. Reboot device
+
+## Important Notes
+- Requires rooted device
+- Always backup existing modules
+- Reboot after installation
+- Check kernel compatibility
+
+## Module Categories
+$(find "${{ env.MODULES_DB_DIR }}/modules" -name "*.ko" -exec basename {} \; | sort | uniq | head -20)
+
+## Support
+For issues, check the kernel source repository.
+EOF
+        
+        # إنشاء ملف ZIP للحزمة
+        PACKAGE_ZIP="modules_package_${{ env.KERNEL_NAME }}_$(date +%Y%m%d).zip"
+        cd "${PACKAGE_DIR}"
+        zip -r "../${PACKAGE_ZIP}" ./* > /dev/null 2>&1
+        cd ..
+        
+        # حجم الحزمة
+        PACKAGE_SIZE=$(du -h "${PACKAGE_ZIP}" | cut -f1)
+        
+        echo ""
+        echo "══════════════════════════════════════════════════════════════"
+        echo "📦 Modules Package Created Successfully"
+        echo "══════════════════════════════════════════════════════════════"
+        echo "📁 Package: ${PACKAGE_ZIP}"
+        echo "💾 Size: ${PACKAGE_SIZE}"
+        echo "📄 Files:"
+        echo "  - install_modules.sh (Installer script)"
+        echo "  - README.md (Instructions)"
+        echo "  - modules/ (All kernel modules)"
+        echo "  - modules_database.json (Database)"
+        echo "  - modules_info.md (Detailed info)"
+        echo "══════════════════════════════════════════════════════════════"
+        
+        # حفظ متغير للمرحلة التالية
+        echo "MODULES_PACKAGE=${PACKAGE_ZIP}" >> $GITHUB_ENV
+    
+    - name: 📤 Upload Modules Package
+      if: env.MODULES_COUNT != '0' && success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-modules-${{ env.KERNEL_NAME }}-$(date +'%Y%m%d-%H%M')
+        path: |
+          ${{ env.KERNEL_DIR }}/modules_package_*.zip
+          ${{ env.KERNEL_DIR }}/modules_database/
+        retention-days: 30
+    
+    # ====================== 📦 Package Kernel ======================
+    - name: 📦 Package Kernel
+      run: |
+        START_TIME=$(date +"%s")
+        ZIMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        ZIP_NAME="${{ env.KERNEL_NAME }}-$(date +"%Y%m%d-%H%M").zip"
+        
+        # Clone AnyKernel3
+        rm -rf "${{ env.ANYKERNEL_DIR }}"
+        git clone -q "${{ env.ANYKERNEL_REPO }}" -b "${{ env.ANYKERNEL_BRANCH }}" "${{ env.ANYKERNEL_DIR }}"
+        
+        # Copy kernel files
+        cp -f "${ZIMAGE}" "${DTBO}" "${{ env.ANYKERNEL_DIR }}/"
+        
+        # إضافة Modules إذا وجدت
+        if [ "${{ env.MODULES_COUNT }}" != "0" ] && [ -d "${{ env.MODULES_DB_DIR }}/modules" ]; then
+          echo "📦 إضافة Modules إلى الحزمة..."
+          mkdir -p "${{ env.ANYKERNEL_DIR }}/modules"
+          cp "${{ env.MODULES_DB_DIR }}/modules"/*.ko "${{ env.ANYKERNEL_DIR }}/modules/" 2>/dev/null || true
+          
+          # إضافة معلومات Modules
+          if [ -f "${{ env.MODULES_INFO_FILE }}" ]; then
+            cp "${{ env.MODULES_INFO_FILE }}" "${{ env.ANYKERNEL_DIR }}/MODULES_INFO.md"
+          fi
+          
+          echo "✅ تم إضافة ${{ env.MODULES_COUNT }} modules"
+        fi
+        
+        # Create zip
+        cd "${{ env.ANYKERNEL_DIR }}"
+        find . -name "*.zip" -type f -delete
+        zip -r -9 AnyKernel.zip *
+        mv AnyKernel.zip "${ZIP_NAME}"
+        
+        # Sign the zip
+        echo "🔏 Signing build with AOSP keys"
+        cd "${{ env.KERNEL_DIR }}"
+        if [ ! -f zipsigner-3.0.jar ]; then
+          wget -O zipsigner-3.0.jar "${{ env.ZIPSIGNER_URL }}"
+        fi
+        
+        java -jar zipsigner-3.0.jar "${{ env.ANYKERNEL_DIR }}/${ZIP_NAME}" "${ZIP_NAME/.zip/-signed.zip}"
+        SIGNED_ZIP="${ZIP_NAME/.zip/-signed.zip}"
+        
+        # Clean up
+        rm -rf "${{ env.ANYKERNEL_DIR }}"
+        
+        END_TIME=$(date +"%s")
+        DIFF=$((END_TIME - START_TIME))
+        
+        echo "############################################"
+        echo "🚀 Build Complete"
+        echo "############################################"
+        echo "Total time: $((DIFF / 60))m $((DIFF % 60))s"
+        echo "Toolchain: ZyC-Clang 15.0.7"
+        echo "CCache: 5GB (active but not cached between runs)"
+        echo "Modules: ${{ env.MODULES_COUNT }} modules packaged"
+        echo "Build file: ${SIGNED_ZIP}"
+        echo "############################################"
+        
+        # حفظ متغير الملف النهائي
+        echo "FINAL_ZIP=${SIGNED_ZIP}" >> $GITHUB_ENV
+    
+    - name: 📤 Upload Kernel Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-${{ env.KERNEL_NAME }}-$(date +'%Y%m%d-%H%M')
+        path: |
+          ${{ env.KERNEL_DIR }}/*-signed.zip
+          ${{ env.KERNEL_DIR }}/error.log
+          ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz
+          ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
+        retention-days: 30
+    
+    - name: 📊 Final Build Summary
+      if: always()
+      run: |
+        echo "══════════════════════════════════════════════════════════════"
+        echo "                    🚀 Build Summary 🚀                     "
+        echo "══════════════════════════════════════════════════════════════"
+        echo "🔸 Kernel: ${{ env.KERNEL_NAME }}"
+        echo "🔸 Variant: ${{ env.KERNEL_VARIANT }}"
+        echo "🔸 Toolchain: ZyC Clang 15.0.7"
+        echo "🔸 Config: ${{ env.CONFIG_FILE }}"
+        echo "🔸 Architecture: ${{ env.ARCH }}"
+        echo "🔸 Build Host: ${{ env.KBUILD_BUILD_HOST }}"
+        echo "🔸 Build User: ${{ env.KBUILD_BUILD_USER }}"
+        
+        if [ "${{ env.MODULES_COUNT }}" != "0" ]; then
+          echo ""
+          echo "📦 Modules Information:"
+          echo "🔸 Total Modules: ${{ env.MODULES_COUNT }}"
+          echo "🔸 Database: ${{ env.MODULES_DB_DIR }}"
+          echo "🔸 Package: ${{ env.MODULES_PACKAGE }}"
+        fi
+        
+        echo ""
+        echo "📁 Output Files:"
+        echo "🔸 Kernel ZIP: ${{ env.FINAL_ZIP }}"
+        echo "🔸 Image.gz: ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        echo "🔸 dtbo.img: ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        echo ""
+        echo "📊 CCache Statistics:"
+        ccache -s
+        echo "══════════════════════════════════════════════════════════════"
