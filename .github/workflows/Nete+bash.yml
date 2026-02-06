@@ -228,6 +228,45 @@ jobs:
           exit 1
         fi
     
+    - name: 🔏 Sign Kernel Modules (Optional)
+      if: success()
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        echo "🔏 جاري توقيع Kernel Modules..."
+        
+        # التحقق من وجود ملفات التوقيع والـ module
+        if [ -f "./out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko" ] && \
+           [ -f "./out/certs/signing_key.pem" ] && \
+           [ -f "./out/certs/signing_key.x509" ] && \
+           [ -f "./out/scripts/sign-file" ]; then
+          
+          echo "✅ وجدت ملفات التوقيع والـ module"
+          
+          # ═══════════════════════════════════════════════════
+          # ✅ بدون مجلد release - حفظ مباشر
+          # ═══════════════════════════════════════════════════
+          MODULE_FILE="./touch_module_s3706.ko"
+          
+          # توقيع الـ module
+          ./out/scripts/sign-file sha512 \
+            out/certs/signing_key.pem \
+            out/certs/signing_key.x509 \
+            out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko \
+            "${MODULE_FILE}"
+          
+          echo "✅ تم توقيع touch_module_s3706.ko"
+          echo "MODULE_FILE=${MODULE_FILE}" >> $GITHUB_ENV
+          
+        else
+          echo "⚠️ لم أجد ملفات الـ module أو التوقيع"
+          echo "الملفات المطلوبة:"
+          echo "1. ./out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko"
+          echo "2. ./out/certs/signing_key.pem"
+          echo "3. ./out/certs/signing_key.x509"
+          echo "4. ./out/scripts/sign-file"
+        fi
+    
     - name: 📦 Create Flashable Zip
       run: |
         cd "${{ env.KERNEL_DIR }}"
@@ -253,6 +292,16 @@ jobs:
         if [ -f "${DTBO}" ]; then
           cp -f "${DTBO}" "${{ env.ANYKERNEL_DIR }}/"
           echo "✅ تم نسخ dtbo.img"
+        fi
+        
+        # ═══════════════════════════════════════════════════
+        # ✅ إضافة الـ module إذا كان موجوداً
+        # ═══════════════════════════════════════════════════
+        if [ -n "${{ env.MODULE_FILE }}" ] && [ -f "${{ env.MODULE_FILE }}" ]; then
+          echo "📦 إضافة الـ module إلى الحزمة..."
+          mkdir -p "${{ env.ANYKERNEL_DIR }}/modules"
+          cp -f "${{ env.MODULE_FILE }}" "${{ env.ANYKERNEL_DIR }}/modules/"
+          echo "✅ تم إضافة touch_module_s3706.ko"
         fi
         
         # Create zip (بنفس طريقة ZyC)
@@ -296,6 +345,7 @@ jobs:
           ${{ env.KERNEL_DIR }}/build.log
           ${{ env.OBJ_DIR }}/arch/arm64/boot/Image*
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
+          ${{ env.KERNEL_DIR }}/touch_module_s3706.ko
         retention-days: 7
     
     - name: 📊 Build Summary
