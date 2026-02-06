@@ -228,43 +228,223 @@ jobs:
           exit 1
         fi
     
-    - name: 🔏 Sign Kernel Modules (Optional)
+    - name: 🔍 Discover All Kernel Modules
       if: success()
       run: |
         cd "${{ env.KERNEL_DIR }}"
         
-        echo "🔏 جاري توقيع Kernel Modules..."
+        echo "🔍 جاري البحث عن جميع Kernel Modules..."
+        echo ""
         
-        # التحقق من وجود ملفات التوقيع والـ module
-        if [ -f "./out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko" ] && \
-           [ -f "./out/certs/signing_key.pem" ] && \
-           [ -f "./out/certs/signing_key.x509" ] && \
-           [ -f "./out/scripts/sign-file" ]; then
+        # البحث عن جميع ملفات .ko في مجلد out
+        echo "📁 البحث في مجلد out..."
+        MODULES_LIST=$(find ./out -name "*.ko" -type f 2>/dev/null | sort)
+        
+        if [ -n "${MODULES_LIST}" ]; then
+          echo "══════════════════════════════════════════════════════════════"
+          echo "📦 قائمة جميع الـ Modules المكتشفة"
+          echo "══════════════════════════════════════════════════════════════"
           
-          echo "✅ وجدت ملفات التوقيع والـ module"
+          MODULE_COUNT=0
+          TOUCH_MODULE=""
+          WIFI_MODULE=""
+          CAMERA_MODULE=""
+          AUDIO_MODULE=""
           
-          # ═══════════════════════════════════════════════════
-          # ✅ بدون مجلد release - حفظ مباشر
-          # ═══════════════════════════════════════════════════
-          MODULE_FILE="./touch_module_s3706.ko"
+          while IFS= read -r MODULE_PATH; do
+            MODULE_COUNT=$((MODULE_COUNT + 1))
+            MODULE_NAME=$(basename "${MODULE_PATH}")
+            MODULE_SIZE=$(ls -lh "${MODULE_PATH}" | awk '{print $5}')
+            MODULE_DIR=$(dirname "${MODULE_PATH}" | sed 's|^\./out/||')
+            
+            echo "${MODULE_COUNT}. ${MODULE_NAME} (${MODULE_SIZE})"
+            echo "   📍 ${MODULE_DIR}/"
+            
+            # تحديد نوع الـ module
+            if [[ "${MODULE_NAME}" == *touch* ]] || [[ "${MODULE_NAME}" == *ts* ]] || [[ "${MODULE_NAME}" == *s3706* ]]; then
+              echo "   📱 Touchscreen Driver"
+              TOUCH_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *wlan* ]] || [[ "${MODULE_NAME}" == *wifi* ]] || [[ "${MODULE_NAME}" == *qca* ]]; then
+              echo "   📶 Wi-Fi Driver"
+              WIFI_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *cam* ]] || [[ "${MODULE_NAME}" == *sensor* ]] || [[ "${MODULE_NAME}" == *ois* ]]; then
+              echo "   📷 Camera Driver"
+              CAMERA_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *audio* ]] || [[ "${MODULE_NAME}" == *snd* ]] || [[ "${MODULE_NAME}" == *sound* ]]; then
+              echo "   🔊 Audio Driver"
+              AUDIO_MODULE="${MODULE_PATH}"
+            elif [[ "${MODULE_NAME}" == *bt* ]] || [[ "${MODULE_NAME}" == *bluetooth* ]]; then
+              echo "   🎧 Bluetooth Driver"
+            elif [[ "${MODULE_NAME}" == *battery* ]] || [[ "${MODULE_NAME}" == *charger* ]]; then
+              echo "   🔋 Power/Battery Driver"
+            else
+              echo "   ⚙️ Generic Driver"
+            fi
+            
+            echo ""
+          done <<< "${MODULES_LIST}"
           
-          # توقيع الـ module
-          ./out/scripts/sign-file sha512 \
-            out/certs/signing_key.pem \
-            out/certs/signing_key.x509 \
-            out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko \
-            "${MODULE_FILE}"
+          echo "══════════════════════════════════════════════════════════════"
+          echo "📊 الإجمالي: ${MODULE_COUNT} module(s)"
+          echo ""
           
-          echo "✅ تم توقيع touch_module_s3706.ko"
-          echo "MODULE_FILE=${MODULE_FILE}" >> $GITHUB_ENV
+          # حفظ المعلومات للمراحل التالية
+          echo "MODULES_COUNT=${MODULE_COUNT}" >> $GITHUB_ENV
+          echo "ALL_MODULES=${MODULES_LIST}" >> $GITHUB_ENV
+          
+          # حفظ modules مهمة
+          if [ -n "${TOUCH_MODULE}" ]; then
+            echo "TOUCH_MODULE=${TOUCH_MODULE}" >> $GITHUB_ENV
+            echo "TOUCH_MODULE_NAME=$(basename "${TOUCH_MODULE}")" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${WIFI_MODULE}" ]; then
+            echo "WIFI_MODULE=${WIFI_MODULE}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${CAMERA_MODULE}" ]; then
+            echo "CAMERA_MODULE=${CAMERA_MODULE}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${AUDIO_MODULE}" ]; then
+            echo "AUDIO_MODULE=${AUDIO_MODULE}" >> $GITHUB_ENV
+          fi
           
         else
-          echo "⚠️ لم أجد ملفات الـ module أو التوقيع"
-          echo "الملفات المطلوبة:"
-          echo "1. ./out/drivers/input/touchscreen/lge/module/touch_module_s3706.ko"
-          echo "2. ./out/certs/signing_key.pem"
-          echo "3. ./out/certs/signing_key.x509"
-          echo "4. ./out/scripts/sign-file"
+          echo "ℹ️ لم يتم العثور على أي modules في مجلد out/"
+          echo "MODULES_COUNT=0" >> $GITHUB_ENV
+        fi
+        
+        # التحقق من أدوات التوقيع
+        echo ""
+        echo "🔧 التحقق من أدوات التوقيع..."
+        
+        SIGN_TOOLS=0
+        if [ -f "./out/scripts/sign-file" ]; then
+          echo "✅ sign-file موجود"
+          echo "SIGN_FILE_TOOL=./out/scripts/sign-file" >> $GITHUB_ENV
+          SIGN_TOOLS=$((SIGN_TOOLS + 1))
+        else
+          echo "❌ sign-file غير موجود"
+          echo "SIGN_FILE_TOOL=" >> $GITHUB_ENV
+        fi
+        
+        if [ -f "./out/certs/signing_key.pem" ]; then
+          echo "✅ signing_key.pem موجود"
+          echo "SIGN_KEY_PEM=./out/certs/signing_key.pem" >> $GITHUB_ENV
+          SIGN_TOOLS=$((SIGN_TOOLS + 1))
+        else
+          echo "❌ signing_key.pem غير موجود"
+          echo "SIGN_KEY_PEM=" >> $GITHUB_ENV
+        fi
+        
+        if [ -f "./out/certs/signing_key.x509" ]; then
+          echo "✅ signing_key.x509 موجود"
+          echo "SIGN_KEY_X509=./out/certs/signing_key.x509" >> $GITHUB_ENV
+          SIGN_TOOLS=$((SIGN_TOOLS + 1))
+        else
+          echo "❌ signing_key.x509 غير موجود"
+          echo "SIGN_KEY_X509=" >> $GITHUB_ENV
+        fi
+        
+        if [ "${SIGN_TOOLS}" -eq 3 ]; then
+          echo "✅ جميع أدوات التوقيع متوفرة"
+          echo "CAN_SIGN=1" >> $GITHUB_ENV
+        else
+          echo "⚠️ أدوات التوقيع غير مكتملة (${SIGN_TOOLS}/3)"
+          echo "CAN_SIGN=0" >> $GITHUB_ENV
+        fi
+    
+    - name: 🔏 Handle Kernel Modules Based on Discovery
+      if: env.MODULES_COUNT != '0' && success()
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        echo "🔏 جاري التعامل مع الـ Modules بناءً على الاكتشاف..."
+        echo ""
+        
+        # 1. أولوية: module الشاشة إذا وجد
+        if [ -n "${{ env.TOUCH_MODULE }}" ] && [ -f "${{ env.TOUCH_MODULE }}" ]; then
+          echo "📱 معالجة touch module (الأولوية)..."
+          MODULE_SOURCE="${{ env.TOUCH_MODULE }}"
+          MODULE_NAME="${{ env.TOUCH_MODULE_NAME }}"
+          
+          # استخدام اسم ثابت لتسهيل التعامل
+          if [[ "${MODULE_NAME}" == *s3706* ]]; then
+            DEST_NAME="touch_module_s3706.ko"
+          else
+            DEST_NAME="touch_module.ko"
+          fi
+          
+          MODULE_DEST="./${DEST_NAME}"
+          
+          # التوقيع إذا كانت الأدوات متوفرة
+          if [ "${{ env.CAN_SIGN }}" = "1" ]; then
+            echo "🔏 جاري توقيع ${MODULE_NAME} كـ ${DEST_NAME}..."
+            
+            "${{ env.SIGN_FILE_TOOL }}" sha512 \
+              "${{ env.SIGN_KEY_PEM }}" \
+              "${{ env.SIGN_KEY_X509 }}" \
+              "${MODULE_SOURCE}" \
+              "${MODULE_DEST}"
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ تم توقيع ${DEST_NAME}"
+              echo "MAIN_MODULE=${MODULE_DEST}" >> $GITHUB_ENV
+              echo "MODULE_SIGNED=1" >> $GITHUB_ENV
+            else
+              echo "⚠️ فشل التوقيع، نسخ بدون توقيع"
+              cp -f "${MODULE_SOURCE}" "${MODULE_DEST}"
+              echo "MAIN_MODULE=${MODULE_DEST}" >> $GITHUB_ENV
+              echo "MODULE_UNSIGNED=1" >> $GITHUB_ENV
+            fi
+          else
+            echo "📋 نسخ ${MODULE_NAME} كـ ${DEST_NAME} (بدون توقيع)..."
+            cp -f "${MODULE_SOURCE}" "${MODULE_DEST}"
+            echo "MAIN_MODULE=${MODULE_DEST}" >> $GITHUB_ENV
+            echo "MODULE_UNSIGNED=1" >> $GITHUB_ENV
+          fi
+          
+        # 2. إذا لم يوجد touch module، خذ أول module
+        else
+          echo "⚙️ معالجة أول module في القائمة..."
+          FIRST_MODULE=$(echo "${{ env.ALL_MODULES }}" | head -1)
+          
+          if [ -n "${FIRST_MODULE}" ] && [ -f "${FIRST_MODULE}" ]; then
+            MODULE_SOURCE="${FIRST_MODULE}"
+            MODULE_NAME=$(basename "${FIRST_MODULE}")
+            MODULE_DEST="./${MODULE_NAME}"
+            
+            echo "📦 نسخ ${MODULE_NAME}..."
+            cp -f "${MODULE_SOURCE}" "${MODULE_DEST}"
+            
+            echo "MAIN_MODULE=${MODULE_DEST}" >> $GITHUB_ENV
+            echo "MODULE_NAME=${MODULE_NAME}" >> $GITHUB_ENV
+            echo "MODULE_UNSIGNED=1" >> $GITHUB_ENV
+          else
+            echo "ℹ️ لا توجد modules للتعامل معها"
+            echo "MAIN_MODULE=" >> $GITHUB_ENV
+          fi
+        fi
+        
+        # 3. تحضير قائمة بجميع الـ modules للنسخ
+        if [ "${{ env.MODULES_COUNT }}" -gt 0 ]; then
+          echo "📋 إعداد قائمة بجميع الـ modules..."
+          ALL_MODULES_DEST="./all_modules.txt"
+          echo "# قائمة جميع Kernel Modules" > "${ALL_MODULES_DEST}"
+          echo "# Generated: $(date)" >> "${ALL_MODULES_DEST}"
+          echo "" >> "${ALL_MODULES_DEST}"
+          
+          echo "${{ env.ALL_MODULES }}" | while IFS= read -r MODULE_PATH; do
+            if [ -f "${MODULE_PATH}" ]; then
+              MODULE_NAME=$(basename "${MODULE_PATH}")
+              MODULE_SIZE=$(ls -lh "${MODULE_PATH}" | awk '{print $5}')
+              echo "- ${MODULE_NAME} (${MODULE_SIZE})" >> "${ALL_MODULES_DEST}"
+            fi
+          done
+          
+          echo "✅ تم إنشاء قائمة الـ modules في: ${ALL_MODULES_DEST}"
+          echo "ALL_MODULES_LIST=${ALL_MODULES_DEST}" >> $GITHUB_ENV
         fi
     
     - name: 📦 Create Flashable Zip
@@ -277,16 +457,15 @@ jobs:
         echo "📦 جاري إنشاء حزمة التثبيت..."
         echo ""
         
-        # تحديد الملفات
         ZIMAGE="${{ env.KERNEL_FILE }}"
         DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
         ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +"%Y%m%d-%H%M").zip"
         
-        # Clone AnyKernel3 (بنفس طريقة ZyC)
+        # Clone AnyKernel3
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         git clone -q "${{ env.ANYKERNEL_REPO }}" -b "${{ env.ANYKERNEL_BRANCH }}" "${{ env.ANYKERNEL_DIR }}"
         
-        # Copy kernel files (بنفس طريقة ZyC)
+        # Copy kernel files
         cp -f "${ZIMAGE}" "${{ env.ANYKERNEL_DIR }}/"
         
         if [ -f "${DTBO}" ]; then
@@ -295,22 +474,54 @@ jobs:
         fi
         
         # ═══════════════════════════════════════════════════
-        # ✅ إضافة الـ module إذا كان موجوداً
+        # ✅ إضافة الـ modules إذا وجدت
         # ═══════════════════════════════════════════════════
-        if [ -n "${{ env.MODULE_FILE }}" ] && [ -f "${{ env.MODULE_FILE }}" ]; then
-          echo "📦 إضافة الـ module إلى الحزمة..."
+        if [ -n "${{ env.MAIN_MODULE }}" ] && [ -f "${{ env.MAIN_MODULE }}" ]; then
+          echo "📦 إضافة الـ modules إلى الحزمة..."
+          
+          # إنشاء مجلد modules في AnyKernel
           mkdir -p "${{ env.ANYKERNEL_DIR }}/modules"
-          cp -f "${{ env.MODULE_FILE }}" "${{ env.ANYKERNEL_DIR }}/modules/"
-          echo "✅ تم إضافة touch_module_s3706.ko"
+          
+          # نسخ module الرئيسي
+          MODULE_NAME=$(basename "${{ env.MAIN_MODULE }}")
+          cp -f "${{ env.MAIN_MODULE }}" "${{ env.ANYKERNEL_DIR }}/modules/${MODULE_NAME}"
+          echo "✅ تم إضافة ${MODULE_NAME}"
+          
+          # إذا كان لدينا أكثر من 5 modules، أضفها جميعاً
+          if [ "${{ env.MODULES_COUNT }}" -gt 5 ]; then
+            echo "📦 نسخ جميع الـ modules (${MODULES_COUNT})..."
+            echo "${{ env.ALL_MODULES }}" | while IFS= read -r MODULE_PATH; do
+              if [ -f "${MODULE_PATH}" ]; then
+                MODULE_NAME=$(basename "${MODULE_PATH}")
+                cp -f "${MODULE_PATH}" "${{ env.ANYKERNEL_DIR }}/modules/${MODULE_NAME}" 2>/dev/null || true
+              fi
+            done
+            echo "✅ تم إضافة جميع الـ modules"
+          fi
+          
+          # إضافة ملف قائمة الـ modules
+          if [ -f "${{ env.ALL_MODULES_LIST }}" ]; then
+            cp -f "${{ env.ALL_MODULES_LIST }}" "${{ env.ANYKERNEL_DIR }}/modules/MODULES_LIST.txt"
+            echo "✅ تم إضافة قائمة الـ modules"
+          fi
+          
+          # تحديث anykernel.sh لدعم modules
+          if [ -f "${{ env.ANYKERNEL_DIR }}/anykernel.sh" ]; then
+            echo "⚙️ تفعيل دعم الـ modules في anykernel.sh..."
+            sed -i 's/do\.modules=0/do\.modules=1/' "${{ env.ANYKERNEL_DIR }}/anykernel.sh" 2>/dev/null || true
+          fi
+          
+        else
+          echo "ℹ️ لا توجد modules مطلوبة لهذا البناء"
         fi
         
-        # Create zip (بنفس طريقة ZyC)
+        # Create zip
         cd "${{ env.ANYKERNEL_DIR }}"
         find . -name "*.zip" -type f -delete
         zip -r -9 AnyKernel.zip *
         mv AnyKernel.zip "${ZIP_NAME}"
         
-        # Sign the zip (بنفس طريقة ZyC)
+        # Sign the zip
         echo "🔏 Signing build with AOSP keys"
         cd "${{ env.KERNEL_DIR }}"
         if [ ! -f zipsigner-3.0.jar ]; then
@@ -320,7 +531,7 @@ jobs:
         java -jar zipsigner-3.0.jar "${{ env.ANYKERNEL_DIR }}/${ZIP_NAME}" "${ZIP_NAME/.zip/-signed.zip}"
         SIGNED_ZIP="${ZIP_NAME/.zip/-signed.zip}"
         
-        # Clean up (اختياري مثل ZyC)
+        # Clean up
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         
         END_TIME=$(date +"%s")
@@ -331,6 +542,8 @@ jobs:
         echo "############################################"
         echo "Total packaging time: $((DIFF / 60))m $((DIFF % 60))s"
         echo "Toolchain: Neutron Clang"
+        echo "Modules found: ${{ env.MODULES_COUNT }}"
+        echo "Main module: $(basename "${{ env.MAIN_MODULE }}" 2>/dev/null || echo 'None')"
         echo "Build file: ${SIGNED_ZIP}"
         echo "############################################"
         
@@ -345,7 +558,8 @@ jobs:
           ${{ env.KERNEL_DIR }}/build.log
           ${{ env.OBJ_DIR }}/arch/arm64/boot/Image*
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
-          ${{ env.KERNEL_DIR }}/touch_module_s3706.ko
+          ${{ env.KERNEL_DIR }}/touch_module*.ko
+          ${{ env.KERNEL_DIR }}/all_modules.txt
         retention-days: 7
     
     - name: 📊 Build Summary
@@ -360,6 +574,17 @@ jobs:
         echo "🔸 الإعداد: ${{ env.CONFIG_FILE }}"
         echo "🔸 المعمارية: ${{ env.ARCH }}"
         echo "🔸 الأنوية المستخدمة: $(nproc)"
+        echo "🔸 الـ Modules المكتشفة: ${{ env.MODULES_COUNT }}"
+        
+        if [ "${{ env.MODULES_COUNT }}" != "0" ]; then
+          echo "🔸 Module الرئيسي: $(basename "${{ env.MAIN_MODULE }}" 2>/dev/null || echo 'N/A')"
+          if [ "${{ env.MODULE_SIGNED }}" = "1" ]; then
+            echo "🔸 حالة الـ Module: ✅ موقعة"
+          elif [ "${{ env.MODULE_UNSIGNED }}" = "1" ]; then
+            echo "🔸 حالة الـ Module: ⚠️ غير موقعة"
+          fi
+        fi
+        
         echo "🔸 الملف النهائي: ${{ env.FINAL_ZIP }}"
         echo "══════════════════════════════════════════════════════════════"
         echo ""
