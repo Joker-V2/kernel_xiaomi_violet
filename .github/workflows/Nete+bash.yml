@@ -1,0 +1,159 @@
+name: Build Kernel - Neutron Clang
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [zycromerz]
+
+env:
+  KERNEL_NAME: "xcalibur-v5.4-violet-dynamic"
+  CONFIG_FILE: "vendor/violet-perf_defconfig"
+  ARCH: "arm64"
+  ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
+  ANYKERNEL_BRANCH: "sixteen"
+  ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04  # ⚠️ مهم: Neutron يحتاج Ubuntu 24.04
+    
+    steps:
+    - name: 📥 Checkout Kernel Source
+      uses: actions/checkout@v4
+      with:
+        ref: zycromerz
+        fetch-depth: 1
+    
+    - name: ⚙️ Setup Build Environment
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          bc bison flex \
+          build-essential \
+          libssl-dev libelf-dev libncurses-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          zip unzip curl wget git \
+          python3 \
+          openjdk-17-jre-headless \
+          ccache \
+          zstd \
+          binutils-aarch64-linux-gnu \
+          device-tree-compiler \
+          lz4 xz-utils zlib1g-dev \
+          openjdk-17-jdk \
+          python-is-python3 \
+          p7zip-full \
+          android-sdk-libsparse-utils \
+          erofs-utils \
+          gnupg \
+          gperf \
+          libx11-dev \
+          libreadline-dev \
+          libgl1 libgl1-mesa-dev \
+          python3-markdown \
+          libxml2-utils xsltproc \
+          libtinfo6 \
+          cpio kmod openssl pahole \
+          libarchive-tools rsync \
+          util-linux 
+        
+        echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
+        echo "OBJ_DIR=$(pwd)/out" >> $GITHUB_ENV
+        echo "ANYKERNEL_DIR=$(pwd)/anykernel" >> $GITHUB_ENV
+        echo "TOOLCHAIN_DIR=$(pwd)/toolchains/neutron-clang" >> $GITHUB_ENV
+    
+    - name: 🔧 Setup Neutron Clang via AntMan
+      run: |
+        echo "🔧 Setting up Neutron Clang with AntMan..."
+        
+        mkdir -p "${{ env.TOOLCHAIN_DIR }}"
+        cd "${{ env.TOOLCHAIN_DIR }}"
+        
+        # تحميل AntMan
+        curl -sSL "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" -o antman
+        chmod +x antman
+        
+        # سحب آخر إصدار Neutron Clang
+        ./antman -S
+        
+        # التحقق
+        if [ -f "bin/clang" ]; then
+          echo "✅ Neutron Clang ready"
+          echo "CLANG_PATH=${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_ENV
+          echo "${{ env.TOOLCHAIN_DIR }}/bin" >> $GITHUB_PATH
+        else
+          echo "❌ Neutron Clang setup failed"
+          exit 1
+        fi
+    
+    - name: 🏗️ Build Kernel
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        # تنظيف
+        rm -rf out
+        mkdir -p out
+        
+        # إعداد متغيرات
+        export ARCH=arm64
+        export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH"
+        
+        # Defconfig
+        make O=out "${{ env.CONFIG_FILE }}" -j$(nproc)
+        
+        # Build مع Neutron Clang
+        make -j$(nproc) \
+          O=out \
+          ARCH=arm64 \
+          CC="ccache clang" \
+          AR="llvm-ar" \
+          NM="llvm-nm" \
+          OBJCOPY="llvm-objcopy" \
+          OBJDUMP="llvm-objdump" \
+          STRIP="llvm-strip" \
+          LD="ld.lld" \
+          LLVM=1 \
+          LLVM_IAS=1
+        
+        # التحقق
+        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
+          echo "✅ Kernel built with Neutron Clang"
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
+    
+    - name: 📦 Package Kernel
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        # Clone AnyKernel
+        rm -rf "${{ env.ANYKERNEL_DIR }}"
+        git clone --depth=1 "${{ env.ANYKERNEL_REPO }}" \
+          -b "${{ env.ANYKERNEL_BRANCH }}" \
+          "${{ env.ANYKERNEL_DIR }}"
+        
+        # نسخ الملفات
+        cp -f out/arch/arm64/boot/Image.gz "${{ env.ANYKERNEL_DIR }}/"
+        cp -f out/arch/arm64/boot/dtbo.img "${{ env.ANYKERNEL_DIR }}/" 2>/dev/null || true
+        
+        # Create zip
+        cd "${{ env.ANYKERNEL_DIR }}"
+        ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +%Y%m%d-%H%M).zip"
+        zip -r9 "$ZIP_NAME" ./*
+        mv "$ZIP_NAME" "${{ env.KERNEL_DIR }}/"
+        
+        # توقيع
+        cd "${{ env.KERNEL_DIR }}"
+        wget -q "${{ env.ZIPSIGNER_URL }}" -O zipsigner-3.0.jar
+        SIGNED_ZIP="${ZIP_NAME%.zip}-signed.zip"
+        java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP"
+        
+        echo "✅ Built: $SIGNED_ZIP"
+    
+    - name: 📤 Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-neutron
+        path: ${{ env.KERNEL_DIR }}/*.zip
