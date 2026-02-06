@@ -31,19 +31,6 @@ jobs:
         ref: zycromerz
         fetch-depth: 1
     
-    - name: 💾 Setup 10GB Swap
-      run: |
-        echo "💾 Creating swap space..."
-        sudo swapoff -a
-        sudo dd if=/dev/zero of=/swapfile bs=1G count=10 status=progress
-        sudo chmod 600 /swapfile
-        sudo mkswap /swapfile
-        sudo swapon /swapfile
-        sudo sysctl vm.swappiness=100
-        echo "✅ Swap configured:"
-        free -h
-        swapon --show
-    
     - name: ⚙️ Setup Build Environment
       run: |
         sudo apt update
@@ -213,7 +200,6 @@ jobs:
         echo "Compiled & Signed successfully ✅"
         echo "Build file: ${SIGNED_ZIP}"
         echo "Toolchain: ZyC-Clang 15.0.7"
-        echo "Swap: 10GB enabled"
         echo "############################################"
         echo "############# OkThisIsEpic! ###############"
         echo "############################################"
