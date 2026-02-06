@@ -7,15 +7,13 @@ on:
 
 env:
   KERNEL_NAME: "xcalibur-v5.4-violet-dynamic"
-  CONFIG_FILE: "vendor/violet-perf_defconfig"
-  ARCH: "arm64"
   ANYKERNEL_REPO: "https://github.com/Joker-V2/AnyKernel3"
   ANYKERNEL_BRANCH: "sixteen"
   ZIPSIGNER_URL: "https://github.com/Magisk-Modules-Repo/zipsigner/raw/master/bin/zipsigner-3.0-dexed.jar"
 
 jobs:
   build:
-    runs-on: ubuntu-24.04  # ⚠️ مهم: Neutron يحتاج Ubuntu 24.04
+    runs-on: ubuntu-24.04
     
     steps:
     - name: 📥 Checkout Kernel Source
@@ -35,37 +33,27 @@ jobs:
           gcc-arm-linux-gnueabi \
           zip unzip curl wget git \
           python3 \
-          openjdk-17-jre-headless \
           ccache \
           zstd \
-          binutils-aarch64-linux-gnu \
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
-          openjdk-17-jdk \
           python-is-python3 \
           p7zip-full \
           android-sdk-libsparse-utils \
           erofs-utils \
           gnupg \
-          gperf \
-          libx11-dev \
-          libreadline-dev \
-          libgl1 libgl1-mesa-dev \
-          python3-markdown \
           libxml2-utils xsltproc \
           libtinfo6 \
           cpio kmod openssl pahole \
-          libarchive-tools rsync \
-          util-linux 
+          libarchive-tools rsync
         
         echo "KERNEL_DIR=$(pwd)" >> $GITHUB_ENV
-        echo "OBJ_DIR=$(pwd)/out" >> $GITHUB_ENV
         echo "ANYKERNEL_DIR=$(pwd)/anykernel" >> $GITHUB_ENV
         echo "TOOLCHAIN_DIR=$(pwd)/toolchains/neutron-clang" >> $GITHUB_ENV
     
-    - name: 🔧 Setup Neutron Clang via AntMan
+    - name: 🔧 Setup Neutron Clang
       run: |
-        echo "🔧 Setting up Neutron Clang with AntMan..."
+        echo "🔧 Setting up Neutron Clang..."
         
         mkdir -p "${{ env.TOOLCHAIN_DIR }}"
         cd "${{ env.TOOLCHAIN_DIR }}"
@@ -75,7 +63,8 @@ jobs:
         chmod +x antman
         
         # سحب آخر إصدار Neutron Clang
-        ./antman -S
+        echo "📥 Downloading Neutron Clang..."
+        ./antman -S 2>&1 | grep -v "Broken pipe" || true
         
         # التحقق
         if [ -f "bin/clang" ]; then
@@ -91,69 +80,167 @@ jobs:
       run: |
         cd "${{ env.KERNEL_DIR }}"
         
-        # تنظيف
-        rm -rf out
-        mkdir -p out
+        echo ""
+        echo "🧹 Clean Build Directory"
+        echo ""
+        make clean && make mrproper
         
-        # إعداد متغيرات
+        echo ""
+        echo "🔧 Issue Build Commands"
+        echo ""
+        
+        # متغيرات البيئة من سكريبت bash
         export ARCH=arm64
-        export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH"
+        export SUBARCH=arm64
+        export CLANG_PATH="${{ env.TOOLCHAIN_DIR }}/bin"
+        export PATH="${CLANG_PATH}:${PATH}"
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export CLANG_TRIPLE=aarch64-linux-gnu-
         
-        # Defconfig
-        make O=out "${{ env.CONFIG_FILE }}" -j$(nproc)
+        echo ""
+        echo "📝 Set DEFCONFIG"
+        echo ""
         
-        # Build مع Neutron Clang
-        make -j$(nproc) \
-          O=out \
-          ARCH=arm64 \
-          CC="ccache clang" \
-          AR="llvm-ar" \
-          NM="llvm-nm" \
-          OBJCOPY="llvm-objcopy" \
-          OBJDUMP="llvm-objdump" \
-          STRIP="llvm-strip" \
-          LD="ld.lld" \
-          LLVM=1 \
-          LLVM_IAS=1
+        # ═══════════════════════════════════════════════════
+        # ⚡⚡⚡ هنا نقطتك: استخدام vendor/violet-perf_defconfig ⚡⚡⚡
+        # ═══════════════════════════════════════════════════
+        echo "Using defconfig: vendor/violet-perf_defconfig"
+        make CC=clang \
+             AR=llvm-ar \
+             NM=llvm-nm \
+             OBJCOPY=llvm-objcopy \
+             OBJDUMP=llvm-objdump \
+             STRIP=llvm-strip \
+             O=out \
+             vendor/violet-perf_defconfig  # ← هنا المسار الصحيح
         
-        # التحقق
-        if [ -f "out/arch/arm64/boot/Image.gz" ]; then
-          echo "✅ Kernel built with Neutron Clang"
+        echo ""
+        echo "🔨 Build The Good Stuff"
+        echo ""
+        
+        # ═══════════════════════════════════════════════════
+        # ⚡⚡⚡ استخدام كل الأنوية المتاحة: -j$(nproc) ⚡⚡⚡
+        # ═══════════════════════════════════════════════════
+        echo "Building with $(nproc) CPU cores"
+        make CC=clang \
+             AR=llvm-ar \
+             NM=llvm-nm \
+             OBJCOPY=llvm-objcopy \
+             OBJDUMP=llvm-objdump \
+             STRIP=llvm-strip \
+             O=out \
+             -j$(nproc)  # ← هذا يستخدم كل الأنوية المتاحة
+        
+        echo ""
+        echo "✅ Build completed"
+        echo ""
+        
+        # التحقق من الملفات المبنية
+        if [ -f "out/arch/arm64/boot/Image" ]; then
+          echo "✅ Kernel Image found at: out/arch/arm64/boot/Image"
+          ls -lh out/arch/arm64/boot/Image
+        elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
+          echo "✅ Kernel Image.gz found at: out/arch/arm64/boot/Image.gz"
+          ls -lh out/arch/arm64/boot/Image.gz
         else
-          echo "❌ Build failed"
+          echo "❌ Kernel Image/Image.gz not found!"
+          echo "Checking output directory:"
+          ls -la out/arch/arm64/boot/
           exit 1
         fi
     
-    - name: 📦 Package Kernel
+    - name: 📁 Prepare Kernel for Packaging
+      run: |
+        cd "${{ env.KERNEL_DIR }}"
+        
+        # تحديد ملف الكيرنل الناتج
+        if [ -f "out/arch/arm64/boot/Image" ]; then
+          KERNEL_FILE="out/arch/arm64/boot/Image"
+          KERNEL_NAME="Image"
+        elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
+          KERNEL_FILE="out/arch/arm64/boot/Image.gz"
+          KERNEL_NAME="Image.gz"
+        else
+          echo "❌ No kernel file found!"
+          exit 1
+        fi
+        
+        echo "✅ Kernel file: $KERNEL_FILE"
+        
+        # حفظ معلومات للمراحل التالية
+        echo "KERNEL_FILE=$KERNEL_FILE" >> $GITHUB_ENV
+        echo "KERNEL_NAME=$KERNEL_NAME" >> $GITHUB_ENV
+    
+    - name: 📦 Create Flashable Zip
       run: |
         cd "${{ env.KERNEL_DIR }}"
         
         # Clone AnyKernel
+        echo "📦 Cloning AnyKernel..."
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         git clone --depth=1 "${{ env.ANYKERNEL_REPO }}" \
           -b "${{ env.ANYKERNEL_BRANCH }}" \
           "${{ env.ANYKERNEL_DIR }}"
         
-        # نسخ الملفات
-        cp -f out/arch/arm64/boot/Image.gz "${{ env.ANYKERNEL_DIR }}/"
-        cp -f out/arch/arm64/boot/dtbo.img "${{ env.ANYKERNEL_DIR }}/" 2>/dev/null || true
+        echo "📁 Copying kernel to AnyKernel..."
         
-        # Create zip
+        # نسخ ملف الكيرنل
+        cp -f "${{ env.KERNEL_FILE }}" "${{ env.ANYKERNEL_DIR }}/"
+        
+        # نسخ dtbo.img إذا وجد
+        if [ -f "out/arch/arm64/boot/dtbo.img" ]; then
+          cp -f out/arch/arm64/boot/dtbo.img "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ Copied dtbo.img"
+        fi
+        
+        # إنشاء ZIP
         cd "${{ env.ANYKERNEL_DIR }}"
         ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +%Y%m%d-%H%M).zip"
-        zip -r9 "$ZIP_NAME" ./*
+        zip -r9 "$ZIP_NAME" ./* -x ".git/*" "*.zip"
         mv "$ZIP_NAME" "${{ env.KERNEL_DIR }}/"
         
-        # توقيع
-        cd "${{ env.KERNEL_DIR }}"
-        wget -q "${{ env.ZIPSIGNER_URL }}" -O zipsigner-3.0.jar
-        SIGNED_ZIP="${ZIP_NAME%.zip}-signed.zip"
-        java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP"
+        echo "✅ Created zip: $ZIP_NAME"
         
-        echo "✅ Built: $SIGNED_ZIP"
+        # توقيع ZIP
+        cd "${{ env.KERNEL_DIR }}"
+        wget -q "${{ env.ZIPSIGNER_URL }}" -O zipsigner-3.0.jar || true
+        
+        if [ -f "zipsigner-3.0.jar" ]; then
+          SIGNED_ZIP="${ZIP_NAME%.zip}-signed.zip"
+          java -jar zipsigner-3.0.jar "$ZIP_NAME" "$SIGNED_ZIP"
+          echo "✅ Signed: $SIGNED_ZIP"
+          echo "FINAL_ZIP=$SIGNED_ZIP" >> $GITHUB_ENV
+        else
+          echo "⚠️ No zipsigner, using unsigned zip"
+          echo "FINAL_ZIP=$ZIP_NAME" >> $GITHUB_ENV
+        fi
     
     - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-neutron
-        path: ${{ env.KERNEL_DIR }}/*.zip
+        name: kernel-build
+        path: |
+          ${{ env.KERNEL_DIR }}/out/arch/arm64/boot/Image*
+          ${{ env.KERNEL_DIR }}/*.zip
+        if-no-files-found: error
+        retention-days: 7
+    
+    - name: 📊 Build Summary
+      if: always()
+      run: |
+        echo "══════════════════════════════════════════════════════════════"
+        echo "                    🚀 BUILD SUMMARY 🚀                     "
+        echo "══════════════════════════════════════════════════════════════"
+        echo "🔸 Kernel: ${{ env.KERNEL_NAME }}"
+        echo "🔸 Toolchain: Neutron Clang"
+        echo "🔸 Defconfig: vendor/violet-perf_defconfig"
+        echo "🔸 Architecture: arm64"
+        echo "🔸 CPU Cores used: $(nproc)"
+        echo "🔸 Final ZIP: ${{ env.FINAL_ZIP }}"
+        echo "══════════════════════════════════════════════════════════════"
+        
+        # عرض حجم الملفات
+        echo "📁 Output files:"
+        ls -lh ${{ env.KERNEL_DIR }}/out/arch/arm64/boot/Image* 2>/dev/null || echo "No Image files found"
+        echo "══════════════════════════════════════════════════════════════"
