@@ -1,11 +1,9 @@
 name: Build Kernel - ZyC Clang 15.0.7 (2026-02-05)
 
-
 on:
   workflow_dispatch:
   push:
     branches: [zycromerz]
-
 
 env:
   KERNEL_NAME: "xcalibur-v5.4-violet-dynamic"
@@ -49,7 +47,6 @@ jobs:
           device-tree-compiler \
           lz4 xz-utils zlib1g-dev \
           openjdk-17-jdk \
-          gcc g++ \
           python-is-python3 \
           p7zip-full \
           android-sdk-libsparse-utils \
@@ -73,43 +70,47 @@ jobs:
         echo "TC_DIR=$(pwd)/tc" >> $GITHUB_ENV
         echo "CLANG_DIR=$(pwd)/tc" >> $GITHUB_ENV
         
-        # Set up ccache WITHOUT specifying size (removed ccache -M 10G)
+        # ✅ إصلاح: تحديد حجم CCache (5GB مثالي لـ GitHub)
         echo "CCACHE_DIR=$(pwd)/.ccache" >> $GITHUB_ENV
         mkdir -p "$(pwd)/.ccache"
-        # فقط ccache بدون تحديد حجم
+        ccache -M 5G  # ✅ هذا مهم!
+        ccache -z     # ✅ مسح الإحصائيات القديمة
         
         # Display build info
         cores=$(nproc --all)
-        os=$(cat /etc/issue | awk '{print $1, $2, $3}' | awk '{$1=$1};1' | sed 's/\\n//g')
-        time=$(TZ="Asia/Kolkata" date "+%a %b %d %r")
+        os=$(lsb_release -d | cut -f2-)  # ✅ طريقة أفضل
+        time=$(TZ="Asia/Kolkata" date "+%Y-%m-%d %H:%M:%S")
         commit_head=$(git log --oneline -1)
         
-        echo "Build Triggered ⌛"
+        echo "🚀 Build Triggered ⌛"
         echo "Kernel: ${{ env.KERNEL_NAME }}"
         echo "Support: ${{ env.KERNEL_SUPPORT }}"
         echo "Variant: ${{ env.KERNEL_VARIANT }}"
-        echo "Machine: ${os}"
+        echo "System: ${os}"
         echo "Cores: ${cores}"
-        echo "Time: ${time}"
-        echo "Top Commit: ${commit_head}"
-        echo "Swap: 10GB (swappiness=100)"
+        echo "Time (IST): ${time}"
+        echo "Last Commit: ${commit_head}"
+        echo "CCache: 5GB enabled"
+        echo "Note: No swap needed (16GB RAM available)"
     
     - name: 🔧 Download Toolchain
       run: |
         if [ ! -d "${{ env.TC_DIR }}" ]; then
-          echo "Toolchain not found! Cloning to ${{ env.TC_DIR }}..."
-          echo "Downloading ZyC-Clang 15.0.7"
+          echo "📥 Downloading ZyC-Clang 15.0.7..."
           wget -q "${{ env.CLANG_URL }}"
           mkdir -p "${{ env.TC_DIR }}"
           tar -xvf Clang-15.0.7-20260205.tar.gz -C "${{ env.TC_DIR }}"
           rm -rf Clang-15.0.7-20260205.tar.gz
+          echo "✅ Toolchain downloaded and extracted"
+        else
+          echo "✅ Toolchain already exists"
         fi
         
         # Add toolchain to PATH
         echo "${{ env.CLANG_DIR }}/bin" >> $GITHUB_PATH
         
         # Verify clang version
-        echo "Clang version:"
+        echo "🔧 Clang version:"
         ${{ env.CLANG_DIR }}/bin/clang --version | head -3
     
     - name: 🏗️ Build Kernel
@@ -125,9 +126,9 @@ jobs:
         make -s ARCH="${{ env.ARCH }}" O="${{ env.OBJ_DIR }}" "${{ env.CONFIG_FILE }}" -j$(nproc --all)
         
         if [ $? -eq 0 ]; then
-          echo "Defconfig generated successfully ✅"
+          echo "✅ Defconfig generated successfully"
         else
-          echo "Defconfig generation failed ❌"
+          echo "❌ Defconfig generation failed"
           exit 1
         fi
         
@@ -149,12 +150,17 @@ jobs:
         COMPILED_DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
         
         if [[ -f "${COMPILED_IMAGE}" && -f "${COMPILED_DTBO}" ]]; then
-          echo "Kernel compiled successfully ✅"
+          echo "🎉 Kernel compiled successfully ✅"
           END_TIME=$(date +"%s")
           DIFF=$((END_TIME - START_TIME))
-          echo "Compilation took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
+          echo "⏱️  Compilation took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
+          
+          # ✅ إظهار إحصائيات CCache
+          echo ""
+          echo "📊 CCache Statistics:"
+          ccache -s
         else
-          echo "Compilation failed ❌"
+          echo "❌ Compilation failed"
           echo "Check error.log for details"
           exit 1
         fi
@@ -164,7 +170,7 @@ jobs:
         START_TIME=$(date +"%s")
         ZIMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
         DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
-        ZIP_NAME="${{ env.KERNEL_NAME }}-$(date +"%d%m%Y-%H%M").zip"
+        ZIP_NAME="${{ env.KERNEL_NAME }}-$(date +"%Y%m%d-%H%M").zip"  # ✅ تنسيق أفضل
         
         # Clone AnyKernel3
         rm -rf "${{ env.ANYKERNEL_DIR }}"
@@ -180,7 +186,7 @@ jobs:
         mv AnyKernel.zip "${ZIP_NAME}"
         
         # Sign the zip
-        echo "Signing build with AOSP keys"
+        echo "🔏 Signing build with AOSP keys"
         cd "${{ env.KERNEL_DIR }}"
         if [ ! -f zipsigner-3.0.jar ]; then
           wget -O zipsigner-3.0.jar "${{ env.ZIPSIGNER_URL }}"
@@ -196,20 +202,21 @@ jobs:
         DIFF=$((END_TIME - START_TIME))
         
         echo "############################################"
-        echo "Build took: $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
-        echo "Compiled & Signed successfully ✅"
-        echo "Build file: ${SIGNED_ZIP}"
-        echo "Toolchain: ZyC-Clang 15.0.7"
+        echo "🚀 Build Complete"
         echo "############################################"
-        echo "############# OkThisIsEpic! ###############"
+        echo "Total time: $((DIFF / 60))m $((DIFF % 60))s"
+        echo "Toolchain: ZyC-Clang 15.0.7"
+        echo "CCache: 5GB (active but not cached between runs)"
+        echo "Build file: ${SIGNED_ZIP}"
         echo "############################################"
     
     - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-build-${{ env.KERNEL_NAME }}-$(date +'%Y%m%d-%H%M')
+        name: kernel-${{ env.KERNEL_NAME }}-$(date +'%Y%m%d-%H%M')
         path: |
           ${{ env.KERNEL_DIR }}/*.zip
           ${{ env.KERNEL_DIR }}/error.log
           ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
+        retention-days: 30
