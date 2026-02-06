@@ -457,26 +457,52 @@ jobs:
         echo "📦 جاري إنشاء حزمة التثبيت..."
         echo ""
         
-        ZIMAGE="${{ env.KERNEL_FILE }}"
-        DTBO="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        # ═══════════════════════════════════════════════════
+        # ✅ الحصول على الملفات مباشرة من out/
+        # ═══════════════════════════════════════════════════
+        KERNEL_IMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz"
+        DTBO_IMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img"
+        
         ZIP_NAME="${{ env.KERNEL_NAME }}-neutron-$(date +"%Y%m%d-%H%M").zip"
         
         # Clone AnyKernel3
         rm -rf "${{ env.ANYKERNEL_DIR }}"
         git clone -q "${{ env.ANYKERNEL_REPO }}" -b "${{ env.ANYKERNEL_BRANCH }}" "${{ env.ANYKERNEL_DIR }}"
         
-        # Copy kernel files
-        cp -f "${ZIMAGE}" "${{ env.ANYKERNEL_DIR }}/"
+        # ═══════════════════════════════════════════════════
+        # ✅ الخطوة 1: نسخ الملفين الأساسيين من out/
+        # ═══════════════════════════════════════════════════
+        echo "📋 نسخ الملفات الأساسية من out/ إلى AnyKernel:"
         
-        if [ -f "${DTBO}" ]; then
-          cp -f "${DTBO}" "${{ env.ANYKERNEL_DIR }}/"
-          echo "✅ تم نسخ dtbo.img"
+        # 1. Image.gz من out/
+        if [ -f "${KERNEL_IMAGE}" ]; then
+          cp -f "${KERNEL_IMAGE}" "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ تم نسخ: Image.gz (من out/)"
+        else
+          # إذا لم يكن Image.gz موجوداً، حاول Image
+          ALT_KERNEL_IMAGE="${{ env.OBJ_DIR }}/arch/arm64/boot/Image"
+          if [ -f "${ALT_KERNEL_IMAGE}" ]; then
+            cp -f "${ALT_KERNEL_IMAGE}" "${{ env.ANYKERNEL_DIR }}/"
+            echo "✅ تم نسخ: Image (من out/)"
+          else
+            echo "❌ خطأ: لم أجد Image.gz أو Image في out/"
+            exit 1
+          fi
+        fi
+        
+        # 2. dtbo.img من out/
+        if [ -f "${DTBO_IMAGE}" ]; then
+          cp -f "${DTBO_IMAGE}" "${{ env.ANYKERNEL_DIR }}/"
+          echo "✅ تم نسخ: dtbo.img (من out/)"
+        else
+          echo "⚠️ ملاحظة: dtbo.img غير موجود في out/"
         fi
         
         # ═══════════════════════════════════════════════════
-        # ✅ إضافة الـ modules إذا وجدت
+        # ✅ الخطوة 2: إضافة الـ modules إذا وجدت
         # ═══════════════════════════════════════════════════
         if [ -n "${{ env.MAIN_MODULE }}" ] && [ -f "${{ env.MAIN_MODULE }}" ]; then
+          echo ""
           echo "📦 إضافة الـ modules إلى الحزمة..."
           
           # إنشاء مجلد modules في AnyKernel
@@ -503,12 +529,6 @@ jobs:
           if [ -f "${{ env.ALL_MODULES_LIST }}" ]; then
             cp -f "${{ env.ALL_MODULES_LIST }}" "${{ env.ANYKERNEL_DIR }}/modules/MODULES_LIST.txt"
             echo "✅ تم إضافة قائمة الـ modules"
-          fi
-          
-          # تحديث anykernel.sh لدعم modules
-          if [ -f "${{ env.ANYKERNEL_DIR }}/anykernel.sh" ]; then
-            echo "⚙️ تفعيل دعم الـ modules في anykernel.sh..."
-            sed -i 's/do\.modules=0/do\.modules=1/' "${{ env.ANYKERNEL_DIR }}/anykernel.sh" 2>/dev/null || true
           fi
           
         else
@@ -543,7 +563,9 @@ jobs:
         echo "Total packaging time: $((DIFF / 60))m $((DIFF % 60))s"
         echo "Toolchain: Neutron Clang"
         echo "Modules found: ${{ env.MODULES_COUNT }}"
-        echo "Main module: $(basename "${{ env.MAIN_MODULE }}" 2>/dev/null || echo 'None')"
+        echo "Files copied from out/:"
+        echo "  - Image.gz"
+        echo "  - dtbo.img"
         echo "Build file: ${SIGNED_ZIP}"
         echo "############################################"
         
@@ -556,7 +578,7 @@ jobs:
         path: |
           ${{ env.KERNEL_DIR }}/*-signed.zip
           ${{ env.KERNEL_DIR }}/build.log
-          ${{ env.OBJ_DIR }}/arch/arm64/boot/Image*
+          ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
           ${{ env.KERNEL_DIR }}/touch_module*.ko
           ${{ env.KERNEL_DIR }}/all_modules.txt
@@ -585,6 +607,7 @@ jobs:
           fi
         fi
         
+        echo "🔸 الملفات من out/: Image.gz, dtbo.img"
         echo "🔸 الملف النهائي: ${{ env.FINAL_ZIP }}"
         echo "══════════════════════════════════════════════════════════════"
         echo ""
