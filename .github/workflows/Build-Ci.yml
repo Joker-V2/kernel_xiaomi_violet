@@ -213,14 +213,3 @@ jobs:
           ${{ env.KERNEL_DIR }}/error.log
           ${{ env.OBJ_DIR }}/arch/arm64/boot/Image.gz
           ${{ env.OBJ_DIR }}/arch/arm64/boot/dtbo.img
-        retention-days: 30
-    
-    - name: 💾 Cache Toolchain and CCache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ env.TC_DIR }}
-          ${{ env.CCACHE_DIR }}
-        key: ${{ runner.os }}-zyc-clang-20-${{ hashFiles('**/Kbuild', '**/Makefile') }}
-        restore-keys: |
-          ${{ runner.os }}-zyc-clang-20-
