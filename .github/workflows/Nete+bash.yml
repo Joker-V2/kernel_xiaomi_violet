@@ -113,7 +113,7 @@ jobs:
              OBJDUMP=llvm-objdump \
              STRIP=llvm-strip \
              O=out \
-             vendor/violet-perf_defconfig  # ← هنا المسار الصحيح
+             arch/arm64/configs/vendor/violet-perf_defconfig 
         
         echo ""
         echo "🔨 Build The Good Stuff"
