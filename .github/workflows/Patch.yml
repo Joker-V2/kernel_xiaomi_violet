@@ -5,7 +5,7 @@ on:
 
 jobs:
   cherry-pick-commits:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     
     steps:
@@ -22,7 +22,13 @@ jobs:
           git fetch lg-kernel --depth=100
           echo "✅ Fetched LG kernel commits"
           
-      # 3. تنفيذ cherry-pick بالتسلسل
+      # 3. إعداد git user
+      - name: 👤 Set Git User
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+      # 4. تنفيذ cherry-pick بالتسلسل
       - name: 🍒 Cherry-pick Sequentially
         id: cherrypick
         run: |
@@ -50,11 +56,6 @@ jobs:
           
           SUCCESSFUL=()
           FAILED=()
-          TOTAL_PROCESSED=0
-          
-          # إعداد git للمستخدم
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
           
           for i in "${!COMMITS[@]}"; do
             COMMIT="${COMMITS[$i]}"
@@ -67,35 +68,18 @@ jobs:
             echo "🍒 [$COMMIT_NUM/16] Cherry-picking: $COMMIT_SHORT"
             echo "═══════════════════════════════════════════════"
             
-            # محاولة cherry-pick
-            if git cherry-pick "$COMMIT" 2>&1 | tee "cherrypick_${COMMIT_SHORT}.log"; then
+            # محاولة cherry-pick بسيطة
+            if git cherry-pick "$COMMIT" 2>&1; then
               echo "✅ SUCCESS - Cherry-picked successfully"
               SUCCESSFUL+=("$COMMIT_SHORT")
             else
-              echo "❌ FAILED - Cherry-pick encountered issues"
-              
-              # حفظ ملفات conflict إذا وجدت
-              CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
-              if [[ -n "$CONFLICT_FILES" ]]; then
-                echo "   Conflicts in:"
-                echo "$CONFLICT_FILES" | while read file; do
-                  echo "     • $file"
-                done
-                
-                # حفظ ملفات conflict
-                echo "$CONFLICT_FILES" > "conflicts_${COMMIT_SHORT}.txt"
-              fi
-              
-              # التراجع عن cherry-pick الفاشل
+              echo "❌ FAILED - Cherry-pick failed"
               git cherry-pick --abort 2>/dev/null || true
               FAILED+=("$COMMIT_SHORT")
             fi
             
-            TOTAL_PROCESSED=$((TOTAL_PROCESSED + 1))
-            
             # فاصل قصير بين الكوميتات
             if [[ $i -lt 15 ]]; then
-              echo "⏳ Waiting 1 second..."
               sleep 1
             fi
           done
@@ -128,7 +112,7 @@ jobs:
           echo "SUCCESS_COUNT=${#SUCCESSFUL[@]}" >> $GITHUB_OUTPUT
           echo "FAIL_COUNT=${#FAILED[@]}" >> $GITHUB_OUTPUT
           
-      # 4. رفع التغييرات إلى zyc2
+      # 5. رفع التغييرات إلى zyc2
       - name: 📤 Push to zyc2
         if: steps.cherrypick.outputs.SUCCESS_COUNT > 0
         run: |
@@ -139,13 +123,3 @@ jobs:
           echo ""
           echo "🌐 View updated branch:"
           echo "https://github.com/${{ github.repository }}/tree/zyc2"
-          
-      # 5. حفظ السجلات
-      - name: 📦 Save Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cherry-pick-results-$(date +%s)
-          path: |
-            cherrypick_*.log
-            conflicts_*.txt
-          retention-days: 30
