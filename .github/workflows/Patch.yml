@@ -6,7 +6,6 @@ on:
     branches: zyc2
 
 jobs:
-  القحبة:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
