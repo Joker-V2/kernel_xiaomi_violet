@@ -2,6 +2,8 @@ name: 🍒 Cherry-pick with Patch Fallback
 
 on:
   workflow_dispatch:
+  push:
+    branches: zyc2
 
 jobs:
   backport:
