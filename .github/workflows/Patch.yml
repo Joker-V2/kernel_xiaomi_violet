@@ -1,0 +1,204 @@
+name: 🔄 Sequential Backport - Smart & Resilient
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_from:
+        description: 'Start from commit number (0-12)'
+        required: false
+        default: '0'
+      stop_after:
+        description: 'Stop after N commits (0 for all)'
+        required: false
+        default: '0'
+      force_push:
+        description: 'Use force push if needed?'
+        type: choice
+        options: ['yes', 'no']
+        default: 'no'
+  
+  push:
+    branches:
+      - zyc2
+
+jobs:
+  backport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true  # ⭐ لا يتوقف إذا فشل job
+    
+    steps:
+    # 1. Checkout مع تحديث تلقائي
+    - name: 📦 Checkout & Update zyc1
+      uses: actions/checkout@v4
+      with:
+        ref: zyc2
+        fetch-depth: 0
+        
+    # 2. تحديث الفرع أولاً
+    - name: 🔄 Update zyc1 branch
+      run: |
+        echo "🔄 Updating zyc2 branch..."
+        git pull origin zyc2 --rebase || echo "⚠️ Could not update, continuing anyway"
+        git status
+        
+    # 3. Backport التسلسلي
+    - name: 🔄 Apply ALL 13 Commits (Smart)
+      id: backport
+      continue-on-error: true  # ⭐ لا يتوقف إذا فشلت خطوة
+      run: |
+        echo "🎯 Smart Backport - 13 Commits"
+        echo "==============================="
+        
+        COMMITS=(
+          "03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
+          "6071a482c8e603be25895cc2cac5f0eab61c4051"
+          "849ca8ce954d9dbb082dcf83c98af861e98e5635"
+          "bbd5aec12b32097a71dc6a0097194a18f3ee9a17"
+          "6f94042bed51121f8f28a5e572cda20c21fed2e1"
+          "49a5115e11350ee68f6a5fbd56b3e817bf9e5aac"
+          "37ae2444584654f6785f2cc49181f05af788c9b2"
+          "0a8cbf3725edbacc5f1ead33eeae7e4d78823b5a"
+          "4ba6dccf73a620e565803e5995d5748ecfbb56a2"
+          "ed8fd10d97a50ec424ae38a40351b5de060f9838"
+          "e784224542fab4b3888d9103a1f678015221a7d1"
+          "9ba899398576d329288b023566d3a731470ad13a"
+          "d406904bb175cb9791b5aed4404df3268859d91b"
+        )
+        
+        START_FROM=${{ github.event.inputs.start_from }}
+        STOP_AFTER=${{ github.event.inputs.stop_after }}
+        
+        SUCCESSFUL=()
+        FAILED=()
+        PROCESSED=0
+        
+        for i in "${!COMMITS[@]}"; do
+          if [ $i -lt $START_FROM ]; then
+            continue
+          fi
+          
+          if [ "$STOP_AFTER" != "0" ] && [ $PROCESSED -ge $STOP_AFTER ]; then
+            break
+          fi
+          
+          COMMIT="${COMMITS[$i]}"
+          COMMIT_SHORT="${COMMIT:0:8}"
+          
+          echo ""
+          echo "🔧 Processing: $COMMIT_SHORT"
+          
+          # تحميل وتطبيق الباتش
+          if curl -sL "https://github.com/sidex15/android_kernel_lge_sm8150/commit/$COMMIT.patch" | \
+             git apply --reject - 2>&1 | tee "apply_$COMMIT_SHORT.log"; then
+             
+            # إذا كان هناك تغييرات
+            if ! git diff --quiet || [ "$(git status --porcelain | grep -v '^??' | wc -l)" -gt 0 ]; then
+              git config user.name "GitHub Actions"
+              git config user.email "actions@github.com"
+              
+              git add .
+              git commit -m "backport: $COMMIT_SHORT" || echo "⚠️ Commit failed, continuing..."
+              
+              SUCCESSFUL+=("$COMMIT_SHORT")
+              echo "✅ Applied & committed"
+            else
+              echo "📭 No changes"
+            fi
+          else
+            FAILED+=("$COMMIT_SHORT")
+            echo "❌ Apply failed"
+          fi
+          
+          PROCESSED=$((PROCESSED + 1))
+          sleep 1
+        done
+        
+        echo "SUCCESS_COUNT=${#SUCCESSFUL[@]}" >> $GITHUB_OUTPUT
+        echo "FAIL_COUNT=${#FAILED[@]}" >> $GITHUB_OUTPUT
+        
+    # 4. محاولة Push ذكية
+    - name: 📤 Smart Push (Multiple Attempts)
+      id: push_step
+      if: steps.backport.outputs.SUCCESS_COUNT > 0
+      continue-on-error: true  # ⭐ لا يتوقف إذا فشل push
+      run: |
+        echo "📤 Smart Push Strategy"
+        echo "======================"
+        
+        FORCE_PUSH="${{ github.event.inputs.force_push }}"
+        
+        # المحاولة 1: Push عادي
+        echo "🔄 Attempt 1: Normal push..."
+        if git push origin HEAD:zyc1; then
+          echo "✅ Push successful"
+          echo "PUSH_STATUS=success" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # المحاولة 2: Pull ثم push
+        echo "🔄 Attempt 2: Pull & push..."
+        if git pull origin zyc1 --rebase && git push origin HEAD:zyc1; then
+          echo "✅ Push after pull successful"
+          echo "PUSH_STATUS=success" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # المحاولة 3: Force push (إذا مسموح)
+        if [[ "$FORCE_PUSH" == "yes" ]]; then
+          echo "🔄 Attempt 3: Force push..."
+          if git push origin HEAD:zyc1 --force-with-lease; then
+            echo "✅ Force push successful"
+            echo "PUSH_STATUS=force_success" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+        fi
+        
+        echo "❌ All push attempts failed"
+        echo "PUSH_STATUS=failed" >> $GITHUB_OUTPUT
+        echo "⚠️ Commits are ready locally but not pushed"
+        echo "You can push manually: git push origin zyc1"
+        
+    # 5. حفظ النتائج دائماً (حتى لو فشل push)
+    - name: 📦 Save Results (Always)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: backport-results-$(date +%s)
+        path: |
+          apply_*.log
+          *.rej
+          *.patch
+        retention-days: 30
+        
+    # 6. تقرير النتائج (حتى لو فشل push)
+    - name: 📊 Create Final Report
+      if: always()
+      run: |
+        echo "# 📋 Backport Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📊 Application Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Applied:** ${{ steps.backport.outputs.SUCCESS_COUNT || '0' }} commits" >> $GITHUB_STEP_SUMMARY
+        echo "- **Failed:** ${{ steps.backport.outputs.FAIL_COUNT || '0' }} commits" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        PUSH_STATUS="${{ steps.push_step.outputs.PUSH_STATUS }}"
+        
+        if [[ "$PUSH_STATUS" == "success" ]] || [[ "$PUSH_STATUS" == "force_success" ]]; then
+          echo "## ✅ Push Successful" >> $GITHUB_STEP_SUMMARY
+          echo "All changes have been pushed to \`zyc1\` branch." >> $GITHUB_STEP_SUMMARY
+        elif [[ "$PUSH_STATUS" == "failed" ]]; then
+          echo "## ⚠️ Push Failed - Manual Action Required" >> $GITHUB_STEP_SUMMARY
+          echo "Changes were applied locally but could not be pushed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**To push manually:**" >> $GITHUB_STEP_SUMMARY
+          echo "```bash" >> $GITHUB_STEP_SUMMARY
+          echo "git push origin zyc1" >> $GITHUB_STEP_SUMMARY
+          echo "# أو إذا كنت تريد force push:" >> $GITHUB_STEP_SUMMARY
+          echo "git push origin zyc1 --force-with-lease" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## 📭 No Push Attempted" >> $GITHUB_STEP_SUMMARY
+          echo "No changes to push or push was skipped." >> $GITHUB_STEP_SUMMARY
+        fi
