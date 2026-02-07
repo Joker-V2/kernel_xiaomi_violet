@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: mahtiranaskandar-ux/kernel_xiaomi_violet
-        ref: zyc2  # ✅ فرع zyc2
+        ref: zyc2
         token: ${{ secrets.GITHUB_TOKEN }}
         
     # 2. إضافة وفetch kernel LG
@@ -48,12 +48,9 @@ jobs:
         
         # جميع الـ 16 كوميت مرتبة
         COMMITS=(
-          # الثلاثة الأولى (الجديدة)
           "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
           "27956d255e3b012372951dd6131e07c106d2daae"
           "95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f"
-          
-          # الـ 13 الأصلية
           "03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
           "6071a482c8e603be25895cc2cac5f0eab61c4051"
           "849ca8ce954d9dbb082dcf83c98af861e98e5635"
@@ -105,12 +102,11 @@ jobs:
           echo ""
           echo "═══════════════════════════════════════════════"
           echo "🔧 [$COMMIT_NUM/${#COMMITS[@]}] Processing: $COMMIT_SHORT"
-          echo "Target Branch: zyc2"
           echo "═══════════════════════════════════════════════"
           
           # اختيار الطريقة
           if [[ "$METHOD" == "auto" ]]; then
-            # جرب cherry-pick أولاً، إذا فشل جرب apply
+            # جرب cherry-pick أولاً
             echo "🔄 Trying cherry-pick first..."
             if git cherry-pick --no-commit "$COMMIT" 2>&1 | tee "backport_${COMMIT_SHORT}.log"; then
               METHOD_USED="cherry-pick"
@@ -134,7 +130,7 @@ jobs:
           fi
           
           # التحقق من النتيجة
-          if [[ -n "$(git status --porcelain)" ]]; then
+          if [[ -n "$(git status --porcelain)" ]] && [[ "$METHOD_USED" != "failed" ]]; then
             echo "✅ Changes applied using: $METHOD_USED"
             
             # عمل commit
@@ -144,7 +140,7 @@ jobs:
             # تنظيف ملفات .rej
             find . -name "*.rej" -delete 2>/dev/null || true
             
-            # الحصول على الرسالة الأصلية إذا possible
+            # الحصول على الرسالة الأصلية
             if [[ "$METHOD_USED" == "cherry-pick" ]]; then
               ORIGINAL_MSG=$(git log --format="%B" -n 1 "$COMMIT" 2>/dev/null || echo "Backported from LG kernel")
               COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
@@ -167,14 +163,14 @@ Original: $COMMIT_URL"
             SUCCESSFUL+=("$COMMIT_SHORT ($METHOD_USED)")
             echo "💾 Committed successfully to zyc2"
           else
-            echo "📭 No changes applied"
+            echo "❌ Failed to apply changes"
             
-            # إلغاء cherry-pick إذا لم يكن هناك changes
+            # إلغاء cherry-pick إذا كان هناك محاولة فاشلة
             if [[ "$METHOD_USED" == "cherry-pick" ]]; then
               git cherry-pick --abort 2>/dev/null || true
             fi
             
-            FAILED+=("$COMMIT_SHORT (no changes)")
+            FAILED+=("$COMMIT_SHORT ($METHOD_USED)")
           fi
           
           PROCESSED=$((PROCESSED + 1))
@@ -200,7 +196,7 @@ Original: $COMMIT_URL"
         echo ""
         
         if [[ ${#SUCCESSFUL[@]} -gt 0 ]]; then
-          echo "✅ Successful commits to zyc2:"
+          echo "✅ Successful commits:"
           for item in "${SUCCESSFUL[@]}"; do
             echo "  • $item"
           done
@@ -218,9 +214,9 @@ Original: $COMMIT_URL"
     - name: 📤 Push to zyc2
       if: steps.backport.outputs.SUCCESS_COUNT > 0
       run: |
-        echo "📤 Pushing all changes to zyc2 branch..."
+        echo "📤 Pushing changes to zyc2 branch..."
         git push origin HEAD:zyc2 --force-with-lease
-        echo "✅ All changes pushed to zyc2"
+        echo "✅ Changes pushed to zyc2"
         echo ""
         echo "🌐 View updated branch:"
         echo "https://github.com/${{ github.repository }}/tree/zyc2"
@@ -229,7 +225,7 @@ Original: $COMMIT_URL"
     - name: 📦 Save Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: backport-16-commits-zyc2-$(date +%s)
+        name: backport-logs-$(date +%s)
         path: |
           backport_*.log
           *.rej
