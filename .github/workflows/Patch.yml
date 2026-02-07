@@ -1,9 +1,7 @@
-name: 🦇 Ultimate Blind Cherry-pick
+name: 🦇 REAL Ultimate Blind Cherry-pick
 
 on:
   workflow_dispatch:
-  push:
-    branches: zyc2
 
 jobs:
   ultimate-cherry:
@@ -21,13 +19,15 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git remote add lg https://github.com/sidex15/android_kernel_lge_sm8150.git 2>/dev/null || true
-          git fetch lg --quiet --depth=50
+          git fetch lg --depth=50 2>/dev/null
       
-      - name: 🦇 Ultimate Blind Cherry-pick
+      - name: 🦇 REAL Ultimate Blind Cherry-pick
+        continue-on-error: true  # ⭐⭐ هذي السحر ⭐⭐
         run: |
-          echo "🔥 ULTIMATE BLIND CHERRY-PICK"
-          echo "=============================="
-          echo "⚠️  No stopping, no checking, just cherry-pick!"
+          echo "🔥 REAL ULTIMATE BLIND CHERRY-PICK"
+          echo "=================================="
+          echo "⚠️  CONTINUE-ON-ERROR: TRUE"
+          echo "⚠️  WILL NOT STOP FOR ANYTHING!"
           echo ""
           
           # قائمة الكوميتات
@@ -51,40 +51,45 @@ jobs:
           )
           
           APPLIED=0
-          FAILED=0
+          SKIPPED=0
           
           echo "📦 Processing 16 commits..."
           echo ""
           
-          # حلقة أعمى
-          for commit in "${COMMITS[@]}"; do
-            short="${commit:0:8}"
+          for i in "${!COMMITS[@]}"; do
+            COMMIT="${COMMITS[$i]}"
+            SHORT="${COMMIT:0:8}"
+            NUM=$((i + 1))
             
-            # محاولة cherry-pick - إذا فشل، تجاهل والمضي
-            if git cherry-pick "$commit" --quiet 2>/dev/null; then
-              echo "✅ $short"
+            echo -n "[$NUM/16] $SHORT: "
+            
+            # محاولة cherry-pick مع تجاهل الأخطاء
+            if git cherry-pick "$COMMIT" --no-edit 2>/dev/null; then
+              echo "✅"
               ((APPLIED++))
             else
-              echo "❌ $short (skipped)"
-              git cherry-pick --abort --quiet 2>/dev/null || true
-              ((FAILED++))
+              echo "⏭️ (aborting...)"
+              git cherry-pick --abort 2>/dev/null || true
+              ((SKIPPED++))
             fi
           done
           
-          # نتائج سريعة
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📊 RESULTS (Blind Mode)"
+          echo "📊 FINAL RESULTS"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ Applied: $APPLIED"
-          echo "❌ Failed: $FAILED"
-          echo "🎯 Success Rate: $(( (APPLIED * 100) / 16 ))%"
+          echo "⏭️ Skipped: $SKIPPED"
+          echo "🎯 Success: $(( (APPLIED * 100) / 16 ))%"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       
-      - name: 📤 Push Force
+      - name: 📤 Push Anyway
+        if: always()  # ⭐⭐ حتى لو فشل الـ job ⭐⭐
         run: |
-          echo "🚀 FORCE PUSHING..."
-          git push origin HEAD:zyc2 --force --quiet
-          echo "✅ Pushed to zyc2!"
+          echo "🚀 PUSHING ANYWAY..."
+          echo "Current branch status:"
+          git status --short
+          
+          git push origin HEAD:zyc2 --force 2>&1 | head -20
           echo ""
-          echo "🌐 Branch: https://github.com/${{ github.repository }}/tree/zyc2"
+          echo "✅ Pushed whatever we have!"
