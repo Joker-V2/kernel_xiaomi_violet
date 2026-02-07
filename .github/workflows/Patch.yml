@@ -1,12 +1,12 @@
-name: 🍒 Cherry-pick 16 Commits to zyc2
+name: 🍒 Smart Backport 16 Commits to zyc2
 
 on:
   workflow_dispatch:
 
 jobs:
-  cherry-pick-commits:
+  backport-commits:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     
     steps:
       # 1. Checkout فرع zyc2
@@ -28,12 +28,12 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-      # 4. تنفيذ cherry-pick بالتسلسل
-      - name: 🍒 Cherry-pick Sequentially
-        id: cherrypick
+      # 4. تنفيذ backport ذكي
+      - name: 🍒 Smart Backport
+        id: backport
         run: |
-          echo "🍒 Cherry-picking 16 commits to zyc2..."
-          echo "========================================"
+          echo "🔄 Smart Backport - 16 commits to zyc2"
+          echo "======================================"
           
           COMMITS=(
             "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
@@ -65,20 +65,42 @@ jobs:
             
             echo ""
             echo "═══════════════════════════════════════════════"
-            echo "🍒 [$COMMIT_NUM/16] Cherry-picking: $COMMIT_SHORT"
+            echo "🔄 [$COMMIT_NUM/16] Processing: $COMMIT_SHORT"
             echo "═══════════════════════════════════════════════"
             
-            # محاولة cherry-pick بسيطة
+            # محاولة cherry-pick أولاً
             if git cherry-pick "$COMMIT" 2>&1; then
-              echo "✅ SUCCESS - Cherry-picked successfully"
-              SUCCESSFUL+=("$COMMIT_SHORT")
+              echo "✅ Cherry-pick succeeded"
+              SUCCESSFUL+=("$COMMIT_SHORT (cherry-pick)")
             else
-              echo "❌ FAILED - Cherry-pick failed"
               git cherry-pick --abort 2>/dev/null || true
-              FAILED+=("$COMMIT_SHORT")
+              echo "⚠️ Cherry-pick failed, trying patch..."
+              
+              # محاولة apply patch
+              if curl -sL "$COMMIT_URL.patch" | git apply --reject - 2>&1; then
+                echo "✅ Patch applied successfully"
+                
+                # تنظيف rejects إذا وجدت
+                find . -name "*.rej" -delete 2>/dev/null || true
+                
+                # عمل commit للـ patch
+                git add .
+                git commit -m "patch: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
+                
+Applied from LG kernel (sm8150)
+Method: apply-patch
+
+Original: $COMMIT_URL"
+                
+                SUCCESSFUL+=("$COMMIT_SHORT (patch)")
+              else
+                echo "❌ Both methods failed"
+                git reset --hard 2>/dev/null || true
+                FAILED+=("$COMMIT_SHORT")
+              fi
             fi
             
-            # فاصل قصير بين الكوميتات
+            # فاصل قصير
             if [[ $i -lt 15 ]]; then
               sleep 1
             fi
@@ -87,14 +109,13 @@ jobs:
           # النتائج النهائية
           echo ""
           echo "═══════════════════════════════════════════════"
-          echo "📊 CHERRY-PICK COMPLETED"
+          echo "📊 RESULTS"
           echo "═══════════════════════════════════════════════"
           echo "✅ Successful: ${#SUCCESSFUL[@]}/16"
           echo "❌ Failed: ${#FAILED[@]}/16"
-          echo ""
           
           if [[ ${#SUCCESSFUL[@]} -gt 0 ]]; then
-            echo "✅ Successfully cherry-picked:"
+            echo "✅ Successfully applied:"
             for commit in "${SUCCESSFUL[@]}"; do
               echo "  • $commit"
             done
@@ -102,7 +123,7 @@ jobs:
           
           if [[ ${#FAILED[@]} -gt 0 ]]; then
             echo ""
-            echo "❌ Failed to cherry-pick:"
+            echo "❌ Failed:"
             for commit in "${FAILED[@]}"; do
               echo "  • $commit"
             done
@@ -114,9 +135,9 @@ jobs:
           
       # 5. رفع التغييرات إلى zyc2
       - name: 📤 Push to zyc2
-        if: steps.cherrypick.outputs.SUCCESS_COUNT > 0
+        if: steps.backport.outputs.SUCCESS_COUNT > 0
         run: |
-          echo "📤 Pushing cherry-picked commits to zyc2..."
+          echo "📤 Pushing backported commits to zyc2..."
           git push origin HEAD:zyc2 --force-with-lease
           
           echo "✅ Successfully pushed to zyc2"
