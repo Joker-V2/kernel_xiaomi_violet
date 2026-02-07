@@ -2,6 +2,8 @@ name: 🦇 REAL Ultimate Blind Cherry-pick
 
 on:
   workflow_dispatch:
+  push:
+    branches: zyc2
 
 jobs:
   ultimate-cherry:
