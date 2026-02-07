@@ -1,0 +1,66 @@
+name: 🍒 Cherry-pick 16 Commits to zyc2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cherry_pick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: 📦 Checkout zyc2
+        uses: actions/checkout@v4
+        with:
+          repository: mahtiranaskandar-ux/kernel_xiaomi_violet
+          ref: zyc2
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: 🔗 Add LG Remote
+        run: |
+          git remote add lg https://github.com/sidex15/android_kernel_lge_sm8150.git || true
+          git fetch lg --depth=300
+
+      - name: 🍒 Cherry-pick 16 commits (ordered)
+        run: |
+          set -e
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          COMMITS=(
+            "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
+            "27956d255e3b012372951dd6131e07c106d2daae"
+            "95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f"
+            "03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
+            "6071a482c8e603be25895cc2cac5f0eab61c4051"
+            "849ca8ce954d9dbb082dcf83c98af861e98e5635"
+            "bbd5aec12b32097a71dc6a0097194a18f3ee9a17"
+            "6f94042bed51121f8f28a5e572cda20c21fed2e1"
+            "49a5115e11350ee68f6a5fbd56b3e817bf9e5aac"
+            "37ae2444584654f6785f2cc49181f05af788c9b2"
+            "0a8cbf3725edbacc5f1ead33eeae7e4d78823b5a"
+            "4ba6dccf73a620e565803e5995d5748ecfbb56a2"
+            "ed8fd10d97a50ec424ae38a40351b5de060f9838"
+            "e784224542fab4b3888d9103a1f678015221a7d1"
+            "9ba899398576d329288b023566d3a731470ad13a"
+            "d406904bb175cb9791b5aed4404df3268859d91b"
+          )
+
+          echo "🚀 Starting cherry-pick to branch: zyc2"
+          echo "Total commits: ${#COMMITS[@]}"
+          echo ""
+
+          for COMMIT in "${COMMITS[@]}"; do
+            echo "🍒 Cherry-picking: $COMMIT"
+            git cherry-pick "$COMMIT"
+          done
+
+          echo ""
+          echo "✅ All commits cherry-picked successfully!"
+
+      - name: 📤 Push to zyc2
+        run: |
+          git push origin zyc2
+          echo "✅ Pushed to zyc2"
