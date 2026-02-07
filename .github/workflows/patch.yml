@@ -14,14 +14,17 @@ on:
       method:
         description: 'Method to use'
         type: choice
-        options: ['cherry-pick', 'apply-patch', 'auto']
-        default: 'auto'
+        options:
+          - cherry-pick
+          - apply-patch
+          - auto
+        default: auto
 
 jobs:
   backport:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    
+
     steps:
     # 1. Checkout فرع zyc2
     - name: 📦 Checkout Xiaomi Kernel (zyc2)
@@ -30,7 +33,7 @@ jobs:
         repository: mahtiranaskandar-ux/kernel_xiaomi_violet
         ref: zyc2  # ✅ فرع zyc2
         token: ${{ secrets.GITHUB_TOKEN }}
-        
+
     # 2. إضافة وفetch kernel LG
     - name: 🔗 Fetch LG Kernel
       run: |
@@ -38,21 +41,21 @@ jobs:
         git remote add lg-kernel https://github.com/sidex15/android_kernel_lge_sm8150.git || echo "Remote already exists"
         git fetch lg-kernel --depth=150
         echo "✅ Fetched LG kernel commits"
-        
+
     # 3. Backport جميع الـ 16 كوميت
     - name: 🍒 Backport 16 Commits
       id: backport
       run: |
         echo "🎯 Complete Backport - 16 Commits to zyc2"
         echo "=========================================="
-        
+
         # جميع الـ 16 كوميت مرتبة
         COMMITS=(
           # الثلاثة الأولى (الجديدة)
           "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
           "27956d255e3b012372951dd6131e07c106d2daae"
           "95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f"
-          
+
           # الـ 13 الأصلية
           "03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
           "6071a482c8e603be25895cc2cac5f0eab61c4051"
@@ -68,16 +71,15 @@ jobs:
           "9ba899398576d329288b023566d3a731470ad13a"
           "d406904bb175cb9791b5aed4404df3268859d91b"
         )
-        
+
         START_FROM="${{ github.event.inputs.start_from }}"
         STOP_AFTER="${{ github.event.inputs.stop_after }}"
         METHOD="${{ github.event.inputs.method }}"
-        
+
         SUCCESSFUL=()
         FAILED=()
         PROCESSED=0
 
-        
         echo "📊 Configuration:"
         echo "- Target Branch: zyc2"
         echo "- Total commits: ${#COMMITS[@]}"
@@ -85,40 +87,41 @@ jobs:
         echo "- Stop after: $(if [[ "$STOP_AFTER" == "0" ]]; then echo "all"; else echo "$STOP_AFTER"; fi)"
         echo "- Method: $METHOD"
         echo ""
-        
+
         for i in "${!COMMITS[@]}"; do
           # التحقق من start_from
           if [[ $i -lt $START_FROM ]]; then
             continue
           fi
-          
+
           # التحقق من stop_after
           if [[ "$STOP_AFTER" != "0" ]] && [[ $PROCESSED -ge $STOP_AFTER ]]; then
             echo "⏹️ Stopping after $STOP_AFTER commits"
             break
           fi
-          
+
           COMMIT="${COMMITS[$i]}"
           COMMIT_SHORT="${COMMIT:0:8}"
           COMMIT_NUM=$((i + 1))
           COMMIT_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/$COMMIT"
-          
+
           echo ""
           echo "═══════════════════════════════════════════════"
           echo "🔧 [$COMMIT_NUM/${#COMMITS[@]}] Processing: $COMMIT_SHORT"
           echo "Target Branch: zyc2"
           echo "═══════════════════════════════════════════════"
-          
+
+          METHOD_USED=""
+
           # اختيار الطريقة
           if [[ "$METHOD" == "auto" ]]; then
-            # جرب cherry-pick أولاً، إذا فشل جرب apply
             echo "🔄 Trying cherry-pick first..."
             if git cherry-pick --no-commit "$COMMIT" 2>&1 | tee "backport_${COMMIT_SHORT}.log"; then
               METHOD_USED="cherry-pick"
             else
               git cherry-pick --abort 2>/dev/null || true
               echo "⚠️ Cherry-pick failed, trying apply-patch..."
-              
+
               curl -sL "$COMMIT_URL.patch" | git apply --reject - 2>&1 | tee -a "backport_${COMMIT_SHORT}.log"
               if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
                 METHOD_USED="apply-patch"
@@ -126,55 +129,72 @@ jobs:
                 METHOD_USED="failed"
               fi
             fi
+
           elif [[ "$METHOD" == "cherry-pick" ]]; then
-            git cherry-pick --no-commit "$COMMIT" 2>&1 | tee "backport_${COMMIT_SHORT}.log"
-            METHOD_USED="cherry-pick"
+            if git cherry-pick --no-commit "$COMMIT" 2>&1 | tee "backport_${COMMIT_SHORT}.log"; then
+              METHOD_USED="cherry-pick"
+            else
+              METHOD_USED="failed"
+            fi
+
           else
             curl -sL "$COMMIT_URL.patch" | git apply --reject - 2>&1 | tee "backport_${COMMIT_SHORT}.log"
-            METHOD_USED="apply-patch"
+            if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+              METHOD_USED="apply-patch"
+            else
+              METHOD_USED="failed"
+            fi
           fi
-          
+
+          # إذا فشل تماما
+          if [[ "$METHOD_USED" == "failed" ]]; then
+            echo "❌ Failed to apply commit: $COMMIT_SHORT"
+            FAILED+=("$COMMIT_SHORT (failed)")
+            PROCESSED=$((PROCESSED + 1))
+            continue
+          fi
+
           # التحقق من النتيجة
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "✅ Changes applied using: $METHOD_USED"
-            
-            # عمل commit
+
             git config user.name "GitHub Actions"
             git config user.email "actions@github.com"
-            
-            # تنظيف ملفات .rej
+
             find . -name "*.rej" -delete 2>/dev/null || true
-            
+
+            if [[ "$METHOD_USED" == "cherry-pick" ]]; then
+              COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2"
+            else
+              COMMIT_MSG="backport: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2 ($METHOD_USED)"
+            fi
+
             git add .
             git commit -m "$COMMIT_MSG"
-            
+
             SUCCESSFUL+=("$COMMIT_SHORT ($METHOD_USED)")
             echo "💾 Committed successfully to zyc2"
           else
             echo "📭 No changes applied"
-            
-            # إلغاء cherry-pick إذا لم يكن هناك changes
+
             if [[ "$METHOD_USED" == "cherry-pick" ]]; then
               git cherry-pick --abort 2>/dev/null || true
             fi
-            
+
             FAILED+=("$COMMIT_SHORT (no changes)")
           fi
-          
+
           PROCESSED=$((PROCESSED + 1))
-          
-          # فاصل بين الكوميتات
+
           if [[ $i -lt $((${#COMMITS[@]} - 1)) ]]; then
             echo "⏳ Waiting 2 seconds..."
             sleep 2
           fi
         done
-        
-        # حفظ النتائج
+
         echo "SUCCESS_COUNT=${#SUCCESSFUL[@]}" >> $GITHUB_OUTPUT
         echo "FAIL_COUNT=${#FAILED[@]}" >> $GITHUB_OUTPUT
-        
-        # عرض النتائج النهائية
+
         echo ""
         echo "═══════════════════════════════════════════════"
         echo "📊 FINAL RESULTS for zyc2"
@@ -182,14 +202,22 @@ jobs:
         echo "✅ Successful: ${#SUCCESSFUL[@]} commits"
         echo "❌ Failed: ${#FAILED[@]} commits"
         echo ""
-        
+
         if [[ ${#SUCCESSFUL[@]} -gt 0 ]]; then
           echo "✅ Successful commits to zyc2:"
           for item in "${SUCCESSFUL[@]}"; do
             echo "  • $item"
           done
         fi
-        
+
+        if [[ ${#FAILED[@]} -gt 0 ]]; then
+          echo ""
+          echo "❌ Failed commits:"
+          for item in "${FAILED[@]}"; do
+            echo "  • $item"
+          done
+        fi
+
     # 4. Push التغييرات إلى zyc2
     - name: 📤 Push to zyc2
       if: steps.backport.outputs.SUCCESS_COUNT > 0
@@ -200,7 +228,7 @@ jobs:
         echo ""
         echo "🌐 View updated branch:"
         echo "https://github.com/${{ github.repository }}/tree/zyc2"
-        
+
     # 5. حفظ التقارير
     - name: 📦 Save Artifacts
       uses: actions/upload-artifact@v4
