@@ -1,22 +1,39 @@
-name: 🍒 Cherry-pick 16 Commits to zyc2
+name: 🔄 Sequential Backport - Smart & Resilient
 
 on:
   workflow_dispatch:
-
+    inputs:
+      start_from:
+        description: 'Start from commit number (0-12)'
+        required: false
+        default: '0'
+      stop_after:
+        description: 'Stop after N commits (0 for all)'
+        required: false
+        default: '0'
+      force_push:
+        description: 'Use force push if needed?'
+        type: choice
+        options: ['yes', 'no']
+        default: 'no'
+  
+  push:
+    branches:
+      - zyc2
 
 jobs:
-  cherry_pick:
+  backport:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-
+    timeout-minutes: 90
+    continue-on-error: true  # ⭐ لا يتوقف إذا فشل job
+    
     steps:
-      - name: 📦 Checkout zyc2
-        uses: actions/checkout@v4
-        with:
-          repository: mahtiranaskandar-ux/kernel_xiaomi_violet
-          ref: zyc2
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+    # 1. Checkout مع تحديث تلقائي
+    - name: 📦 Checkout & Update zyc1
+      uses: actions/checkout@v4
+      with:
+        ref: zyc2
+        fetch-depth: 0
 
 
       - name: 🔗 Add LG Remote
