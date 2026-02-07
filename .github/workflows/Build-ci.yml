@@ -28,7 +28,6 @@ jobs:
     continue-on-error: true  # ⭐ لا يتوقف إذا فشل job
     
     steps:
-    # 1. Checkout مع تحديث تلقائي
     - name: 📦 Checkout & Update zyc1
       uses: actions/checkout@v4
       with:
