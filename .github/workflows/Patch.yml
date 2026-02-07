@@ -87,10 +87,10 @@ jobs:
                 git add .
                 git commit -m "patch: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
                 
-Applied from LG kernel (sm8150)
-Method: apply-patch
+                Applied from LG kernel (sm8150)
+                Method: apply-patch
 
-Original: $COMMIT_URL"
+                Original: $COMMIT_URL"
                 
                 SUCCESSFUL+=("$COMMIT_SHORT (patch)")
               else
