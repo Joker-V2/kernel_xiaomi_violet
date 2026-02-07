@@ -18,6 +18,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+
       - name: 🔗 Add LG Remote
         run: |
           git remote add lg https://github.com/sidex15/android_kernel_lge_sm8150.git || true
