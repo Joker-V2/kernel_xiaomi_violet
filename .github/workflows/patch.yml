@@ -149,16 +149,6 @@ jobs:
               ORIGINAL_MSG=$(git log --format="%B" -n 1 "$COMMIT" 2>/dev/null || echo "Backported from LG kernel")
               COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
 
-$ORIGINAL_MSG
-
-Original: $COMMIT_URL"
-            else
-              COMMIT_MSG="backport: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
-
-Applied from LG kernel (sm8150)
-Method: $METHOD_USED
-
-Original: $COMMIT_URL"
             fi
             
             git add .
