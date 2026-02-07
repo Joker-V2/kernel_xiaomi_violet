@@ -149,6 +149,16 @@ jobs:
               ORIGINAL_MSG=$(git log --format="%B" -n 1 "$COMMIT" 2>/dev/null || echo "Backported from LG kernel")
               COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
 
+$ORIGINAL_MSG
+
+Original: $COMMIT_URL"
+            else
+              COMMIT_MSG="backport: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
+
+Applied from LG kernel (sm8150)
+Method: $METHOD_USED
+
+Original: $COMMIT_URL"
             fi
             
             git add .
@@ -192,6 +202,14 @@ jobs:
         if [[ ${#SUCCESSFUL[@]} -gt 0 ]]; then
           echo "✅ Successful commits to zyc2:"
           for item in "${SUCCESSFUL[@]}"; do
+            echo "  • $item"
+          done
+        fi
+        
+        if [[ ${#FAILED[@]} -gt 0 ]]; then
+          echo ""
+          echo "❌ Failed commits:"
+          for item in "${FAILED[@]}"; do
             echo "  • $item"
           done
         fi
