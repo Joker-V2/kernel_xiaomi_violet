@@ -1,14 +1,15 @@
-name: 🍒 Cherry-pick with Patch Fallback
+name: 🍒 Blind Cherry-pick to zyc2
 
 on:
   workflow_dispatch:
   push:
     branches: zyc2
+  
 
 jobs:
-  backport:
+  blind-cherry:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     
     steps:
       - name: 📦 Checkout zyc2
@@ -24,12 +25,14 @@ jobs:
       - name: 🔗 Fetch LG Kernel
         run: |
           git remote add lg https://github.com/sidex15/android_kernel_lge_sm8150.git || true
-          git fetch lg
+          git fetch lg --depth=100
       
-      - name: 🍒 Backport Commits
-        id: backport
+      - name: 🍒 Blind Cherry-pick
         run: |
-          echo "Starting backport process..."
+          echo "🦇 BLIND CHERRY-PICK MODE"
+          echo "========================="
+          echo "⚠️  Will skip ALL conflicts automatically!"
+          echo ""
           
           COMMITS=(
             "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
@@ -51,60 +54,43 @@ jobs:
           )
           
           SUCCESS=0
-          FAILED=0
+          SKIPPED=0
           
           for i in "${!COMMITS[@]}"; do
             COMMIT="${COMMITS[$i]}"
             COMMIT_SHORT="${COMMIT:0:8}"
             COMMIT_NUM=$((i + 1))
-            COMMIT_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/$COMMIT"
             
             echo ""
-            echo "Processing [$COMMIT_NUM/16]: $COMMIT_SHORT"
+            echo "[$COMMIT_NUM/16] Trying: $COMMIT_SHORT"
             
-            # محاولة cherry-pick
+            # محاولة cherry-pick - إذا فشل يتخطى مباشرة
             if git cherry-pick "$COMMIT" 2>&1; then
-              echo "✅ Cherry-pick success"
+              echo "✅ Applied"
               ((SUCCESS++))
             else
+              echo "⏭️ Skipped (conflict)"
               git cherry-pick --abort 2>/dev/null || true
-              echo "⚠️ Cherry-pick failed, trying patch..."
-              
-              # محاولة apply patch
-              if curl -sL "$COMMIT_URL.patch" | git apply --reject - 2>&1; then
-                echo "✅ Patch success"
-                
-                # تنظيف rejects
-                find . -name "*.rej" -delete 2>/dev/null || true
-                
-                # عمل commit
-                git add .
-                git commit -m "patch: $COMMIT_SHORT"
-                
-                ((SUCCESS++))
-              else
-                echo "❌ Both methods failed"
-                git reset --hard 2>/dev/null || true
-                ((FAILED++))
-              fi
+              ((SKIPPED++))
             fi
             
+            # فاصل قصير
             if [[ $i -lt 15 ]]; then
-              sleep 1
+              sleep 0.5
             fi
           done
           
           echo ""
-          echo "Results:"
-          echo "✅ Successful: $SUCCESS"
-          echo "❌ Failed: $FAILED"
-          
-          echo "SUCCESS_COUNT=$SUCCESS" >> $GITHUB_OUTPUT
-          echo "FAIL_COUNT=$FAILED" >> $GITHUB_OUTPUT
+          echo "════════════════════════════════════════"
+          echo "📊 BLIND CHERRY-PICK RESULTS"
+          echo "════════════════════════════════════════"
+          echo "✅ Applied: $SUCCESS"
+          echo "⏭️ Skipped: $SKIPPED"
+          echo "📦 Total: 16"
+          echo "════════════════════════════════════════"
       
-      - name: 📤 Push Changes
-        if: steps.backport.outputs.SUCCESS_COUNT > 0
+      - name: 📤 Push Anyway
         run: |
-          echo "Pushing to zyc2..."
-          git push origin zyc2
-          echo "✅ Done!"
+          echo "🚀 Pushing everything to zyc2..."
+          git push origin zyc2 --force
+          echo "✅ Done! Pushed $SUCCESS commits (skipped $SKIPPED)"
