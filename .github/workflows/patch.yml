@@ -24,11 +24,11 @@ jobs:
     
     steps:
     # 1. Checkout فرع zyc2
-    - name: 📦 Checkout Xiaomi Kernel
+    - name: 📦 Checkout Xiaomi Kernel (zyc2)
       uses: actions/checkout@v4
       with:
         repository: mahtiranaskandar-ux/kernel_xiaomi_violet
-        ref: zyc2
+        ref: zyc2  # ✅ فرع zyc2
         token: ${{ secrets.GITHUB_TOKEN }}
         
     # 2. إضافة وفetch kernel LG
@@ -43,8 +43,8 @@ jobs:
     - name: 🍒 Backport 16 Commits
       id: backport
       run: |
-        echo "🎯 Complete Backport - 16 Commits"
-        echo "================================="
+        echo "🎯 Complete Backport - 16 Commits to zyc2"
+        echo "=========================================="
         
         # جميع الـ 16 كوميت مرتبة
         COMMITS=(
@@ -78,6 +78,7 @@ jobs:
         PROCESSED=0
         
         echo "📊 Configuration:"
+        echo "- Target Branch: zyc2"
         echo "- Total commits: ${#COMMITS[@]}"
         echo "- Start from: $START_FROM"
         echo "- Stop after: $(if [[ "$STOP_AFTER" == "0" ]]; then echo "all"; else echo "$STOP_AFTER"; fi)"
@@ -104,6 +105,7 @@ jobs:
           echo ""
           echo "═══════════════════════════════════════════════"
           echo "🔧 [$COMMIT_NUM/${#COMMITS[@]}] Processing: $COMMIT_SHORT"
+          echo "Target Branch: zyc2"
           echo "═══════════════════════════════════════════════"
           
           # اختيار الطريقة
@@ -145,25 +147,25 @@ jobs:
             # الحصول على الرسالة الأصلية إذا possible
             if [[ "$METHOD_USED" == "cherry-pick" ]]; then
               ORIGINAL_MSG=$(git log --format="%B" -n 1 "$COMMIT" 2>/dev/null || echo "Backported from LG kernel")
-              COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM)
+              COMMIT_MSG="cherry-pick: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
 
-           $ORIGINAL_MSG
+$ORIGINAL_MSG
 
-            Original: $COMMIT_URL"
+Original: $COMMIT_URL"
             else
-              COMMIT_MSG="backport: $COMMIT_SHORT (#$COMMIT_NUM)
+              COMMIT_MSG="backport: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
 
-            Applied from LG kernel (sm8150)
-              Method: $METHOD_USED
+Applied from LG kernel (sm8150)
+Method: $METHOD_USED
 
-            Original: $COMMIT_URL"
+Original: $COMMIT_URL"
             fi
             
             git add .
             git commit -m "$COMMIT_MSG"
             
             SUCCESSFUL+=("$COMMIT_SHORT ($METHOD_USED)")
-            echo "💾 Committed successfully"
+            echo "💾 Committed successfully to zyc2"
           else
             echo "📭 No changes applied"
             
@@ -191,35 +193,35 @@ jobs:
         # عرض النتائج النهائية
         echo ""
         echo "═══════════════════════════════════════════════"
-        echo "📊 FINAL RESULTS"
+        echo "📊 FINAL RESULTS for zyc2"
         echo "═══════════════════════════════════════════════"
         echo "✅ Successful: ${#SUCCESSFUL[@]} commits"
         echo "❌ Failed: ${#FAILED[@]} commits"
         echo ""
         
         if [[ ${#SUCCESSFUL[@]} -gt 0 ]]; then
-          echo "✅ Successful commits:"
+          echo "✅ Successful commits to zyc2:"
           for item in "${SUCCESSFUL[@]}"; do
             echo "  • $item"
           done
         fi
         
-    # 4. Push التغييرات
+    # 4. Push التغييرات إلى zyc2
     - name: 📤 Push to zyc2
       if: steps.backport.outputs.SUCCESS_COUNT > 0
       run: |
-        echo "📤 Pushing all changes..."
+        echo "📤 Pushing all changes to zyc2 branch..."
         git push origin HEAD:zyc2 --force-with-lease
-        echo "✅ All changes pushed to zyc1"
+        echo "✅ All changes pushed to zyc2"
         echo ""
         echo "🌐 View updated branch:"
-        echo "https://github.com/${{ github.repository }}/tree/zyc1"
+        echo "https://github.com/${{ github.repository }}/tree/zyc2"
         
     # 5. حفظ التقارير
     - name: 📦 Save Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: backport-16-commits-$(date +%s)
+        name: backport-16-commits-zyc2-$(date +%s)
         path: |
           backport_*.log
           *.rej
