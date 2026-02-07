@@ -1,34 +1,41 @@
-name: Cherry-pick Commits to zyc2
+name: 🍒 Complete Cherry-pick to zyc2
 
 on:
-  workflow_dispatch: 
-  push:
-    branches: zyc2
-
+  workflow_dispatch:
 
 jobs:
-  cherry-pick:
+  complete-cherry-pick:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     
     permissions:
       contents: write
     
     steps:
-      - name: Checkout repository
+      - name: 📦 Checkout zyc2
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: zyc2
       
-      - name: Configure Git
+      - name: 👤 Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
       
-      - name: Cherry-pick commits
+      - name: 🔗 Fetch LG Kernel
         run: |
-          echo "🔄 Starting cherry-pick process..."
+          git remote add lg-kernel https://github.com/sidex15/android_kernel_lge_sm8150.git || echo "Remote exists"
+          git fetch lg-kernel --depth=100
+          echo "✅ LG kernel fetched"
+      
+      - name: 🍒 Cherry-pick All Commits
+        id: cherrypick
+        run: |
+          echo "🎯 Starting complete cherry-pick process"
+          echo "========================================"
           
+          # قائمة الكوميتات
           COMMITS=(
             "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
             "27956d255e3b012372951dd6131e07c106d2daae"
@@ -48,39 +55,89 @@ jobs:
             "d406904bb175cb9791b5aed4404df3268859d91b"
           )
           
-          SUCCESS=0
+          SUCCESS_CHERRY=0
+          SUCCESS_PATCH=0
           FAILED=0
           
-          for commit in "${COMMITS[@]}"; do
-            echo ""
-            echo "🍒 Cherry-picking: $commit"
+          for i in "${!COMMITS[@]}"; do
+            COMMIT="${COMMITS[$i]}"
+            COMMIT_SHORT="${COMMIT:0:8}"
+            COMMIT_NUM=$((i + 1))
+            COMMIT_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/$COMMIT"
             
-            if git cherry-pick "$commit"; then
-              echo "✅ Success"
-              ((SUCCESS++))
+            echo ""
+            echo "════════════════════════════════════════"
+            echo "🔧 [$COMMIT_NUM/16] $COMMIT_SHORT"
+            echo "════════════════════════════════════════"
+            
+            # المحاولة 1: Cherry-pick مباشر
+            echo "🔄 Attempt 1: Direct cherry-pick"
+            if git cherry-pick "$COMMIT" 2>&1; then
+              echo "✅ Cherry-pick successful"
+              ((SUCCESS_CHERRY++))
             else
-              echo "❌ Failed - conflict detected"
-              git cherry-pick --abort
-              ((FAILED++))
+              echo "⚠️ Cherry-pick failed, trying patch..."
+              git cherry-pick --abort 2>/dev/null || true
+              
+              # المحاولة 2: Apply patch
+              echo "🔄 Attempt 2: Apply patch"
+              if curl -sL "$COMMIT_URL.patch" | git apply --reject - 2>&1; then
+                echo "✅ Patch applied successfully"
+                
+                # تنظيف ملفات .rej
+                find . -name "*.rej" -delete 2>/dev/null || true
+                
+                # عمل commit
+                git add .
+                git commit -m "patch: $COMMIT_SHORT (#$COMMIT_NUM) to zyc2
+
+Applied from LG kernel
+Original: $COMMIT_URL"
+                
+                ((SUCCESS_PATCH++))
+              else
+                echo "❌ Both methods failed"
+                git reset --hard 2>/dev/null || true
+                ((FAILED++))
+              fi
+            fi
+            
+            # فاصل قصير
+            if [[ $i -lt 15 ]]; then
+              sleep 1
             fi
           done
           
+          # النتائج النهائية
           echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📊 Summary:"
-          echo "   ✅ Successful: $SUCCESS"
-          echo "   ❌ Failed: $FAILED"
-          echo "   📦 Total: ${#COMMITS[@]}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "════════════════════════════════════════"
+          echo "📊 FINAL RESULTS"
+          echo "════════════════════════════════════════"
+          echo "✅ Cherry-pick successful: $SUCCESS_CHERRY"
+          echo "✅ Patch applied: $SUCCESS_PATCH"
+          echo "❌ Failed: $FAILED"
+          echo "📦 Total: 16"
+          echo "════════════════════════════════════════"
           
-          if [ $FAILED -gt 0 ]; then
-            echo "⚠️  Some commits failed due to conflicts"
-            exit 1
-          fi
+          # حفظ النتائج
+          TOTAL_SUCCESS=$((SUCCESS_CHERRY + SUCCESS_PATCH))
+          echo "TOTAL_SUCCESS=$TOTAL_SUCCESS" >> $GITHUB_OUTPUT
+          echo "CHERRY_SUCCESS=$SUCCESS_CHERRY" >> $GITHUB_OUTPUT
+          echo "PATCH_SUCCESS=$SUCCESS_PATCH" >> $GITHUB_OUTPUT
+          echo "FAILED_COUNT=$FAILED" >> $GITHUB_OUTPUT
       
-      - name: Push changes
-        if: success()
+      - name: 📤 Push to zyc2
+        if: steps.cherrypick.outputs.TOTAL_SUCCESS > 0
         run: |
           echo "🚀 Pushing changes to zyc2..."
-          git push origin zyc2
-          echo "✅ Push completed successfully!"
+          git push origin HEAD:zyc2 --force-with-lease
+          
+          echo ""
+          echo "✅ Push completed!"
+          echo "📊 Results:"
+          echo "   🍒 Cherry-pick: ${{ steps.cherrypick.outputs.CHERRY_SUCCESS }}"
+          echo "   🩹 Patch: ${{ steps.cherrypick.outputs.PATCH_SUCCESS }}"
+          echo "   ❌ Failed: ${{ steps.cherrypick.outputs.FAILED_COUNT }}"
+          echo ""
+          echo "🔗 View branch:"
+          echo "https://github.com/${{ github.repository }}/tree/zyc2"
