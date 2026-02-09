@@ -1,5 +1,6 @@
 name: 🛠️ Smart Patch with Reject Handling
 
+
 on:
   workflow_dispatch:
     inputs:
