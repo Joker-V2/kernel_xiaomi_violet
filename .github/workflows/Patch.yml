@@ -1,6 +1,5 @@
 Name: 🛠️ Smart Patch with Reject Handling
 
-
 on:
   workflow_dispatch:
     inputs:
@@ -15,12 +14,12 @@ on:
 
 jobs:
   pull-patch:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     
     steps:
     # 1. Checkout
-    - name: 📦 Checkout zyc1
+    - name: 📦 Checkout zyc2
       uses: actions/checkout@v4
       with:
         ref: zyc2
@@ -71,14 +70,13 @@ jobs:
       run: |
         echo "📋 Creating reject report..."
         
-        # إنشاء ملف تقرير للكوميت الجديد
         cat > REJECT_REPORT.md << EOF
         # Patch Reject Report
         ## LG Kernel → Xiaomi Kernel
         
         **Commit:** 7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a
         **Date:** $(date)
-        **Branch:** zyc1
+        **Branch:** zyc2
         
         ## Summary
         - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
@@ -87,7 +85,6 @@ jobs:
         ## Files with Rejects
         EOF
         
-        # إضافة كل ملف reject للتقرير
         find . -name "*.rej" | while read rej_file; do
           original_file="${rej_file%.rej}"
           echo "" >> REJECT_REPORT.md
@@ -95,7 +92,6 @@ jobs:
           echo "- **File:** \`$original_file\`" >> REJECT_REPORT.md
           echo "- **Reject:** \`$rej_file\`" >> REJECT_REPORT.md
           
-          # إضافة أول 5 أسطر من الـ reject
           if [ -f "$rej_file" ]; then
             echo "" >> REJECT_REPORT.md
             echo "**First 5 lines:**" >> REJECT_REPORT.md
@@ -112,51 +108,44 @@ jobs:
         echo "3. Apply changes manually" >> REJECT_REPORT.md
         echo "4. Delete \`.rej\` files after fixing" >> REJECT_REPORT.md
         
-        echo "✅ Report created: REJECT_REPORT.md"
-        
     # 4. عمل commit للتغييرات الناجحة فقط
     - name: 💾 Commit Successful Changes
       id: commit_changes
       run: |
-        # التحقق من وجود تغييرات ناجحة
         if git diff --quiet && git diff --cached --quiet; then
           echo "📭 No successful changes to commit"
           echo "HAS_SUCCESSFUL_CHANGES=false" >> $GITHUB_OUTPUT
           exit 0
         fi
         
-        # حذف ملفات .rej من staging area
         git reset HEAD *.rej 2>/dev/null || true
         
-        # إعداد git
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         
-        # عمل commit للتغييرات الناجحة بالكوميت الجديد
         git add .
-        git commit -m "Apply partial patch from LG kernel
+        git commit -m "Apply partial patch from LG kernel to zyc2
         
         Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks successfully
-        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks (need manual fix)
+        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
         
         Original commit: 7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
         
-        echo "✅ Committed successful changes"
         echo "HAS_SUCCESSFUL_CHANGES=true" >> $GITHUB_OUTPUT
         
     # 5. رفع التغييرات الناجحة
     - name: 📤 Push Successful Changes
       if: steps.commit_changes.outputs.HAS_SUCCESSFUL_CHANGES == 'true'
       run: |
-        echo "📤 Pushing successful changes..."
-        git push origin HEAD:zyc1
-        echo "✅ Pushed to zyc1"
+        echo "📤 Pushing to zyc2..."
+        git push origin HEAD:zyc2
+        echo "✅ Pushed"
         
     # 6. حفظ كل الملفات للفحص
     - name: 📦 Save All Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: patch-results-$(date +%s)
+        name: patch-results-zyc2-$(date +%s)
         path: |
           source.patch
           apply.log
