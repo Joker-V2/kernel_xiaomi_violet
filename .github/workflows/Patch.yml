@@ -1,210 +1,32 @@
-name: 💀 القحبة النهائية - Force Compatibility
+name: 🗑️ Delete Last 10 Commits
 
 on:
-  workflow_dispatch:
-  push:
-    branches: zyc2
+  workflow_dispatch: # تشغيل يدوياً للأمان
 
 jobs:
+  delete-commits:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
     steps:
-      - name: 📦 سحب الفرع بالقوة
+      - name: 📥 Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: zyc2
-          fetch-depth: 0
-      
-      - name: 👤 تزوير الهوية
+          fetch-depth: 0 # ضروري لجلب كامل السجل للقيام بالتراجع
+
+      - name: ⚙️ Reset and Force Push
         run: |
-          git config user.name "القحبة الآلية"
-          git config user.email "القحبة@github.com"
-          git config pull.rebase false
-          git config merge.ours.driver true
-      
-      - name: 🔗 خطف الكوميتات من LG
-        run: |
-          echo "🦹‍♀️ جاري اختطاف الكوميتات..."
-          git remote add الخاطف https://github.com/sidex15/android_kernel_lge_sm8150.git
-          git fetch الخاطف --depth=100
-          echo "✅ تم الاختطاف بنجاح"
-      
-      - name: 💀 عملية التوافق الإجباري
-        continue-on-error: true
-        run: |
-          echo "🔥 🔥 🔥 عملية التوافق بالقوة 🔥 🔥 🔥"
-          echo "====================================="
-          echo "⚠️  لا يوجد 'مش'، لا يوجد 'ما ينفع'"
-          echo "⚠️  الكل راح يتوافق بالقوة!"
+          # إعداد بيانات المستخدم للهوية
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+          # تأكد من أنك على الفرع الصحيح (استبدل zyc2 باسم فرعك إذا لزم الأمر)
+          git checkout zyc2
+
+          echo "جاري التراجع عن آخر 10 كوميتات..."
           
-          # الضحايا الـ 16
-          الضحايا=(
-            "7f2847d02cdc4491b5ee6d4a0043854cbd6c7a1a"
-            "27956d255e3b012372951dd6131e07c106d2daae"
-            "95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f"
-            "03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
-            "6071a482c8e603be25895cc2cac5f0eab61c4051"
-            "849ca8ce954d9dbb082dcf83c98af861e98e5635"
-            "bbd5aec12b32097a71dc6a0097194a18f3ee9a17"
-            "6f94042bed51121f8f28a5e572cda20c21fed2e1"
-            "49a5115e11350ee68f6a5fbd56b3e817bf9e5aac"
-            "37ae2444584654f6785f2cc49181f05af788c9b2"
-            "0a8cbf3725edbacc5f1ead33eeae7e4d78823b5a"
-            "4ba6dccf73a620e565803e5995d5748ecfbb56a2"
-            "ed8fd10d97a50ec424ae38a40351b5de060f9838"
-            "e784224542fab4b3888d9103a1f678015221a7d1"
-            "9ba899398576d329288b023566d3a731470ad13a"
-            "d406904bb175cb9791b5aed4404df3268859d91b"
-          )
-          
-          الناجون=0
-          المقتولون=0
-          المتحولون=0
-          
-          echo ""
-          echo "🩸 جارية معالجة 16 ضحية..."
-          echo ""
-          
-          for i in "${!الضحايا[@]}"; do
-            الضحية="${الضحايا[$i]}"
-            الاسم="${الضحية:0:8}"
-            الرقم=$((i + 1))
-            الرابط="https://github.com/sidex15/android_kernel_lge_sm8150/commit/$الضحية"
-            
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🔪 [$الرقم/16] جاري تعذيب: $الاسم"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # === المحاولة 1: شيري بيك عادي ===
-            echo "1️⃣  محاولة شيري بيك نظيفة..."
-            if git cherry-pick --allow-empty --allow-unrelated-histories "$الضحية" 2>/dev/null; then
-              echo "   ✅ نجا (شيري بيك)"
-              ((الناجون++))
-              continue
-            fi
-            
-            # === المحاولة 2: شيري بيك مع تجاهل ===
-            echo "2️⃣  شيري بيك مع تجاهل الأخطاء..."
-            git cherry-pick --abort 2>/dev/null || true
-            
-            if git cherry-pick --no-commit "$الضحية" 2>/dev/null; then
-              echo "   ✅ نجا (no-commit)"
-              git add . -f 2>/dev/null
-              git commit -m "اغتصاب: $الاسم" --allow-empty 2>/dev/null
-              ((الناجون++))
-              continue
-            fi
-            
-            # === المحاولة 3: باتش مع تعديلات ===
-            echo "3️⃣  تطبيق باتش مع تعديل..."
-            git cherry-pick --abort 2>/dev/null || true
-            git reset --hard 2>/dev/null || true
-            
-            # تحميل الباتش
-            باتش_ملف="اغتصاب_$الاسم.patch"
-            curl -sL "$الرابط.patch" -o "$باتش_ملف" 2>/dev/null
-            
-            if [ -s "$باتش_ملف" ]; then
-              # تطبيق الباتش مع تجاهل الأخطاء
-              if git apply --reject --whitespace=nowarn "$باتش_ملف" 2>/dev/null; then
-                echo "   ✅ نجا (باتش)"
-                
-                # مسح أي ملفات .rej
-                find . -name "*.rej" -exec rm -f {} \; 2>/dev/null || true
-                
-                # إضافة كل شيء
-                git add . -f 2>/dev/null
-                
-                # إذا ما في تغييرات، خليه empty
-                if git diff --cached --quiet; then
-                  git commit -m "اغتصاب فاضي: $الاسم" --allow-empty 2>/dev/null
-                else
-                  git commit -m "اغتصاب باتش: $الاسم" 2>/dev/null
-                fi
-                
-                ((الناجون++))
-                continue
-              fi
-            fi
-            
-            # === المحاولة 4: أخذ الملفات مباشرة ===
-            echo "4️⃣  خطف الملفات مباشرة..."
-            git reset --hard 2>/dev/null || true
-            
-            # جلب قائمة الملفات المعدلة في الكوميت
-            الملفات=$(git diff-tree --no-commit-id --name-only -r "$الضحية" 2>/dev/null || echo "")
-            
-            if [ -n "$الملفات" ]; then
-              echo "   📁 الملفات: $(echo $الملفات | wc -w)"
-              
-              # لكل ملف، حاول نسخ التغييرات
-              for ملف in $الملفات; do
-                if [ -f "$ملف" ]; then
-                  # حفظ النسخة الأصلية
-                  cp "$ملف" "$ملف.اصل" 2>/dev/null || true
-                  
-                  # محاولة تطبيق التغيير
-                  git show "$الضحية":"$ملف" > "$ملf.جديد" 2>/dev/null && {
-                    mv "$ملف.جديد" "$ملف" 2>/dev/null
-                    git add "$ملف" 2>/dev/null
-                  } || true
-                fi
-              done
-              
-              # إذا تم إضافة شيء، اعمل commit
-              if ! git diff --cached --quiet; then
-                echo "   ✅ نجا (نسخ ملفات)"
-                git commit -m "خطف ملفات: $الاسم" 2>/dev/null
-                ((الناجون++))
-                continue
-              fi
-            fi
-            
-            # === المحاولة 5: Empty commit على الأقل ===
-            echo "5️⃣  عمل empty commit عالأقل..."
-            git commit -m "فشل ولكن موجود: $الاسم" --allow-empty 2>/dev/null
-            echo "   ⚠️  تم إنقاذه (empty)"
-            ((المتحولون++))
-            
-          done
-          
-          # === النتائج ===
-          echo ""
-          echo "🔥 🔥 🔥 النتائج النهائية 🔥 🔥 🔥"
-          echo "================================="
-          echo "✅ الناجون (تم تطبيقهم): $الناجون"
-          echo "⚠️  المتحولون (empty): $المتحولون"
-          echo "💀 المقتولون (ما نفعوا): $((16 - الناجون - المتحولون))"
-          echo "📦 الإجمالي: 16"
-          echo ""
-          echo "🎯 نسبة النجاح: $(( (الناجون * 100) / 16 ))%"
-          echo "🎯 مع المتحولين: $(( ((الناجون + المتحولون) * 100) / 16 ))%"
-          echo "================================="
-          
-          # تنظيف
-          rm -f اغتصاب_*.patch *.اصل *.جديد 2>/dev/null || true
-      
-      - name: 💣 تفجير التغييرات
-        if: always()
-        run: |
-          echo "💣 جاري تفجير التغييرات إلى zyc2..."
-          
-          # شوف قد ايش صار
-          echo "📊 الحالة الحالية:"
-          git status --short
-          echo ""
-          echo "📈 عدد الكوميتات الجديدة:"
-          git log --oneline -20
-          
-          # تفجير
-          echo ""
-          echo "💥 تفجير..."
-          git push origin HEAD:zyc2 --force --no-verify
-          
-          echo ""
-          echo "✅ ✅ ✅ العملية اكتملت! ✅ ✅ ✅"
-          echo "🌐 الفرع: https://github.com/${{ github.repository }}/tree/zyc2"
-          echo ""
-          echo "ملاحظة: لو الكود ما يشتغل، هذا مش مشكلتي 😎"
+          # العودة للخلف بمقدار 10 خطوات
+          git reset --hard HEAD~10
+
+          # رفع التغييرات بالقوة لمسحها من السحاب (GitHub)
+          git push origin zyc2 --force
+
+          echo "✅ تم حذف آخر 10 كوميتات بنجاح!"
