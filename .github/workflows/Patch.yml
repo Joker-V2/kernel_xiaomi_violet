@@ -1,4 +1,4 @@
-Name: 🛠️ Smart Patch with Reject Handling
+name: 🛠️ Smart Patch with Reject Handling
 
 on:
   workflow_dispatch:
