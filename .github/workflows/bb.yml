@@ -1,24 +1,20 @@
-Name: 🗑️ Auto Delete Last 10 Commits
+name: 🗑️ Auto Delete Last 10 Commits
 
 on:
   workflow_dispatch:
   push:
-    branches: 
-      - zyc2
+    branches: zyc2
 
 jobs:
   ultimate-cherry:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: write # ضروري لإعطاء صلاحية الحذف والدفع بالقوة
     
     steps:
       - name: 📦 Checkout zyc2
         uses: actions/checkout@v4
         with:
           ref: zyc2
-          fetch-depth: 0 # ✅ هذا السطر سيجلب كامل السجل ليتمكن من حذف الـ 10 كوميتات
 
       - name: ⚙️ Reset and Force Push
         run: |
@@ -26,7 +22,7 @@ jobs:
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
 
-          # التبديل لفرع zyc2
+          # التبديل للفرع المراد تنظيفه (مثلاً zyc2)
           git checkout zyc2
 
           echo "⚠️ جاري حذف آخر 10 كوميتات من فرع zyc2..."
@@ -34,7 +30,7 @@ jobs:
           # التراجع 10 خطوات
           git reset --hard HEAD~10
 
-          # الدفع بالقوة لمسحهم من السيرفر
+          # الدفع بالقوة لتحديث السجل في جيت هوب
           git push origin zyc2 --force
 
-          echo "✅ تم الحذف بنجاح!"
+          echo "✅ تم التنظيف بنجاح!"
