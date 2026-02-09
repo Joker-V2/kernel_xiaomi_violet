@@ -1,0 +1,32 @@
+name: 🗑️ Delete Last 10 Commits
+
+on:
+  workflow_dispatch: # تشغيل يدوياً للأمان
+
+jobs:
+  delete-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # ضروري لجلب كامل السجل للقيام بالتراجع
+
+      - name: ⚙️ Reset and Force Push
+        run: |
+          # إعداد بيانات المستخدم للهوية
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+          # تأكد من أنك على الفرع الصحيح (استبدل zyc2 باسم فرعك إذا لزم الأمر)
+          git checkout zyc2
+
+          echo "جاري التراجع عن آخر 10 كوميتات..."
+          
+          # العودة للخلف بمقدار 10 خطوات
+          git reset --hard HEAD~10
+
+          # رفع التغييرات بالقوة لمسحها من السحاب (GitHub)
+          git push origin zyc2 --force
+
+          echo "✅ تم حذف آخر 10 كوميتات بنجاح!"
