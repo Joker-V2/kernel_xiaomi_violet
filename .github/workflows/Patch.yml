@@ -10,11 +10,11 @@ on:
   
   push:
     branches:
-      - zyc1
+      - zyc2
 
 jobs:
   pull-patch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     
     steps:
@@ -22,7 +22,7 @@ jobs:
     - name: 📦 Checkout zyc1
       uses: actions/checkout@v4
       with:
-        ref: zyc1
+        ref: zyc2
         
     # 2. تطبيق الباتش مع حفظ الـ rejects
     - name: 🛠️ Apply Patch with Rejects
