@@ -343,7 +343,7 @@ static void show_vma_header_prefix(struct seq_file *m,
 }
 
 static void
-show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
+show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct file *file = vma->vm_file;
@@ -872,7 +872,6 @@ static int show_smap(struct seq_file *m, void *v)
 		seq_puts(m, " kB\n");
 	}
 	if (!rollup_mode) {
-		arch_show_smap(m, vma);
 		show_smap_vma_flags(m, vma);
 	}
 	m_cache_vma(m, vma);
