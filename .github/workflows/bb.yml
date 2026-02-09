@@ -1,21 +1,20 @@
 name: 🗑️ Auto Delete Last 10 Commits
 
 on:
-  workflow_dispatch: # متاح للتشغيل اليدوي أيضاً
+  workflow_dispatch:
   push:
-    branches:
-      - sixteen # سيعمل السكريبت تلقائياً عند الدفع لهذا الفرع
+    branches: zyc2
 
 jobs:
-  delete-commits:
+  ultimate-cherry:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # صلاحية ضرورية لعمل الـ Force Push
+    timeout-minutes: 20
+    
     steps:
-      - name: 📥 Checkout Code
+      - name: 📦 Checkout zyc2
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: zyc2
 
       - name: ⚙️ Reset and Force Push
         run: |
