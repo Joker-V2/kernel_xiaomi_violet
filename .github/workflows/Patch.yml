@@ -1,6 +1,5 @@
 name: 🛠️ Smart Patch with Reject Handling
 
-
 on:
   workflow_dispatch:
     inputs:
@@ -25,13 +24,13 @@ jobs:
       with:
         ref: zyc2
         
-    # 2. تطبيق الباتش الجديد
+    # 2. تطبيق الباتش مع حفظ الـ rejects
     - name: 🛠️ Apply Patch with Rejects
       id: apply_patch
       run: |
-        echo "🔄 Applying patch with commit 27956d2..."
+        echo "🔄 Applying patch with reject handling..."
         
-        # URL الباتش الجديد (تم التحديث)
+        # URL الباتش الجديد (تم التعديل)
         PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/27956d255e3b012372951dd6131e07c106d2daae.patch"
         
         # تحميل الباتش
@@ -51,18 +50,26 @@ jobs:
         echo "- Rejected: $REJ_COUNT hunks"
         
         if [ "$REJ_COUNT" -gt 0 ]; then
+          echo "⚠️ Found $REJ_COUNT rejected hunks"
           echo "HAS_REJECTS=true" >> $GITHUB_OUTPUT
           echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
+          
+          # عرض ملفات الـ rejects
+          echo "📁 Reject files:"
+          find . -name "*.rej" -exec echo "  - {}" \;
         else
+          echo "✅ All patches applied successfully"
           echo "HAS_REJECTS=false" >> $GITHUB_OUTPUT
         fi
+        
         echo "APPLIED_COUNT=$APPLIED_COUNT" >> $GITHUB_OUTPUT
         
-    # 3. إنشاء تقرير للـ rejects (للكوميت الجديد)
+    # 3. إنشاء تقرير للـ rejects
     - name: 📝 Create Reject Report
       if: steps.apply_patch.outputs.HAS_REJECTS == 'true'
       run: |
         echo "📋 Creating reject report..."
+        
         cat > REJECT_REPORT.md << EOF
         # Patch Reject Report
         ## LG Kernel → Xiaomi Kernel
@@ -74,26 +81,43 @@ jobs:
         ## Summary
         - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
         - Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
+        
+        ## Files with Rejects
         EOF
         
         find . -name "*.rej" | while read rej_file; do
           original_file="${rej_file%.rej}"
-          echo -e "\n### $(basename "$original_file")\n- File: \`$original_file\`\n- Reject: \`$rej_file\`" >> REJECT_REPORT.md
-          echo -e "\n\`\`\`diff" >> REJECT_REPORT.md
-          head -15 "$rej_file" >> REJECT_REPORT.md
-          echo -e "\n\`\`\`" >> REJECT_REPORT.md
+          echo "" >> REJECT_REPORT.md
+          echo "### $(basename "$original_file")" >> REJECT_REPORT.md
+          echo "- **File:** \`$original_file\`" >> REJECT_REPORT.md
+          echo "- **Reject:** \`$rej_file\`" >> REJECT_REPORT.md
+          
+          if [ -f "$rej_file" ]; then
+            echo "" >> REJECT_REPORT.md
+            echo "**First 5 lines:**" >> REJECT_REPORT.md
+            echo '```diff' >> REJECT_REPORT.md
+            head -5 "$rej_file" >> REJECT_REPORT.md
+            echo '```' >> REJECT_REPORT.md
+          fi
         done
-
+        
+        echo "" >> REJECT_REPORT.md
+        echo "## How to Fix" >> REJECT_REPORT.md
+        echo "1. Open each \`.rej\` file" >> REJECT_REPORT.md
+        echo "2. Compare with the original file" >> REJECT_REPORT.md
+        echo "3. Apply changes manually" >> REJECT_REPORT.md
+        echo "4. Delete \`.rej\` files after fixing" >> REJECT_REPORT.md
+        
     # 4. عمل commit للتغييرات الناجحة فقط
     - name: 💾 Commit Successful Changes
       id: commit_changes
       run: |
         if git diff --quiet && git diff --cached --quiet; then
+          echo "📭 No successful changes to commit"
           echo "HAS_SUCCESSFUL_CHANGES=false" >> $GITHUB_OUTPUT
           exit 0
         fi
         
-        # استبعاد ملفات الـ rej من الكوميت
         git reset HEAD *.rej 2>/dev/null || true
         
         git config user.name "GitHub Actions"
@@ -113,15 +137,18 @@ jobs:
     - name: 📤 Push Successful Changes
       if: steps.commit_changes.outputs.HAS_SUCCESSFUL_CHANGES == 'true'
       run: |
+        echo "📤 Pushing to zyc2..."
         git push origin HEAD:zyc2
+        echo "✅ Pushed"
         
-    # 6. حفظ ملفات الـ Rejects لتحميلها وفحصها يدوياً
+    # 6. حفظ كل الملفات للفحص
     - name: 📦 Save All Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: patch-results-27956d2
+        name: patch-results-zyc2-$(date +%s)
         path: |
           source.patch
           apply.log
           *.rej
           REJECT_REPORT.md
+        retention-days: 30
