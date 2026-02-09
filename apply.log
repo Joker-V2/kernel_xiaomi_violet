@@ -1,43 +1,5 @@
-Checking patch fs/proc/base.c...
-Hunk #1 succeeded at 3750 (offset -3 lines).
-Hunk #2 succeeded at 3765 (offset -3 lines).
-Checking patch fs/proc/internal.h...
 Checking patch fs/proc/task_mmu.c...
-error: while searching for:
-#endif
-
-static void
-show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
-{
-	struct mm_struct *mm = vma->vm_mm;
-	struct file *file = vma->vm_file;
-
-error: patch failed: fs/proc/task_mmu.c:350
-Hunk #2 succeeded at 413 (offset -7 lines).
-Hunk #3 succeeded at 432 (offset -7 lines).
-Hunk #4 succeeded at 439 (offset -7 lines).
-Hunk #5 succeeded at 763 (offset -4 lines).
-Hunk #6 succeeded at 827 (offset -4 lines).
-Hunk #7 succeeded at 880 (offset -4 lines).
-Hunk #8 succeeded at 911 (offset -4 lines).
-Hunk #9 succeeded at 925 (offset -4 lines).
-Hunk #10 succeeded at 1890 (offset -157 lines).
-Hunk #11 succeeded at 1974 (offset -157 lines).
-Hunk #12 succeeded at 1994 (offset -157 lines).
-Checking patch fs/proc/task_nommu.c...
-Applied patch fs/proc/base.c cleanly.
-Applied patch fs/proc/internal.h cleanly.
-Applying patch fs/proc/task_mmu.c with 1 reject...
-Rejected hunk #1.
-Hunk #2 applied cleanly.
-Hunk #3 applied cleanly.
-Hunk #4 applied cleanly.
-Hunk #5 applied cleanly.
-Hunk #6 applied cleanly.
-Hunk #7 applied cleanly.
-Hunk #8 applied cleanly.
-Hunk #9 applied cleanly.
-Hunk #10 applied cleanly.
-Hunk #11 applied cleanly.
-Hunk #12 applied cleanly.
-Applied patch fs/proc/task_nommu.c cleanly.
+Hunk #1 succeeded at 763 (offset -4 lines).
+Hunk #2 succeeded at 773 (offset -4 lines).
+Hunk #3 succeeded at 803 (offset -4 lines).
+Applied patch fs/proc/task_mmu.c cleanly.
