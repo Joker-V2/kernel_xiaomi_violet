@@ -3,7 +3,7 @@ name: Build Kernel - Neutron Clang
 on:
   workflow_dispatch:
   push:
-    branches: [zycromerz]
+    branches: zyc2
 
 env:
   KERNEL_NAME: "xcalibur-v5.4-violet-dynamic"
@@ -22,7 +22,7 @@ jobs:
     - name: 📥 Checkout Kernel Source
       uses: actions/checkout@v4
       with:
-        ref: zycromerz
+        ref: zyc2
         fetch-depth: 1
     
     - name: ⚙️ Setup Build Environment
