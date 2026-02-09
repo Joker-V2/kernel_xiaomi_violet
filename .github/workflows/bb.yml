@@ -1,32 +1,37 @@
-name: 🗑️ Delete Last 10 Commits
+name: 🗑️ Auto Delete Last 10 Commits
 
 on:
-  workflow_dispatch: # تشغيل يدوياً للأمان
+  workflow_dispatch: # متاح للتشغيل اليدوي أيضاً
+  push:
+    branches:
+      - sixteen # سيعمل السكريبت تلقائياً عند الدفع لهذا الفرع
 
 jobs:
   delete-commits:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # صلاحية ضرورية لعمل الـ Force Push
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # ضروري لجلب كامل السجل للقيام بالتراجع
+          fetch-depth: 0
 
       - name: ⚙️ Reset and Force Push
         run: |
-          # إعداد بيانات المستخدم للهوية
+          # إعداد الهوية
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
 
-          # تأكد من أنك على الفرع الصحيح (استبدل zyc2 باسم فرعك إذا لزم الأمر)
+          # التبديل للفرع المراد تنظيفه (مثلاً zyc2)
           git checkout zyc2
 
-          echo "جاري التراجع عن آخر 10 كوميتات..."
+          echo "⚠️ جاري حذف آخر 10 كوميتات من فرع zyc2..."
           
-          # العودة للخلف بمقدار 10 خطوات
+          # التراجع 10 خطوات
           git reset --hard HEAD~10
 
-          # رفع التغييرات بالقوة لمسحها من السحاب (GitHub)
+          # الدفع بالقوة لتحديث السجل في جيت هوب
           git push origin zyc2 --force
 
-          echo "✅ تم حذف آخر 10 كوميتات بنجاح!"
+          echo "✅ تم التنظيف بنجاح!"
