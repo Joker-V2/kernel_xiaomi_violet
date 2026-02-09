@@ -6,7 +6,7 @@ on:
       commit_url:
         description: 'GitHub commit URL'
         required: false
-        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/27956d255e3b012372951dd6131e07c106d2daae'
+        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f'
   
   push:
     branches:
@@ -31,7 +31,7 @@ jobs:
         echo "🔄 Applying patch with reject handling..."
         
         # URL الباتش الجديد (تم التعديل)
-        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/27956d255e3b012372951dd6131e07c106d2daae.patch"
+        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f.patch"
         
         # تحميل الباتش
         echo "📥 Downloading patch..."
@@ -74,7 +74,7 @@ jobs:
         # Patch Reject Report
         ## LG Kernel → Xiaomi Kernel
         
-        **Commit:** 27956d255e3b012372951dd6131e07c106d2daae
+        **Commit:** 95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f
         **Date:** $(date)
         **Branch:** zyc2
         
@@ -129,7 +129,7 @@ jobs:
         Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks successfully
         Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
         
-        Original commit: 27956d255e3b012372951dd6131e07c106d2daae"
+        Original commit: 95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f"
         
         echo "HAS_SUCCESSFUL_CHANGES=true" >> $GITHUB_OUTPUT
         
