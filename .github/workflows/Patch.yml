@@ -6,6 +6,7 @@ on:
       commit_url:
         description: 'GitHub commit URL'
         required: false
+        # تم تحديث الكوميت الافتراضي هنا
         default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fbe9c40da8128cec5c69ef54755c0f38c6c'
   
   push:
@@ -18,30 +19,27 @@ jobs:
     timeout-minutes: 10
     
     steps:
-    # 1. Checkout المهيأ لفرع zyc2
+    # 1. Checkout
     - name: 📦 Checkout zyc2
       uses: actions/checkout@v4
       with:
         ref: zyc2
         
-    # 2. تطبيق الباتش مع معالجة الرفض (Rejects)
+    # 2. تطبيق الباتش مع حفظ الـ rejects
     - name: 🛠️ Apply Patch with Rejects
       id: apply_patch
       run: |
         echo "🔄 Applying patch with reject handling..."
         
-        # استخدام الكوميت المحدد حصراً
-        COMMIT_ID="03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
-        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/${COMMIT_ID}.patch"
+        # التحديث للكوميت المطلوب فقط
+        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fbe9c40da8128cec5c69ef54755c0f38c6c.patch"
         
-        echo "📥 Downloading patch from: $PATCH_URL"
+        echo "📥 Downloading patch..."
         wget -q -O source.patch "$PATCH_URL"
         
-        # محاولة تطبيق الباتش
         echo "🔧 Applying patch (allow rejects)..."
         git apply --reject source.patch 2>&1 | tee apply.log || true
         
-        # إحصاء النتائج
         REJ_COUNT=$(find . -name "*.rej" 2>/dev/null | wc -l)
         APPLIED_COUNT=$(grep -c "Applied.*cleanly" apply.log || echo 0)
         
@@ -51,30 +49,36 @@ jobs:
         
         if [ "$REJ_COUNT" -gt 0 ]; then
           echo "HAS_REJECTS=true" >> $GITHUB_OUTPUT
+          echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
         else
           echo "HAS_REJECTS=false" >> $GITHUB_OUTPUT
+          echo "REJ_COUNT=0" >> $GITHUB_OUTPUT
         fi
-        echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
         echo "APPLIED_COUNT=$APPLIED_COUNT" >> $GITHUB_OUTPUT
         
-    # 3. إنشاء تقرير الرفض
+    # 3. إنشاء تقرير للـ rejects
     - name: 📝 Create Reject Report
       if: steps.apply_patch.outputs.HAS_REJECTS == 'true'
       run: |
         cat > REJECT_REPORT.md << EOF
         # Patch Reject Report
-        **Source Commit:** 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c
-        **Target Branch:** zyc2
+        ## LG Kernel → Xiaomi Kernel
+        
+        **Commit:** 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c
+        **Date:** $(date)
+        **Branch:** zyc2
         
         ## Summary
         - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
         - Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
-        
-        ## Affected Files
         EOF
-        find . -name "*.rej" -exec echo "- {}" >> REJECT_REPORT.md \;
-
-    # 4. عمل Commit للتغييرات الناجحة فقط
+        
+        find . -name "*.rej" | while read rej_file; do
+          original_file="${rej_file%.rej}"
+          echo -e "\n### $(basename "$original_file")\n- File: \`$original_file\`\n- Reject: \`$rej_file\`" >> REJECT_REPORT.md
+        done
+        
+    # 4. عمل commit للتغييرات الناجحة فقط
     - name: 💾 Commit Successful Changes
       id: commit_changes
       run: |
@@ -84,32 +88,33 @@ jobs:
           exit 0
         fi
         
-        # استثناء ملفات الرفض من الكوميت
         git reset HEAD *.rej 2>/dev/null || true
-        
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         
         git add .
-        git commit -m "Apply partial patch: 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c
+        git commit -m "Apply partial patch from LG kernel to zyc2
         
-        Successfully applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
-        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks"
+        Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks successfully
+        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
+        
+        Original commit: 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
         
         echo "HAS_SUCCESSFUL_CHANGES=true" >> $GITHUB_OUTPUT
         
-    # 5. رفع التغييرات
-    - name: 📤 Push to zyc2
+    # 5. رفع التغييرات الناجحة
+    - name: 📤 Push Successful Changes
       if: steps.commit_changes.outputs.HAS_SUCCESSFUL_CHANGES == 'true'
       run: |
         git push origin HEAD:zyc2
         
-    # 6. حفظ النتائج كأرشيف (Artifacts)
-    - name: 📦 Save Artifacts
-      uses: upload-artifact@v4
+    # 6. حفظ الأرشيف
+    - name: 📦 Save All Artifacts
+      uses: actions/upload-artifact@v4
       with:
         name: patch-03fd2fb-results
         path: |
+          source.patch
           apply.log
           *.rej
           REJECT_REPORT.md
