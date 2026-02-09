@@ -30,7 +30,7 @@ jobs:
       run: |
         echo "🔄 Applying patch with reject handling..."
         
-        # URL الباتش الجديد (تم التعديل)
+        # URL الباتش الجديد (تم التحديث للكوميت المطلوب فقط)
         PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/95f8be4c8a86a491a1c2ac9bfe470aef9e1baa8f.patch"
         
         # تحميل الباتش
