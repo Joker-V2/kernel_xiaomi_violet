@@ -170,7 +170,6 @@ jobs:
           OBJCOPY="llvm-objcopy" \
           OBJDUMP="llvm-objdump" \
           STRIP="llvm-strip" \
-          LD="ld.lld" \
           CROSS_COMPILE="aarch64-linux-gnu-" \
           CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \
           CLANG_TRIPLE="aarch64-linux-gnu-" \
