@@ -14,7 +14,7 @@ on:
 
 jobs:
   pull-patch:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     
     steps:
@@ -38,8 +38,23 @@ jobs:
         echo "🔧 Applying patch (allow rejects)..."
         git apply --reject source.patch 2>&1 | tee apply.log || true
         
+        # حساب عدد الـ rejects بطريقة أكثر قوة
         REJ_COUNT=$(find . -name "*.rej" 2>/dev/null | wc -l)
-        APPLIED_COUNT=$(grep -c "Applied.*cleanly" apply.log || echo 0)
+        
+        # حساب عدد hunks المطبقة بطريقة مختلفة
+        APPLIED_COUNT=0
+        if [ -s apply.log ]; then
+          # محاولة قراءة التقرير من git apply
+          if grep -q "Applied patch" apply.log; then
+            APPLIED_COUNT=$(grep -o "Applied patch [0-9]*" apply.log | tail -1 | grep -o "[0-9]*" || echo 0)
+          elif grep -q "hunks FAILED" apply.log; then
+            TOTAL_HUNKS=$(grep -o "[0-9]* hunks" apply.log | head -1 | grep -o "[0-9]*")
+            FAILED_HUNKS=$(grep -o "[0-9]* hunks FAILED" apply.log | grep -o "[0-9]*")
+            if [ -n "$TOTAL_HUNKS" ] && [ -n "$FAILED_HUNKS" ]; then
+              APPLIED_COUNT=$((TOTAL_HUNKS - FAILED_HUNKS))
+            fi
+          fi
+        fi
         
         echo "📊 Results:"
         echo "- Applied cleanly: $APPLIED_COUNT hunks"
@@ -50,6 +65,8 @@ jobs:
         else
           echo "HAS_REJECTS=false" >> $GITHUB_OUTPUT
         fi
+        
+        # تعيين قيم افتراضية آمنة
         echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
         echo "APPLIED_COUNT=$APPLIED_COUNT" >> $GITHUB_OUTPUT
         
@@ -63,37 +80,61 @@ jobs:
         **Branch:** zyc2
         
         ## Summary
-        - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
-        - Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
+        - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT || 0 }} hunks
+        - Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT || 0 }} hunks
+        
+        ## Rejected Files:
         EOF
+        
         find . -name "*.rej" -exec echo "- {}" >> REJECT_REPORT.md \;
+        
+        echo "" >> REJECT_REPORT.md
+        echo "## Patch Apply Log:" >> REJECT_REPORT.md
+        echo '```' >> REJECT_REPORT.md
+        cat apply.log >> REJECT_REPORT.md 2>/dev/null || echo "No apply log available" >> REJECT_REPORT.md
+        echo '```' >> REJECT_REPORT.md
         
     # 4. عمل commit للتغييرات الناجحة فقط
     - name: 💾 Commit Successful Changes
       id: commit_changes
       run: |
+        # التحقق من وجود أي تغييرات
         if git diff --quiet && git diff --cached --quiet; then
           echo "HAS_SUCCESSFUL_CHANGES=false" >> $GITHUB_OUTPUT
+          echo "🔄 No changes to commit"
           exit 0
         fi
         
-        git reset HEAD *.rej 2>/dev/null || true
+        # إزالة ملفات .rej من staging
+        if [ -n "$(find . -name "*.rej" 2>/dev/null)" ]; then
+          git reset HEAD *.rej 2>/dev/null || true
+        fi
+        
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         
-        git add .
-        git commit -m "Apply partial patch: 4ba6dccf73a620e565803e5995d5748ecfbb56a2
+        # إضافة جميع الملفات ما عدا .rej
+        git add -A
+        git reset HEAD *.rej 2>/dev/null || true
         
-        Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
-        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks"
+        # عمل commit مع معلومات عن الباتش
+        APPLIED=${{ steps.apply_patch.outputs.APPLIED_COUNT || 0 }}
+        REJECTED=${{ steps.apply_patch.outputs.REJ_COUNT || 0 }}
+        
+        git commit -m "Apply patch: 4ba6dccf73a620e565803e5995d5748ecfbb56a2
+        
+        Applied: $APPLIED hunks
+        Rejected: $REJECTED hunks"
         
         echo "HAS_SUCCESSFUL_CHANGES=true" >> $GITHUB_OUTPUT
+        echo "✅ Successfully committed changes"
         
     # 5. رفع التغييرات الناجحة
     - name: 📤 Push Successful Changes
       if: steps.commit_changes.outputs.HAS_SUCCESSFUL_CHANGES == 'true'
       run: |
         git push origin HEAD:zyc2
+        echo "✅ Changes pushed successfully"
         
     # 6. حفظ الأرشيف
     - name: 📦 Save All Artifacts
