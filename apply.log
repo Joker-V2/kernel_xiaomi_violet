@@ -1,5 +1,4 @@
 Checking patch fs/proc/task_mmu.c...
-Hunk #1 succeeded at 763 (offset -4 lines).
-Hunk #2 succeeded at 773 (offset -4 lines).
-Hunk #3 succeeded at 803 (offset -4 lines).
+Hunk #1 succeeded at 809 (offset -4 lines).
+Hunk #2 succeeded at 878 (offset -4 lines).
 Applied patch fs/proc/task_mmu.c cleanly.
