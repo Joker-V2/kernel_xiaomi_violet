@@ -6,7 +6,7 @@ on:
       commit_url:
         description: 'GitHub commit URL'
         required: false
-        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a482c8e603be25895cc2cac5f0eab61c4051'
+        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/849ca8ce954d9dbb082dcf83c98af861e98e5635'
   
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       run: |
         echo "🔄 Applying patch with reject handling..."
         
-        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a482c8e603be25895cc2cac5f0eab61c4051.patch"
+        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/849ca8ce954d9dbb082dcf83c98af861e98e5635.patch"
         
         echo "📥 Downloading patch..."
         wget -q -O source.patch "$PATCH_URL"
@@ -59,7 +59,7 @@ jobs:
       run: |
         cat > REJECT_REPORT.md << EOF
         # Patch Reject Report
-        **Commit:** 6071a482c8e603be25895cc2cac5f0eab61c4051
+        **Commit:** 849ca8ce954d9dbb082dcf83c98af861e98e5635
         **Branch:** zyc2
         
         ## Summary
@@ -82,7 +82,7 @@ jobs:
         git config user.email "actions@github.com"
         
         git add .
-        git commit -m "Apply partial patch: 6071a482c8e603be25895cc2cac5f0eab61c4051
+        git commit -m "Apply partial patch: 849ca8ce954d9dbb082dcf83c98af861e98e5635
         
         Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
         Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks"
@@ -99,7 +99,7 @@ jobs:
     - name: 📦 Save All Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: patch-6071a48-results
+        name: patch-849ca8c-results
         path: |
           source.patch
           apply.log
