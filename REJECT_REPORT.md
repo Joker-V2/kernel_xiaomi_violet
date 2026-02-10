@@ -1,8 +1,63 @@
 # Patch Reject Report
-**Commit:** 849ca8ce954d9dbb082dcf83c98af861e98e5635
+**Commit:** 4ba6dccf73a620e565803e5995d5748ecfbb56a2
 **Branch:** zyc2
 
 ## Summary
-- Applied: 1 hunks
+- Applied: 0 hunks
 - Rejected: 1 hunks
-- ./fs/proc/task_mmu.c.rej
+
+## Rejected Files:
+- ./lib/idr.c.rej
+
+## Patch Apply Log:
+```
+Checking patch lib/idr.c...
+error: while searching for:
+#include <linux/idr.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+
+DEFINE_PER_CPU(struct ida_bitmap *, ida_bitmap);
+static DEFINE_SPINLOCK(simple_ida_lock);
+
+int idr_alloc_cmn(struct idr *idr, void *ptr, unsigned long *index,
+		  unsigned long start, unsigned long end, gfp_t gfp,
+
+error: patch failed: lib/idr.c:3
+error: while searching for:
+	if (!ida_pre_get(ida, gfp_mask))
+		return -ENOMEM;
+
+	spin_lock_irqsave(&simple_ida_lock, flags);
+	ret = ida_get_new_above(ida, start, &id);
+	if (!ret) {
+		if (id > max) {
+
+error: patch failed: lib/idr.c:465
+error: while searching for:
+			ret = id;
+		}
+	}
+	spin_unlock_irqrestore(&simple_ida_lock, flags);
+
+	if (unlikely(ret == -EAGAIN))
+		goto again;
+
+error: patch failed: lib/idr.c:475
+error: while searching for:
+	if ((int)id < 0)
+		return;
+
+	spin_lock_irqsave(&simple_ida_lock, flags);
+	ida_remove(ida, id);
+	spin_unlock_irqrestore(&simple_ida_lock, flags);
+}
+EXPORT_SYMBOL(ida_simple_remove);
+
+error: patch failed: lib/idr.c:501
+Applying patch lib/idr.c with 4 rejects...
+Rejected hunk #1.
+Rejected hunk #2.
+Rejected hunk #3.
+Rejected hunk #4.
+```

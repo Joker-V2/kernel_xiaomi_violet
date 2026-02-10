@@ -1,15 +1,49 @@
-Checking patch Documentation/ABI/testing/procfs-smaps_rollup...
-Checking patch Documentation/filesystems/proc.txt...
-Hunk #2 succeeded at 351 (offset -1 lines).
-Hunk #3 succeeded at 404 (offset -1 lines).
-Hunk #4 succeeded at 433 (offset -1 lines).
-Hunk #5 succeeded at 526 (offset -1 lines).
-Checking patch fs/proc/task_mmu.c...
-Hunk #1 succeeded at 474 (offset -7 lines).
-Hunk #2 succeeded at 533 (offset -7 lines).
-Hunk #3 succeeded at 828 (offset -4 lines).
-Hunk #4 succeeded at 886 (offset -4 lines).
-Hunk #5 succeeded at 931 (offset -4 lines).
-Applied patch Documentation/ABI/testing/procfs-smaps_rollup cleanly.
-Applied patch Documentation/filesystems/proc.txt cleanly.
-Applied patch fs/proc/task_mmu.c cleanly.
+Checking patch lib/idr.c...
+error: while searching for:
+#include <linux/idr.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+
+DEFINE_PER_CPU(struct ida_bitmap *, ida_bitmap);
+static DEFINE_SPINLOCK(simple_ida_lock);
+
+int idr_alloc_cmn(struct idr *idr, void *ptr, unsigned long *index,
+		  unsigned long start, unsigned long end, gfp_t gfp,
+
+error: patch failed: lib/idr.c:3
+error: while searching for:
+	if (!ida_pre_get(ida, gfp_mask))
+		return -ENOMEM;
+
+	spin_lock_irqsave(&simple_ida_lock, flags);
+	ret = ida_get_new_above(ida, start, &id);
+	if (!ret) {
+		if (id > max) {
+
+error: patch failed: lib/idr.c:465
+error: while searching for:
+			ret = id;
+		}
+	}
+	spin_unlock_irqrestore(&simple_ida_lock, flags);
+
+	if (unlikely(ret == -EAGAIN))
+		goto again;
+
+error: patch failed: lib/idr.c:475
+error: while searching for:
+	if ((int)id < 0)
+		return;
+
+	spin_lock_irqsave(&simple_ida_lock, flags);
+	ida_remove(ida, id);
+	spin_unlock_irqrestore(&simple_ida_lock, flags);
+}
+EXPORT_SYMBOL(ida_simple_remove);
+
+error: patch failed: lib/idr.c:501
+Applying patch lib/idr.c with 4 rejects...
+Rejected hunk #1.
+Rejected hunk #2.
+Rejected hunk #3.
+Rejected hunk #4.
