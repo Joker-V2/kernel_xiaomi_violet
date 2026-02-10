@@ -861,7 +861,6 @@ static int show_smap(struct seq_file *m, void *v)
 
 	return 0;
 }
-#undef SEQ_PUT_DEC
 
 static int show_smaps_rollup(struct seq_file *m, void *v)
 {
