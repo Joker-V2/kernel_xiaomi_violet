@@ -14,6 +14,8 @@
 #include <linux/fdtable.h>
 #include <linux/statfs.h>
 #include <linux/random.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
 #include <linux/susfs.h>
 #include "mount.h"
 
@@ -70,7 +72,7 @@ void susfs_set_i_state_on_external_dir(void __user **user_info) {
 	
 	if (info.cmd == CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH) {
 		spin_lock(&inode->i_lock);
-		set_bit(AS_FLAGS_ANDROID_DATA_ROOT_DIR, &inode->i_mapping->flags);
+		set_bit(AS_FLAGS_ANDROID_DATA_ROOT_DIR, &inode->i_state);
 		spin_unlock(&inode->i_lock);
 		strncpy(android_data_path.target_pathname, info.target_pathname, SUSFS_MAX_LEN_PATHNAME-1);
 		android_data_path.is_inited = true;
@@ -80,7 +82,7 @@ void susfs_set_i_state_on_external_dir(void __user **user_info) {
 		info.err = 0;
 	} else if (info.cmd == CMD_SUSFS_SET_SDCARD_ROOT_PATH) {
 		spin_lock(&inode->i_lock);
-		set_bit(AS_FLAGS_SDCARD_ROOT_DIR, &inode->i_mapping->flags);
+		set_bit(AS_FLAGS_SDCARD_ROOT_DIR, &inode->i_state);
 		spin_unlock(&inode->i_lock);
 		strncpy(sdcard_path.target_pathname, info.target_pathname, SUSFS_MAX_LEN_PATHNAME-1);
 		sdcard_path.is_inited = true;
@@ -179,7 +181,7 @@ void susfs_add_sus_path(void __user **user_info) {
 	}
 
 	spin_lock(&inode->i_lock);
-	set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);
+	set_bit(AS_FLAGS_SUS_PATH, &inode->i_state);
 	spin_unlock(&inode->i_lock);
 	SUSFS_LOGI("pathname: '%s', ino: '%lu', is flagged as AS_FLAGS_SUS_PATH\n", info.target_pathname, info.target_ino);
 	info.err = 0;
@@ -240,7 +242,7 @@ void susfs_add_sus_path_loop(void __user **user_info) {
 	SUSFS_LOGI("target_ino: '%lu', target_pathname: '%s', i_uid: '%u', is successfully added to LH_SUS_PATH_LOOP\n",
 				new_list->info.target_ino, new_list->target_pathname, new_list->info.i_uid);
 	spin_lock(&inode->i_lock);
-	set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);
+	set_bit(AS_FLAGS_SUS_PATH, &inode->i_state);
 	spin_unlock(&inode->i_lock);
 	SUSFS_LOGI("pathname: '%s', ino: '%lu', is flagged as AS_FLAGS_SUS_PATH\n", info.target_pathname, info.target_ino);
 	info.err = 0;
@@ -262,7 +264,7 @@ void susfs_run_sus_path_loop(uid_t uid) {
 		if (!kern_path(cursor->target_pathname, 0, &path)) {
 			inode = path.dentry->d_inode;
 			spin_lock(&inode->i_lock);
-			set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);
+			set_bit(AS_FLAGS_SUS_PATH, &inode->i_state);
 			spin_unlock(&inode->i_lock);
 			path_put(&path);
 			SUSFS_LOGI("re-flag '%s' as SUS_PATH for uid: %u\n", cursor->target_pathname, uid);
@@ -285,11 +287,11 @@ static inline bool is_i_uid_not_allowed(uid_t i_uid) {
 }
 
 bool susfs_is_base_dentry_android_data_dir(struct dentry* base) {
-	return (base && !IS_ERR(base) && base->d_inode && (base->d_inode->i_mapping->flags & BIT_ANDROID_DATA_ROOT_DIR));
+	return (base && !IS_ERR(base) && base->d_inode && (base->d_inode->i_state & BIT_ANDROID_DATA_ROOT_DIR));
 }
 
 bool susfs_is_base_dentry_sdcard_dir(struct dentry* base) {
-	return (base && !IS_ERR(base) && base->d_inode && (base->d_inode->i_mapping->flags & BIT_ANDROID_SDCARD_ROOT_DIR));
+	return (base && !IS_ERR(base) && base->d_inode && (base->d_inode->i_state & BIT_ANDROID_SDCARD_ROOT_DIR));
 }
 
 bool susfs_is_sus_android_data_d_name_found(const char *d_name) {
@@ -334,7 +336,7 @@ bool susfs_is_sus_sdcard_d_name_found(const char *d_name) {
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
 bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode) {
-	if (unlikely(inode->i_mapping->flags & BIT_SUS_PATH &&
+	if (unlikely(inode->i_state & BIT_SUS_PATH &&
 		is_i_uid_not_allowed(i_uid_into_vfsuid(idmap, inode).val)))
 	{
 		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
@@ -344,7 +346,7 @@ bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode) {
 }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 bool susfs_is_inode_sus_path(struct inode *inode) {
-	if (unlikely(inode->i_mapping->flags & BIT_SUS_PATH &&
+	if (unlikely(inode->i_state & BIT_SUS_PATH &&
 		is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(inode), inode).val)))
 	{
 		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
@@ -354,7 +356,7 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
 }
 #else
 bool susfs_is_inode_sus_path(struct inode *inode) {
-	if (unlikely(inode->i_mapping->flags & BIT_SUS_PATH &&
+	if (unlikely(inode->i_state & BIT_SUS_PATH &&
 		is_i_uid_not_allowed(inode->i_uid.val)))
 	{
 		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
@@ -369,25 +371,25 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
 /* sus_mount */
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 static DEFINE_SPINLOCK(susfs_spin_lock_sus_mount);
-bool susfs_hide_sus_mnts_for_all_procs = true; // hide sus mounts for all processes by default
+bool susfs_hide_sus_mnts_for_non_su_procs = true; // hide sus mounts for all processes by default
 
-void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info) {
-	struct st_susfs_hide_sus_mnts_for_all_procs info = {0};
+void susfs_set_hide_sus_mnts_for_non_su_procs(void __user **user_info) {
+	struct st_susfs_hide_sus_mnts_for_non_su_procs info = {0};
 
-	if (copy_from_user(&info, (struct st_susfs_hide_sus_mnts_for_all_procs __user*)*user_info, sizeof(info))) {
+	if (copy_from_user(&info, (struct st_susfs_hide_sus_mnts_for_non_su_procs __user*)*user_info, sizeof(info))) {
 		info.err = -EFAULT;
 		goto out_copy_to_user;
 	}
 	spin_lock(&susfs_spin_lock_sus_mount);
-	susfs_hide_sus_mnts_for_all_procs = info.enabled;
+	susfs_hide_sus_mnts_for_non_su_procs = info.enabled;
 	spin_unlock(&susfs_spin_lock_sus_mount);
-	SUSFS_LOGI("susfs_hide_sus_mnts_for_all_procs: %d\n", info.enabled);
+	SUSFS_LOGI("susfs_hide_sus_mnts_for_non_su_procs: %d\n", info.enabled);
 	info.err = 0;
 out_copy_to_user:
-	if (copy_to_user(&((struct st_susfs_hide_sus_mnts_for_all_procs __user*)*user_info)->err, &info.err, sizeof(info.err))) {
+	if (copy_to_user(&((struct st_susfs_hide_sus_mnts_for_non_su_procs __user*)*user_info)->err, &info.err, sizeof(info.err))) {
 		info.err = -EFAULT;
 	}
-	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS -> ret: %d\n", info.err);
+	SUSFS_LOGI("CMD_SUSFS_hide_sus_mnts_for_non_su_procs -> ret: %d\n", info.err);
 }
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
@@ -413,9 +415,9 @@ static int susfs_update_sus_kstat_inode(char *target_pathname) {
 		return 1;
 	}
 
-	if (!(inode->i_mapping->flags & BIT_SUS_KSTAT)) {
+	if (!(inode->i_state & BIT_SUS_KSTAT)) {
 		spin_lock(&inode->i_lock);
-		set_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags);
+		set_bit(AS_FLAGS_SUS_KSTAT, &inode->i_state);
 		spin_unlock(&inode->i_lock);
 	}
 	path_put(&p);
@@ -792,7 +794,7 @@ static int susfs_update_open_redirect_inode(struct st_susfs_open_redirect_hlist 
 	}
 
 	spin_lock(&inode_target->i_lock);
-	set_bit(AS_FLAGS_OPEN_REDIRECT, &inode_target->i_mapping->flags);
+	set_bit(AS_FLAGS_OPEN_REDIRECT, &inode_target->i_state);
 	spin_unlock(&inode_target->i_lock);
 
 out_path_put_target:
@@ -875,7 +877,7 @@ void susfs_add_sus_map(void __user **user_info) {
 	}
 	inode = d_inode(path.dentry);
 	spin_lock(&inode->i_lock);
-	set_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags);
+	set_bit(AS_FLAGS_SUS_MAP, &inode->i_state);
 	spin_unlock(&inode->i_lock);
 	SUSFS_LOGI("pathname: '%s', is flagged as AS_FLAGS_SUS_MAP\n", info.target_pathname);
 	info.err = 0;
@@ -1039,6 +1041,58 @@ out_copy_to_user:
 		info.err = -EFAULT;
 	}
 	SUSFS_LOGI("CMD_SUSFS_SHOW_VERSION -> ret: %d\n", info.err);
+}
+
+/* kthread for checking if /sdcard/Android/data is available */
+#define SDCARD_ANDROID_DATA_PATH "/sdcard/Android/data"
+extern void setup_selinux(const char *domain);
+extern bool susfs_is_current_ksu_domain(void);
+bool susfs_is_sdcard_android_data_decrypted __read_mostly = false;
+static struct task_struct *susfs_sdcard_monitor_thread;
+static int susfs_sdcard_monitor_fn(void *data)
+{
+	struct path path;
+	int error;
+
+	SUSFS_LOGI("Start monitoring path '%s'\n", SDCARD_ANDROID_DATA_PATH);
+
+	setup_selinux("u:r:su:s0");
+
+	if (!susfs_is_current_ksu_domain()) {
+		SUSFS_LOGE("Domain is not su, exiting the thread\n");
+		susfs_sdcard_monitor_thread = NULL;
+		return 0;
+	}
+
+	while (!kthread_should_stop()) {
+		error = kern_path(SDCARD_ANDROID_DATA_PATH, LOOKUP_FOLLOW, &path);
+
+		if (!error) {
+			SUSFS_LOGI("'%s' is now accessible\n", SDCARD_ANDROID_DATA_PATH);
+			path_put(&path);
+
+			SUSFS_LOGI("Sleeping for 5 more seconds just in case some other modules are still mounting stuff\n");
+			msleep(5000);
+
+			SUSFS_LOGI("Setting susfs_is_sdcard_android_data_decrypted to true\n");
+
+			WRITE_ONCE(susfs_is_sdcard_android_data_decrypted, true);
+			WRITE_ONCE(susfs_sdcard_monitor_thread, NULL);
+
+			return 0;
+		}
+
+		msleep(5000);
+	}
+
+	return 0;
+}
+
+void susfs_start_sdcard_monitor_fn(void) {
+	susfs_sdcard_monitor_thread = kthread_run(susfs_sdcard_monitor_fn, NULL, "susfs_sdcard_monitor");
+    if (IS_ERR(susfs_sdcard_monitor_thread)) {
+        SUSFS_LOGE("Failed to create thread susfs_sdcard_monitor\n");
+    }
 }
 
 /* susfs_init */
