@@ -1,36 +1,35 @@
-name: 🗑️ Auto Delete Last 10 Commits
+name: Cleanup Failed Runs Only
 
 on:
-  workflow_dispatch:
-  push:
-    branches: zyc2
+  workflow_dispatch: # تشغيل يدوياً
 
 jobs:
-  ultimate-cherry:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    
+  delete-failed-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
     steps:
-      - name: 📦 Checkout zyc2
-        uses: actions/checkout@v4
-        with:
-          ref: zyc2
-
-      - name: ⚙️ Reset and Force Push
+      - name: 🗑️ Delete Oldest Failed Runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          # إعداد الهوية
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-
-          # التبديل للفرع المراد تنظيفه (مثلاً zyc2)
-          git checkout zyc2
-
-          echo "⚠️ جاري حذف آخر 10 كوميتات من فرع zyc2..."
+          echo "جاري البحث عن سجلات التشغيل الفاشلة (التي تظهر باللون الأحمر)..."
           
-          # التراجع 10 خطوات
-          git reset --hard HEAD~10
+          # الفلتر هنا يستخدم --status failure لجلب الفاشلة فقط
+          # ثم tail -n 25 لجلب الأقدم منها
+          run_ids=$(gh run list -R $REPO --status failure --limit 1000 --json databaseId --jq '.[].databaseId' | tail -n 25)
 
-          # الدفع بالقوة لتحديث السجل في جيت هوب
-          git push origin zyc2 --force
+          if [ -z "$run_ids" ]; then
+            echo "✅ لا توجد سجلات فاشلة حالياً."
+            exit 0
+          fi
 
-          echo "✅ تم التنظيف بنجاح!"
+          echo "بدء حذف السجلات الفاشلة..."
+          for id in $run_ids; do
+            gh run delete $id -R $REPO
+            echo "❌ تم حذف السجل الفاشل رقم: $id"
+          done
+
+          echo "✅ انتهى التنظيف!"
