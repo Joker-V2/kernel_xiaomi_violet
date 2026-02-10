@@ -855,14 +855,13 @@ static int show_smap(struct seq_file *m, void *v)
 
 	__show_smap(m, &mss);
 
-	if (arch_pkeys_enabled())
-		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
 	show_smap_vma_flags(m, vma);
 
 	m_cache_vma(m, vma);
 
 	return 0;
 }
+#undef SEQ_PUT_DEC
 
 static int show_smaps_rollup(struct seq_file *m, void *v)
 {
@@ -888,6 +887,9 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
 	down_read(&mm->mmap_sem);
 	hold_task_mempolicy(priv);
 
+	if (!priv->mm->mmap)
+		goto out_unlock;
+
 	for (vma = priv->mm->mmap; vma; vma = vma->vm_next) {
 		smap_gather_stats(vma, &mss);
 		last_vma_end = vma->vm_end;
@@ -900,6 +902,7 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
 
 	__show_smap(m, &mss);
 
+out_unlock:
 	release_task_mempolicy(priv);
 	up_read(&mm->mmap_sem);
 	mmput(mm);
