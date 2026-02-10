@@ -6,8 +6,7 @@ on:
       commit_url:
         description: 'GitHub commit URL'
         required: false
-        # تم تحديث الكوميت الافتراضي هنا
-        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fbe9c40da8128cec5c69ef54755c0f38c6c'
+        default: 'https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a482c8e603be25895cc2cac5f0eab61c4051'
   
   push:
     branches:
@@ -31,8 +30,7 @@ jobs:
       run: |
         echo "🔄 Applying patch with reject handling..."
         
-        # التحديث للكوميت المطلوب فقط
-        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fbe9c40da8128cec5c69ef54755c0f38c6c.patch"
+        PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a482c8e603be25895cc2cac5f0eab61c4051.patch"
         
         echo "📥 Downloading patch..."
         wget -q -O source.patch "$PATCH_URL"
@@ -49,11 +47,10 @@ jobs:
         
         if [ "$REJ_COUNT" -gt 0 ]; then
           echo "HAS_REJECTS=true" >> $GITHUB_OUTPUT
-          echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
         else
           echo "HAS_REJECTS=false" >> $GITHUB_OUTPUT
-          echo "REJ_COUNT=0" >> $GITHUB_OUTPUT
         fi
+        echo "REJ_COUNT=$REJ_COUNT" >> $GITHUB_OUTPUT
         echo "APPLIED_COUNT=$APPLIED_COUNT" >> $GITHUB_OUTPUT
         
     # 3. إنشاء تقرير للـ rejects
@@ -62,28 +59,20 @@ jobs:
       run: |
         cat > REJECT_REPORT.md << EOF
         # Patch Reject Report
-        ## LG Kernel → Xiaomi Kernel
-        
-        **Commit:** 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c
-        **Date:** $(date)
+        **Commit:** 6071a482c8e603be25895cc2cac5f0eab61c4051
         **Branch:** zyc2
         
         ## Summary
         - Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
         - Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
         EOF
-        
-        find . -name "*.rej" | while read rej_file; do
-          original_file="${rej_file%.rej}"
-          echo -e "\n### $(basename "$original_file")\n- File: \`$original_file\`\n- Reject: \`$rej_file\`" >> REJECT_REPORT.md
-        done
+        find . -name "*.rej" -exec echo "- {}" >> REJECT_REPORT.md \;
         
     # 4. عمل commit للتغييرات الناجحة فقط
     - name: 💾 Commit Successful Changes
       id: commit_changes
       run: |
         if git diff --quiet && git diff --cached --quiet; then
-          echo "📭 No changes to commit"
           echo "HAS_SUCCESSFUL_CHANGES=false" >> $GITHUB_OUTPUT
           exit 0
         fi
@@ -93,12 +82,10 @@ jobs:
         git config user.email "actions@github.com"
         
         git add .
-        git commit -m "Apply partial patch from LG kernel to zyc2
+        git commit -m "Apply partial patch: 6071a482c8e603be25895cc2cac5f0eab61c4051
         
-        Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks successfully
-        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks
-        
-        Original commit: 03fd2fbe9c40da8128cec5c69ef54755c0f38c6c"
+        Applied: ${{ steps.apply_patch.outputs.APPLIED_COUNT }} hunks
+        Rejected: ${{ steps.apply_patch.outputs.REJ_COUNT }} hunks"
         
         echo "HAS_SUCCESSFUL_CHANGES=true" >> $GITHUB_OUTPUT
         
@@ -112,7 +99,7 @@ jobs:
     - name: 📦 Save All Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: patch-03fd2fb-results
+        name: patch-6071a48-results
         path: |
           source.patch
           apply.log
