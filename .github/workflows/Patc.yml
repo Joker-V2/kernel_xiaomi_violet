@@ -32,12 +32,15 @@ jobs:
         
         PATCH_URL="https://github.com/sidex15/android_kernel_lge_sm8150/commit/0a8cbf3725edbacc5f1ead33eeae7e4d78823b5a.patch"
         
+        # تحميل الباتش
         echo "📥 Downloading patch..."
         wget -q -O source.patch "$PATCH_URL"
         
+        # تطبيق الباتش مع السماح بالـ rejects
         echo "🔧 Applying patch (allow rejects)..."
         git apply --reject source.patch 2>&1 | tee apply.log || true
         
+        # حساب عدد الـ rejects
         REJ_COUNT=$(find . -name "*.rej" 2>/dev/null | wc -l)
         APPLIED_COUNT=$(grep -c "Applied.*cleanly" apply.log || echo 0)
         
