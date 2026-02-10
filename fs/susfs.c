@@ -1198,5 +1198,69 @@ void susfs_init(void) {
 	SUSFS_LOGI("susfs is initialized! version: " SUSFS_VERSION " \n");
 }
 
+/* ===== التعريفات المفقودة ===== */
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+bool susfs_is_current_ksu_domain(void) {
+    /* هذه الدالة يجب أن تعود true إذا كانت العملية الحالية في نطاق KernelSU
+     * يمكن استخدام عدة طرق للتحقق:
+     */
+    
+    // الطريقة 1: التحقق من UID (إذا كان root)
+    if (current_uid().val == 0) {
+        return true;
+    }
+    
+    // الطريقة 2: التحقق من SELinux context (إذا كان su)
+    // extern char *selinux_get_current_context(void);
+    // char *context = selinux_get_current_context();
+    // if (context && strstr(context, ":su:s0")) {
+    //     kfree(context);
+    //     return true;
+    // }
+    // if (context) kfree(context);
+    
+    // الطريقة 3: التحقق من وجود KernelSU
+    // extern bool ksu_is_su_domain(void);
+    // if (ksu_is_su_domain) {
+    //     return ksu_is_su_domain();
+    // }
+    
+    return false;
+}
+EXPORT_SYMBOL(susfs_is_current_ksu_domain);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+void try_umount(const char *mnt, int flags) {
+    struct path path;
+    int ret;
+    
+    ret = kern_path(mnt, 0, &path);
+    if (ret) {
+        SUSFS_LOGE("try_umount: path error for %s: %d\n", mnt, ret);
+        return;
+    }
+    
+    ret = do_umount(path.mnt, flags);
+    if (ret) {
+        SUSFS_LOGE("try_umount: umount failed for %s: %d\n", mnt, ret);
+    }
+    
+    path_put(&path);
+}
+EXPORT_SYMBOL(try_umount);
+#endif
+
+/* ===== نهاية التعريفات المفقودة ===== */
+
+/* susfs_init */
+void susfs_init(void) {
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+    susfs_my_uname_init();
+#endif
+    SUSFS_LOGI("susfs is initialized! version: " SUSFS_VERSION " \n");
+}
+
 /* No module exit is needed becuase it should never be a loadable kernel module */
 //void __init susfs_exit(void)
