@@ -1,2 +1,15 @@
-Checking patch include/linux/pkeys.h...
-Applied patch include/linux/pkeys.h cleanly.
+Checking patch Documentation/ABI/testing/procfs-smaps_rollup...
+Checking patch Documentation/filesystems/proc.txt...
+Hunk #2 succeeded at 351 (offset -1 lines).
+Hunk #3 succeeded at 404 (offset -1 lines).
+Hunk #4 succeeded at 433 (offset -1 lines).
+Hunk #5 succeeded at 526 (offset -1 lines).
+Checking patch fs/proc/task_mmu.c...
+Hunk #1 succeeded at 474 (offset -7 lines).
+Hunk #2 succeeded at 533 (offset -7 lines).
+Hunk #3 succeeded at 828 (offset -4 lines).
+Hunk #4 succeeded at 886 (offset -4 lines).
+Hunk #5 succeeded at 931 (offset -4 lines).
+Applied patch Documentation/ABI/testing/procfs-smaps_rollup cleanly.
+Applied patch Documentation/filesystems/proc.txt cleanly.
+Applied patch fs/proc/task_mmu.c cleanly.
