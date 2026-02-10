@@ -13,7 +13,7 @@
 #define CMD_SUSFS_SET_SDCARD_ROOT_PATH 0x55552
 #define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
 #define CMD_SUSFS_ADD_SUS_MOUNT 0x55560 /* deprecated */
-#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
+#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS 0x55561
 #define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562 /* deprecated */
 #define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 #define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
@@ -41,13 +41,13 @@
 #define TRY_UMOUNT_DEFAULT 0 /* used by susfs_try_umount() */
 #define TRY_UMOUNT_DETACH 1 /* used by susfs_try_umount() */
 
-#define DEFAULT_KSU_MNT_ID 300000 /* used by mount->mnt_id */
+#define DEFAULT_KSU_MNT_ID 500000 /* used by mount->mnt_id */
 #define DEFAULT_SUS_MNT_ID_FOR_KSU_PROC_UNSHARE 1000000 /* used by vfsmount->susfs_mnt_id_backup */
-#define DEFAULT_KSU_MNT_GROUP_ID 3000 /* used by mount->mnt_group_id */
+#define DEFAULT_KSU_MNT_GROUP_ID 5000 /* used by mount->mnt_group_id */
 
 /*
  * mount->mnt.susfs_mnt_id_backup => storing original mount's mnt_id
- * inode->i_mapping->flags => A 'unsigned long' type storing flag 'AS_FLAGS_', bit 1 to 31 is not usable since 6.12
+ * inode->i_state => A 'unsigned long' type storing flag 'AS_FLAGS_', bit 1 to 31 is not usable since 6.12
  * nd->state => storing flag 'ND_STATE_'
  * nd->flags => storing flag 'ND_FLAGS_'
  * task_struct->thread_info.flags => storing flag 'TIF_'
