@@ -27,9 +27,21 @@
 #include <linux/bootmem.h>
 #include <linux/task_work.h>
 #include <linux/sched/task.h>
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+#include <linux/susfs_def.h>
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 #include "pnode.h"
 #include "internal.h"
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+extern bool susfs_is_current_ksu_domain(void);
+extern bool susfs_is_boot_completed_triggered;
+
+static DEFINE_IDA(susfs_ksu_mnt_group_ida);
+static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
+
+#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
@@ -109,6 +121,20 @@ static int mnt_alloc_id(struct mount *mnt)
 
 static void mnt_free_id(struct mount *mnt)
 {
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	// First we have to check if susfs_mnt_id_backup == DEFAULT_KSU_MNT_ID,
+	// if so, no need to free.
+	if (mnt->mnt.susfs_mnt_id_backup == DEFAULT_KSU_MNT_ID) {
+		return;
+	}
+
+	// Second if susfs_mnt_id_backup was set after mnt_id reorder, free it if so.
+	if (likely(mnt->mnt.susfs_mnt_id_backup)) {
+		ida_free(&mnt_id_ida, mnt->mnt.susfs_mnt_id_backup);
+		return;
+	}
+
+#endif
 	ida_free(&mnt_id_ida, mnt->mnt_id);
 }
 
