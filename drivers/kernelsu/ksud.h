@@ -36,4 +36,6 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 			     struct user_arg_ptr *argv,
 			     struct user_arg_ptr *envp, int *flags);
 
+void ksu_handle_sys_read(unsigned int fd, char __user *buf, size_t *count);
+
 #endif
