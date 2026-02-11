@@ -37,4 +37,8 @@ static inline int endswith(const char *s, const char *t)
 
 extern struct cred *ksu_cred;
 
+#if defined(CONFIG_KSU_MANUAL_HOOK) || defined(CONFIG_KSU_SUSFS)
+extern bool ksu_vfs_read_hook;
+#endif
+
 #endif
