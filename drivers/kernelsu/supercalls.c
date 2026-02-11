@@ -11,6 +11,12 @@
 #include <linux/task_work.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/namei.h>
+#include <linux/susfs.h>
+#include "objsec.h"
+#endif // #ifdef CONFIG_KSU_SUSFS
+
 #include <linux/utsname.h> // utsname() and uts_sem
 
 #include "supercalls.h"
@@ -26,6 +32,10 @@
 #include "selinux/selinux.h"
 #include "file_wrapper.h"
 #include "syscall_hook_manager.h"
+
+#ifdef CONFIG_KSU_SUSFS
+bool susfs_is_boot_completed_triggered __read_mostly = false;
+#endif // #ifdef CONFIG_KSU_SUSFS
 
 #include "tiny_sulog.c"
 
@@ -119,6 +129,9 @@ static int do_report_event(void __user *arg)
 			boot_complete_lock = true;
 			pr_info("boot_complete triggered\n");
 			on_boot_completed();
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+            susfs_is_boot_completed_triggered = true;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 		}
 		break;
 	}
