@@ -516,7 +516,7 @@ bool is_init_rc(struct file *fp)
 	return true;
 }
 
-void ksu_handle_sys_read(unsigned int fd, char __user *buf, size_t *count)
+int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr, size_t *count_ptr)
 {
 	struct file *file = fget(fd);
 #if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_MANUAL_HOOK) ||     \
