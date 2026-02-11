@@ -1005,7 +1005,7 @@ void ksu_supercalls_init(void)
 		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
 	}
 
-#ifdef KSU_KPROBES_HOOK
+#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
 	int rc = register_kprobe(&reboot_kp);
 	if (rc) {
 		pr_err("reboot kprobe failed: %d\n", rc);
@@ -1018,9 +1018,11 @@ void ksu_supercalls_init(void)
 }
 
 void ksu_supercalls_exit(void){
-#ifdef KSU_KPROBES_HOOK
+#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
 	unregister_kprobe(&reboot_kp);
-#endif
+#else
+    pr_info("susfs: do nothing\n");
+#endif // #ifndef CONFIG_KSU_SUSFS
 }
 
 // IOCTL dispatcher
