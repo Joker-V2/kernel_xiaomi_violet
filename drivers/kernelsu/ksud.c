@@ -83,6 +83,7 @@ static void stop_input_hook(void);
 #if defined(CONFIG_KSU_MANUAL_HOOK) || defined(CONFIG_KSU_SUSFS)
 bool ksu_init_rc_hook __read_mostly = true;
 bool ksu_execveat_hook __read_mostly = true;
+bool ksu_vfs_read_hook __read_mostly = true;
 bool ksu_input_hook __read_mostly = true;
 #endif // #ifndef CONFIG_KSU_SUSFS
 
