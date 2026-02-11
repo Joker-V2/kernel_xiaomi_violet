@@ -39,6 +39,14 @@ asmlinkage long compat_sys_sync_file_range2_wrapper(void);
 asmlinkage long compat_sys_fallocate_wrapper(void);
 asmlinkage long compat_sys_mmap2_wrapper(void);
 
+/* Stub for sys_move_mount - not available in kernel 4.9 */
+asmlinkage long sys_move_mount(int from_dfd, const char __user *from_pathname,
+			       int to_dfd, const char __user *to_pathname,
+			       unsigned int flags)
+{
+	return -ENOSYS;  /* Function not implemented */
+}
+
 #undef __SYSCALL
 #define __SYSCALL(nr, sym)	[nr] = sym,
 
