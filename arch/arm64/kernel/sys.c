@@ -45,6 +45,14 @@ SYSCALL_DEFINE1(arm64_personality, unsigned int, personality)
 	return sys_personality(personality);
 }
 
+/* Stub for sys_move_mount - not available in kernel 4.9 */
+asmlinkage long sys_move_mount(int from_dfd, const char __user *from_pathname,
+			       int to_dfd, const char __user *to_pathname,
+			       unsigned int flags)
+{
+	return -ENOSYS;  /* Function not implemented */
+}
+
 /*
  * Wrappers to pass the pt_regs argument.
  */
