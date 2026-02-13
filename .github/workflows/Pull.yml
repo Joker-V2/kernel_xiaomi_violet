@@ -1,40 +1,44 @@
 name: Pull KernelSU-Next to zyc4 Branch
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - zyc4
 
 jobs:
-  pull-ksu:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
+    
     steps:
-      - name: Checkout Kernel Source (Branch zyc4)
+      - name: 📥 Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          ref: zyc4  # التأكد من العمل على الفرع المطلوب
-          fetch-depth: 0
+          ref: zyc4
+          fetch-depth: 0 # تم ضبطه على 0 للسماح بالـ Push لاحقاً
 
-      - name: Clean and Pull KernelSU Directory
+      - name: 🛠️ Clean and Pull KernelSU Directory
         run: |
-          # 1. تنظيف أي ملفات قديمة في المسار المستهدف
+          # 1. تنظيف المجلد المستهدف لضمان عدم وجود ملفات قديمة
           rm -rf drivers/kernelsu
           mkdir -p drivers/kernelsu
 
-          # 2. سحب المجلد المحدد من مستودع KernelSU-Next (فرع legacy-susfs)
+          # 2. سحب المجلد المحدد من مستودع KernelSU-Next فرع legacy-susfs
           git clone --depth 1 -b legacy-susfs --filter=blob:none --sparse https://github.com/sidex15/KernelSU-Next.git temp_ksu
           cd temp_ksu
           git sparse-checkout set kernel/
           
-          # 3. نقل المحتويات فقط إلى drivers/kernelsu
+          # 3. نقل المحتويات (ملفات الكود) مباشرة إلى drivers/kernelsu
           cp -r kernel/* ../drivers/kernelsu/
           cd ..
           rm -rf temp_ksu
 
-          echo "✅ Files pulled successfully to drivers/kernelsu on branch zyc4"
+          echo "✅ تم سحب الملفات بنجاح إلى drivers/kernelsu"
 
-      - name: Commit and Push to zyc4
+      - name: 📤 Commit and Push Changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add drivers/kernelsu
-          # تجنب الخطأ في حال لم تتغير الملفات
-          git commit -m "Integrated KernelSU-Next (legacy-susfs) into zyc4 branch" || echo "No changes to commit"
+          # تجنب توقف السكريبت إذا لم تكن هناك تغييرات جديدة
+          git commit -m "Auto-update KernelSU-Next from legacy-susfs" || echo "No changes to commit"
           git push origin zyc4
