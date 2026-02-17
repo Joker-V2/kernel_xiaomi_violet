@@ -282,7 +282,7 @@ static __poll_t ringbuf_map_poll(struct bpf_map *map, struct file *filp,
 	poll_wait(filp, &rb_map->rb->waitq, pts);
 
 	if (ringbuf_avail_data_sz(rb_map->rb))
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 

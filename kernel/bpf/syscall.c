@@ -677,7 +677,7 @@ static __poll_t bpf_map_poll(struct file *filp, struct poll_table_struct *pts)
 	if (map->ops->map_poll)
 		return map->ops->map_poll(map, filp, pts);
 
-	return EPOLLERR;
+	return POLLERR;
 }
 
 const struct file_operations bpf_map_fops = {
