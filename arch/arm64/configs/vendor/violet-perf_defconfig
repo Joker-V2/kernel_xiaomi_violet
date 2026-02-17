@@ -5860,6 +5860,10 @@ CONFIG_SBITMAP=y
 # CONFIG_STRING_SELFTEST is not set
 
 #
+# Tech packages
+#
+
+#
 # Techpack audio options
 #
 # CONFIG_AFE_HWDEP is not set
@@ -5946,6 +5950,12 @@ CONFIG_WCD_DSP_GLINK=y
 CONFIG_WSA_MACRO=y
 
 #
+# RmNet extensions
+#
+CONFIG_RMNET_PERF=m
+CONFIG_RMNET_SHS=m
+
+#
 # Xiaomi configuration options
 #
 CONFIG_MACH_XIAOMI=y
@@ -5955,3 +5965,15 @@ CONFIG_MACH_XIAOMI_SM6150=y
 # Xiaomi board selection
 #
 CONFIG_MACH_XIAOMI_F7B=y
+
+#
+# Tech packages
+#
+
+#
+# Techpack audio options
+#
+
+#
+# RmNet extensions
+#
