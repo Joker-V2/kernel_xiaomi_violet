@@ -63,7 +63,7 @@
 &soc {
 	qcom,msm-thermal-simple {
 		compatible = "qcom,msm-thermal-simple";
-		qcom,poll-ms = <3000>;
+		qcom,poll-ms = <1000>;
 		qcom,start-delay = <5>;
 
 		zone@0 {
@@ -75,30 +75,30 @@
 
 		zone@1 {
 			reg = <1>;
-			qcom,silver-khz = <1593600>;
+			qcom,silver-khz = <1708800>;
 			qcom,gold-khz = <1708800>;
-			qcom,trip-deg = <70000>;
+			qcom,trip-deg = <69000>;
 		};
 
 		zone@2 {
 			reg = <2>;
 			qcom,silver-khz = <1593600>;
-			qcom,gold-khz = <1363200>;
-			qcom,trip-deg = <73500>;
+			qcom,gold-khz = <1593600>;
+			qcom,trip-deg = <72000>;
 		};
 
 		zone@3 {
 			reg = <3>;
-			qcom,silver-khz = <1363200>;
-			qcom,gold-khz = <1209600>;
-			qcom,trip-deg = <76500>;
+			qcom,silver-khz = <1478400>;
+			qcom,gold-khz = <1363200>;
+			qcom,trip-deg = <76000>;
 		};
 
 		zone@4 {
 			reg = <4>;
 			qcom,silver-khz = <1363200>;
-			qcom,gold-khz = <1017600>;
-			qcom,trip-deg = <85500>;
+			qcom,gold-khz = <1209600>;
+			qcom,trip-deg = <80000>;
 		};
 	};
 };
