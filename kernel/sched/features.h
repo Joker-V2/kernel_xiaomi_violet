@@ -82,6 +82,40 @@ SCHED_FEAT(RT_RUNTIME_SHARE, false)
 SCHED_FEAT(LB_MIN, false)
 SCHED_FEAT(ATTACH_AGE_LOAD, true)
 
+/*
+ * Advance detach_tasks()' scan window by rotating the examined block to the
+ * head of cfs_tasks, instead of moving each rejected task there one by one.
+ *
+ * Both schemes give the same coverage -- a later balance pass resumes where
+ * the previous one stopped -- but the per-reject move costs one list
+ * operation per rejected task under rq_lock, where a block rotation costs
+ * one per scan.  It also keeps the list order independent of migration
+ * outcome, which the per-reject move does not.
+ *
+ * Turn off to get the upstream per-reject list_move() behaviour.
+ */
+SCHED_FEAT(LB_ROTATE_BLOCK, true)
+
+/*
+ * Compare a migration candidate's cost against the remaining imbalance budget
+ * directly, instead of relaxing the comparison by halving the apparent cost.
+ *
+ * The default relaxation halves the candidate's apparent cost, so a task up
+ * to twice the budget is eventually let through regardless of how the
+ * imbalance was built.  A steady supply of cheap-to-move tasks means the
+ * scan never reaches those candidates at all: they are considered only once
+ * nothing cheaper is left.
+ *
+ * Dropping the relaxation alone would leave a task larger than the imbalance
+ * permanently unmovable; detach_tasks() replaces the implicit guarantee with
+ * an explicit one -- a scan that admits nothing concedes to the smallest
+ * overshoot it saw.  That asks the candidates actually present instead of a
+ * blanket halving, and it acts on the first scan that admits nothing.
+ *
+ * Turn off to get the old (cost / 2) relaxation.
+ */
+SCHED_FEAT(LB_STRICT_BUDGET, true)
+
 SCHED_FEAT(WA_IDLE, true)
 SCHED_FEAT(WA_WEIGHT, true)
 SCHED_FEAT(WA_BIAS, true)

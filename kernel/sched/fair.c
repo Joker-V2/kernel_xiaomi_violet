@@ -9112,6 +9112,9 @@ enum group_type {
 #define LBF_NEED_BREAK	0x02
 #define LBF_DST_PINNED  0x04
 #define LBF_SOME_PINNED	0x08
+/* This balance operation has detached at least one task. Sticky across the
+ * more_balance retries, so it reflects the whole operation, not one scan. */
+#define LBF_MOVED		0x40
 #define LBF_IGNORE_BIG_TASKS 0x100
 #define LBF_IGNORE_PREFERRED_CLUSTER_TASKS 0x200
 
@@ -9399,6 +9402,62 @@ static struct task_struct *detach_one_task(struct lb_env *env)
 
 static const unsigned int sched_nr_migrate_break = 32;
 
+#define SCHED_CAMBYSES_AUTHOR	"Masahito Suzuki"
+#define SCHED_CAMBYSES_PROGNAME	"Cambyses CFS Load Balancer modification"
+
+#define SCHED_CAMBYSES_VERSION	"0.6.0"
+
+static int __init sched_cambyses_init(void)
+{
+	printk(KERN_INFO "%s %s by %s\n",
+		SCHED_CAMBYSES_PROGNAME, SCHED_CAMBYSES_VERSION,
+		SCHED_CAMBYSES_AUTHOR);
+
+	return 0;
+}
+late_initcall(sched_cambyses_init);
+
+/*
+ * The cheapest candidate a scan passed over because it did not fit the
+ * remaining imbalance budget.  If the scan ends up taking nothing at all,
+ * detach_tasks() concedes to this one so the balance still makes progress.
+ *
+ * Scoped to a single detach_tasks() call on purpose: the rq lock is dropped
+ * between the caller's more_balance retries, so a task remembered across them
+ * could be gone by the time it is used.  With the default nr_migrate the scan
+ * is not chunked at all (loop_max <= loop_break, so the loop_max break always
+ * wins) and this is the cheapest overshoot on the whole runqueue anyway.
+ */
+struct lb_concession {
+	struct task_struct	*p;
+	unsigned long		cost;
+};
+
+/*
+ * Does moving @p, costing @cost, fit the remaining imbalance budget?
+ *
+ * LB_STRICT_BUDGET compares directly and notes the smallest overshoot seen so
+ * far.  Without it, the cost is halved and compared against the budget; see
+ * features.h for why that relaxation leaves oversized candidates stranded
+ * behind a steady supply of cheap-to-move tasks.
+ */
+static bool lb_cost_fits(struct lb_env *env, struct lb_concession *concession,
+			 struct task_struct *p, unsigned long cost)
+{
+	if (!sched_feat(LB_STRICT_BUDGET))
+		return (cost / 2) <= env->imbalance;
+
+	if (cost <= env->imbalance)
+		return true;
+
+	if (!concession->p || cost < concession->cost) {
+		concession->p = p;
+		concession->cost = cost;
+	}
+
+	return false;
+}
+
 /*
  * detach_tasks() -- tries to detach up to imbalance weighted load from
  * busiest_rq, as part of a balancing operation within domain "sd".
@@ -9408,7 +9467,9 @@ static const unsigned int sched_nr_migrate_break = 32;
 static int detach_tasks(struct lb_env *env)
 {
 	struct list_head *tasks = &env->src_rq->cfs_tasks;
-	struct task_struct *p;
+	struct lb_concession concession = { NULL, 0 };
+	struct list_head *resume = NULL;
+	struct task_struct *p, *nextp;
 	unsigned long load = 0;
 	int detached = 0;
 	int orig_loop = env->loop;
@@ -9425,27 +9486,54 @@ static int detach_tasks(struct lb_env *env)
 		env->flags |= LBF_IGNORE_BIG_TASKS;
 
 redo:
-	while (!list_empty(tasks)) {
+	concession.p = NULL;
+	concession.cost = 0;
+	resume = NULL;
+
+	/*
+	 * Walk cfs_tasks from the head towards the tail.
+	 *
+	 * @nextp is latched before the body runs because a successful
+	 * detach_task() takes @p off this list.  Only @p is ever removed
+	 * here and the rq lock is held throughout, so @nextp stays valid.
+	 *
+	 * @resume tracks the first task this pass has not examined; it is
+	 * the point a later pass should restart from.
+	 */
+	for (p = list_first_entry(tasks, struct task_struct, se.group_node);
+	     &p->se.group_node != tasks; p = nextp) {
+		nextp = list_entry(p->se.group_node.next,
+				   struct task_struct, se.group_node);
+
 		/*
 		 * We don't want to steal all, otherwise we may be treated likewise,
 		 * which could at worst lead to a livelock crash.
 		 */
-		if (env->idle != CPU_NOT_IDLE && env->src_rq->nr_running <= 1)
+		if (env->idle != CPU_NOT_IDLE && env->src_rq->nr_running <= 1) {
+			resume = &p->se.group_node;
 			break;
-
-		p = list_first_entry(tasks, struct task_struct, se.group_node);
+		}
 
 		env->loop++;
 		/* We've more or less seen every task there is, call it quits */
-		if (env->loop > env->loop_max)
+		if (env->loop > env->loop_max) {
+			resume = &p->se.group_node;
 			break;
+		}
 
 		/* take a breather every nr_migrate tasks */
 		if (env->loop > env->loop_break) {
 			env->loop_break += sched_nr_migrate_break;
 			env->flags |= LBF_NEED_BREAK;
+			resume = &p->se.group_node;
 			break;
 		}
+
+		/*
+		 * From here on @p counts as examined, whatever the outcome:
+		 * a later pass resumes past it rather than looking again.
+		 */
+		resume = &nextp->se.group_node;
 
 		if (!can_migrate_task(p, env))
 			goto next;
@@ -9463,9 +9551,11 @@ redo:
 		if (sched_feat(LB_MIN) && load < 16 && !env->sd->nr_balance_failed)
 			goto next;
 
-		if ((load / 2) > env->imbalance)
+		/* Make sure that we don't migrate too much load. */
+		if (!lb_cost_fits(env, &concession, p, load))
 			goto next;
 
+		env->flags |= LBF_MOVED;
 		detach_task(p, env);
 		list_add(&p->se.group_node, &env->tasks);
 
@@ -9494,8 +9584,55 @@ next:
 		trace_sched_load_balance_skip_tasks(env->src_cpu, env->dst_cpu,
 				env->src_grp_type, p->pid, load, task_util(p),
 				cpumask_bits(&p->cpus_allowed)[0]);
-		list_move_tail(&p->se.group_node, tasks);
+		if (!sched_feat(LB_ROTATE_BLOCK))
+			list_move_tail(&p->se.group_node, tasks);
 	}
+
+	/*
+	 * Nothing fit the budget and nothing has moved yet, so concede to the
+	 * smallest overshoot the scan found rather than leave the imbalance
+	 * standing.  An over-budget task would otherwise never move: nothing
+	 * escalates to active balancing for a plain load imbalance.
+	 *
+	 * This is the whole reason LB_STRICT_BUDGET can drop the halving
+	 * relaxation.  Both exist to guarantee progress; this one asks the
+	 * candidates present rather than a blanket cost cut, and it acts on
+	 * the first scan that admits nothing instead of leaving oversize tasks
+	 * permanently stranded behind cheaper ones.
+	 *
+	 * LBF_MOVED makes it fire at most once per balance operation.  The
+	 * source cannot have been emptied meanwhile: the entry check above
+	 * runs on every call and rejects nr_running <= 1, and no task has been
+	 * detached since.  Done before the rotation below because it takes a
+	 * node off the list that the rotation would otherwise anchor on.
+	 */
+	if (concession.p && !(env->flags & LBF_MOVED)) {
+		detach_task(concession.p, env);
+		list_add(&concession.p->se.group_node, &env->tasks);
+
+		env->imbalance -= concession.cost;
+		env->flags |= LBF_MOVED;
+		detached++;
+	}
+
+	/*
+	 * Advance the scan window as a block.
+	 *
+	 * @resume is the first unexamined task, and the subset from it to the
+	 * old tail is exactly what this pass did not look at.  Making @resume
+	 * the new head is what a rotation does, so the surviving rejects
+	 * between the head and @resume move to the tail together, keeping
+	 * their relative order, and a later pass resumes where this one left
+	 * off.
+	 *
+	 * Two cases need no rotation and the guards below cover both: the
+	 * walk reached the tail (@resume is the list itself, everything was
+	 * examined), or nothing was examined at all (@resume is the first
+	 * entry, so it is already in front).
+	 */
+	if (sched_feat(LB_ROTATE_BLOCK) && resume &&
+	    resume != tasks && resume->prev != tasks)
+		list_rotate_to_front(resume, tasks);
 
 	if (env->flags & (LBF_IGNORE_BIG_TASKS |
 			LBF_IGNORE_PREFERRED_CLUSTER_TASKS) && !detached) {
