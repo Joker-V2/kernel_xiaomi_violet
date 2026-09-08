@@ -249,6 +249,24 @@ config CPU_FREQ_GOV_REFLEX
 
           If in doubt, say M.
 
+config CPU_FREQ_GOV_VORPAL
+	tristate "'vorpal' cpufreq policy governor"
+	depends on CPU_FREQ && SMP && CPU_FREQ_GOV_SCHEDUTIL
+	select CPU_FREQ_GOV_ATTR_SET
+	select IRQ_WORK
+	help
+	  Vorpal is a schedutil-derived governor with a tri-cluster aware
+	  frequency shape. It drives frequency from a policy-wide EMA of
+	  boosted schedutil throughput, applies per-cluster floors and caps
+	  as percentages of the effective thermal ceiling, and recognizes
+	  two profiles: gaming (high band with a warmup ramp) and daily
+	  (ceiling-relative caps with sustained-load cap lift).
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cpufreq_vorpal.
+
+	  If in doubt, say N.
+
 config CPU_FREQ_GOV_INTERACTIVE
 	tristate "'interactive' cpufreq policy governor"
 	depends on CPU_FREQ
