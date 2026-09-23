@@ -5173,6 +5173,51 @@ CONFIG_ESOC_MDM_DBG_ENG=y
 # CONFIG_MDM_DBG_REQ_ENG is not set
 
 #
+# KernelSU
+#
+CONFIG_KSU=y
+# CONFIG_KSU_DEBUG is not set
+# CONFIG_KSU_TOOLKIT_SUPPORT is not set
+CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@%REPO_NAME%"
+# CONFIG_KSU_DISABLE_MANAGER is not set
+# CONFIG_KSU_DISABLE_POLICY is not set
+CONFIG_KSU_MULTI_MANAGER_SUPPORT=y
+# CONFIG_KSU_TRACEPOINT_HOOK is not set
+CONFIG_KSU_MANUAL_HOOK=y
+# CONFIG_KSU_SUSFS is not set
+
+#
+# KernelSU - Manual Hook Auto hook
+#
+
+#
+# ------------------------WARNING-------------------------------
+#
+
+#
+# ReSukiSU will check EVERY hooks in kernel compile process
+#
+
+#
+# If anything mismatch with document, Kernel compile maybe FAILED!
+#
+
+#
+# See document if you face any compile failed due to hook check
+#
+
+#
+# Document: https://resukisu.org/guide/manual-integrate.html
+#
+
+#
+# --------------------------------------------------------------
+#
+CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y
+CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y
+CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y
+
+#
 # Firmware Drivers
 #
 CONFIG_ARM_PSCI_FW=y
