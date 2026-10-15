@@ -493,10 +493,14 @@
 			Specifying "pressure" disables per-cgroup pressure
 			stall information accounting feature
 
-	cgroup_no_v1=	[KNL] Disable one, multiple, all cgroup controllers in v1
-			Format: { controller[,controller...] | "all" }
+	cgroup_no_v1=	[KNL] Disable cgroup controllers and named hierarchies in v1
+			Format: { { controller | "all" | "named" }
+			          [,{ controller | "all" | "named" }...] }
 			Like cgroup_disable, but only applies to cgroup v1;
 			the blacklisted controllers remain available in cgroup2.
+			"all" blacklists all controllers and "named" disables
+			named mounts. Specifying both "all" and "named" disables
+			all v1 hierarchies.
 
 	cgroup.memory=	[KNL] Pass options to the cgroup memory controller.
 			Format: <string>
@@ -2938,6 +2942,21 @@
 			interrupt wake-up latency, which may improve performance
 			in certain environments such as networked servers or
 			real-time systems.
+
+	no_hash_pointers
+			Force pointers printed to the console or buffers to be
+			unhashed.  By default, when a pointer is printed via %p
+			format string, that pointer is "hashed", i.e. obscured
+			by hashing the pointer value.  This is a security feature
+			that hides actual kernel addresses from unprivileged
+			users, but it also makes debugging the kernel more
+			difficult since unequal pointers can no longer be
+			compared.  However, if this command-line option is
+			specified, then all normal pointers will have their true
+			value printed.  Pointers printed via %pK may still be
+			hashed.  This option should only be specified when
+			debugging the kernel.  Please do not use on production
+			kernels.
 
 	nohibernate	[HIBERNATION] Disable hibernation and resume.
 
